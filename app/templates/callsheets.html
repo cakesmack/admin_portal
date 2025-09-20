@@ -1,0 +1,111 @@
+{% extends "base.html" %} {% block content %}
+<h2>Call Sheets</h2>
+<p class="text-muted">Manage customer call reminders and track orders</p>
+
+<div class="card mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5>Weekly Call Sheet - October 2023</h5>
+    <div>
+      <button class="btn btn-sm btn-outline-secondary me-2">
+        Previous Week
+      </button>
+      <button class="btn btn-sm btn-outline-secondary">Next Week</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead>
+          <tr>
+            <th>Account Number</th>
+            <th>Customer Name</th>
+            <th>Contact</th>
+            <th>Phone</th>
+            <th>Week 1</th>
+            <th>Week 2</th>
+            <th>Week 3</th>
+            <th>Week 4</th>
+            <th>Order Placed By</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for customer in callsheet_data %}
+          <tr>
+            <td>{{ customer.account_number }}</td>
+            <td>{{ customer.name }}</td>
+            <td>{{ customer.contact_name }}</td>
+            <td>{{ customer.phone }}</td>
+            <td>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  {%
+                  if
+                  customer.week_1
+                  %}checked{%
+                  endif
+                  %}
+                />
+              </div>
+            </td>
+            <td>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  {%
+                  if
+                  customer.week_2
+                  %}checked{%
+                  endif
+                  %}
+                />
+              </div>
+            </td>
+            <td>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  {%
+                  if
+                  customer.week_3
+                  %}checked{%
+                  endif
+                  %}
+                />
+              </div>
+            </td>
+            <td>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  {%
+                  if
+                  customer.week_4
+                  %}checked{%
+                  endif
+                  %}
+                />
+              </div>
+            </td>
+            <td>
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                value="{{ customer.order_placed_by }}"
+              />
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-end mt-3">
+      <button class="btn btn-success">Save Changes</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %} {% block content %}
+<h2>Dashboard</h2>
+<div class="row mt-4">
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Call Sheets</h5>
+        <p class="card-text">Manage customer call sheets and track orders</p>
+        <a href="{{ url_for('main.callsheets') }}" class="btn btn-primary"
+          >Go to Call Sheets</a
+        >
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Returns Form</h5>
+        <p class="card-text">Create and manage product return forms</p>
+        <a href="{{ url_for('main.returns') }}" class="btn btn-primary"
+          >Create Return Form</a
+        >
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Branded Stock</h5>
+        <p class="card-text">Track customer branded stock deliveries</p>
+        <a href="{{ url_for('main.branded_stock') }}" class="btn btn-primary"
+          >Record Delivery</a
+        >
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Invoice Correction</h5>
+        <p class="card-text">Record invoice discrepancies and corrections</p>
+        <a
+          href="{{ url_for('main.invoice_correction') }}"
+          class="btn btn-primary"
+          >Record Correction</a
+        >
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">Special Orders</h5>
+        <p class="card-text">Request products from special suppliers</p>
+        <a href="{{ url_for('main.special_order') }}" class="btn btn-primary"
+          >Create Order Request</a
+        >
+      </div>
+    </div>
+  </div>
+  <!-- Add this card to the dashboard -->
+  <div class="col-md-4 mb-4">
+    <div class="card text-center">
+      <div class="card-body">
+        <h5 class="card-title">View All Forms</h5>
+        <p class="card-text">Access and print all submitted forms</p>
+        <a href="{{ url_for('main.forms') }}" class="btn btn-info"
+          >View Forms</a
+        >
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %} {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>{{ form_type.replace('_', ' ').title() }} Form</h2>
+  <div>
+    <a
+      href="{{ url_for('main.print_form', form_id=form_id) }}"
+      class="btn btn-primary"
+      target="_blank"
+      >Print Form</a
+    >
+    <a href="{{ url_for('main.forms') }}" class="btn btn-secondary"
+      >Back to Forms</a
+    >
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="row">
+      <div class="col-md-6">
+        <strong>Form ID:</strong> #{{ form_id }}<br />
+        <strong>Submitted By:</strong> {{ author }}<br />
+      </div>
+      <div class="col-md-6 text-md-end">
+        <strong>Date Created:</strong> {{ date_created.strftime('%Y-%m-%d
+        %H:%M') }}<br />
+        <strong>Form Type:</strong> {{ form_type.replace('_', ' ').title() }}
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <h5 class="card-title">Form Data</h5>
+    <div class="table-responsive">
+      <table class="table table-bordered">
+        <tbody>
+          {% for key, value in form_data.items() %}
+          <tr>
+            <th width="30%">{{ key.replace('_', ' ').title() }}</th>
+            <td>{{ value or 'N/A' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

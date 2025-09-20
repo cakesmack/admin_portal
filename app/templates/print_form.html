@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: #000;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+      }
+      .company-name {
+        font-size: 24px;
+        font-weight: bold;
+      }
+      .form-title {
+        font-size: 20px;
+        margin: 10px 0;
+      }
+      .form-details {
+        margin-bottom: 20px;
+      }
+      .form-data {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .form-data th,
+      .form-data td {
+        border: 1px solid #000;
+        padding: 8px;
+        text-align: left;
+      }
+      .form-data th {
+        background-color: #f2f2f2;
+        width: 30%;
+      }
+      .footer {
+        margin-top: 30px;
+        border-top: 1px solid #000;
+        padding-top: 10px;
+        font-size: 12px;
+      }
+      .signature-area {
+        margin-top: 50px;
+      }
+      .signature-line {
+        border-top: 1px solid #000;
+        width: 300px;
+        margin: 40px 0 10px;
+      }
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          padding: 0;
+        }
+        .btn {
+          display: none;
+        }
+      }
+      .btn {
+        padding: 6px 12px;
+        margin: 0 5px;
+        border: 1px solid #007bff;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="company-name">{{ company_name }}</div>
+      <div class="form-title">
+        {{ form_type.replace('_', ' ').title() }} Form
+      </div>
+    </div>
+
+    <div class="form-details">
+      <div><strong>Form ID:</strong> #{{ form_id }}</div>
+      <div>
+        <strong>Date Created:</strong> {{ date_created.strftime('%Y-%m-%d
+        %H:%M') }}
+      </div>
+      <div><strong>Submitted By:</strong> {{ author }}</div>
+    </div>
+
+    <table class="form-data">
+      <tbody>
+        {% for key, value in form_data.items() %}
+        <tr>
+          <th>{{ key.replace('_', ' ').title() }}</th>
+          <td>{{ value or 'N/A' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="signature-area">
+      <div>Customer Signature:</div>
+      <div class="signature-line"></div>
+      <div>Date: _________________________</div>
+    </div>
+
+    <div class="footer">
+      <div>Highland Industrial Supplies - Hygiene and Catering Division</div>
+      <div>Form printed on: <span id="print-date"></span></div>
+    </div>
+
+    <div class="no-print" style="margin-top: 20px; text-align: center">
+      <button onclick="window.print()" class="btn">Print Form</button>
+      <button onclick="window.close()" class="btn btn-secondary">Close</button>
+    </div>
+
+    <script>
+      // Show current date and time
+      document.getElementById("print-date").textContent =
+        new Date().toLocaleString();
+
+      // Auto-print when the page loads (optional)
+      // window.onload = function() {
+      //     window.print();
+      // }
+    </script>
+  </body>
+</html>

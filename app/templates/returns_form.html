@@ -1,0 +1,97 @@
+{% extends "base.html" %} {% block content %}
+<h2>Product Returns Form</h2>
+<p class="text-muted">Create a digital return form for customer products</p>
+
+<div class="card mt-4">
+  <div class="card-body">
+    <form method="POST">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="customer_account" class="form-label"
+            >Customer Account Number *</label
+          >
+          <input
+            type="text"
+            class="form-control"
+            id="customer_account"
+            name="customer_account"
+            required
+          />
+          <div class="form-text">Enter customer account number</div>
+        </div>
+        <div class="col-md-6">
+          <label for="customer_name" class="form-label">Customer Name</label>
+          <input
+            type="text"
+            class="form-control"
+            id="customer_name"
+            name="customer_name"
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="product_code" class="form-label">Product Code *</label>
+          <input
+            type="text"
+            class="form-control"
+            id="product_code"
+            name="product_code"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label for="product_name" class="form-label">Product Name</label>
+          <input
+            type="text"
+            class="form-control"
+            id="product_name"
+            name="product_name"
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <label for="quantity" class="form-label">Quantity *</label>
+          <input
+            type="number"
+            class="form-control"
+            id="quantity"
+            name="quantity"
+            required
+            min="1"
+          />
+        </div>
+        <div class="col-md-8">
+          <label for="reason" class="form-label">Reason for Return *</label>
+          <select class="form-select" id="reason" name="reason" required>
+            <option value="">Select a reason...</option>
+            <option value="damaged">Damaged Product</option>
+            <option value="wrong">Wrong Product Sent</option>
+            <option value="overstock">Overstocked</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="notes" class="form-label">Additional Notes</label>
+        <textarea
+          class="form-control"
+          id="notes"
+          name="notes"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="d-grid">
+        <button type="submit" class="btn btn-primary">
+          Generate Return Form
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

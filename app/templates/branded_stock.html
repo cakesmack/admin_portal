@@ -1,0 +1,128 @@
+{% extends "base.html" %} {% block content %}
+<h2>Branded Stock Delivery Form</h2>
+<p class="text-muted">
+  Record customer branded stock deliveries and track inventory
+</p>
+
+<div class="card mt-4">
+  <div class="card-body">
+    <form method="POST">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="customer_account" class="form-label"
+            >Customer Account Number *</label
+          >
+          <input
+            type="text"
+            class="form-control"
+            id="customer_account"
+            name="customer_account"
+            required
+          />
+          <div class="form-text">Enter customer account number</div>
+        </div>
+        <div class="col-md-6">
+          <label for="customer_name" class="form-label">Customer Name</label>
+          <input
+            type="text"
+            class="form-control"
+            id="customer_name"
+            name="customer_name"
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="product_code" class="form-label">Product Code *</label>
+          <input
+            type="text"
+            class="form-control"
+            id="product_code"
+            name="product_code"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label for="product_name" class="form-label">Product Name</label>
+          <input
+            type="text"
+            class="form-control"
+            id="product_name"
+            name="product_name"
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="quantity_delivered" class="form-label"
+            >Quantity Delivered *</label
+          >
+          <input
+            type="number"
+            class="form-control"
+            id="quantity_delivered"
+            name="quantity_delivered"
+            required
+            min="1"
+          />
+        </div>
+        <div class="col-md-6">
+          <label for="current_stock" class="form-label"
+            >Current Stock Level *</label
+          >
+          <input
+            type="number"
+            class="form-control"
+            id="current_stock"
+            name="current_stock"
+            required
+            min="0"
+          />
+        </div>
+      </div>
+
+      <div class="d-grid">
+        <button type="submit" class="btn btn-primary">Record Delivery</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <h5>Recent Branded Stock Deliveries</h5>
+  </div>
+  <div class="card-body">
+    {% if recent_branded_stock %}
+    <div class="table-responsive">
+      <table class="table table-striped table-sm">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Product</th>
+            <th>Qty Delivered</th>
+            <th>Stock Level</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for delivery in recent_branded_stock %}
+          <tr>
+            <td>{{ delivery.date_created.strftime('%Y-%m-%d') }}</td>
+            <td>{{ delivery.data.customer_account }}</td>
+            <td>{{ delivery.data.product_code }}</td>
+            <td>{{ delivery.data.quantity_delivered }}</td>
+            <td>{{ delivery.data.current_stock }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No branded stock deliveries recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %} {% block content %}
+<h2>Invoice Correction Form</h2>
+<p class="text-muted">Record invoice discrepancies and corrections</p>
+
+<div class="card mt-4">
+  <div class="card-body">
+    <form method="POST">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="invoice_number" class="form-label"
+            >Invoice Number *</label
+          >
+          <input
+            type="text"
+            class="form-control"
+            id="invoice_number"
+            name="invoice_number"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label for="customer_account" class="form-label"
+            >Customer Account Number *</label
+          >
+          <input
+            type="text"
+            class="form-control"
+            id="customer_account"
+            name="customer_account"
+            required
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="product_code" class="form-label">Product Code *</label>
+          <input
+            type="text"
+            class="form-control"
+            id="product_code"
+            name="product_code"
+            required
+          />
+        </div>
+        <div class="col-md-6">
+          <label for="ordered_quantity" class="form-label"
+            >Ordered Quantity *</label
+          >
+          <input
+            type="number"
+            class="form-control"
+            id="ordered_quantity"
+            name="ordered_quantity"
+            required
+            min="1"
+          />
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="delivered_quantity" class="form-label"
+            >Delivered Quantity *</label
+          >
+          <input
+            type="number"
+            class="form-control"
+            id="delivered_quantity"
+            name="delivered_quantity"
+            required
+            min="0"
+          />
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="notes" class="form-label">Correction Notes</label>
+        <textarea
+          class="form-control"
+          id="notes"
+          name="notes"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="d-grid">
+        <button type="submit" class="btn btn-primary">Record Correction</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
