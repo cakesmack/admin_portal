@@ -4,89 +4,44 @@
 
 <div class="card mt-4">
   <div class="card-body">
-    <form method="POST">
+    <form method="POST" action="{{ url_for('main.invoice_correction') }}">
+      {{ form.hidden_tag() }}
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="invoice_number" class="form-label"
-            >Invoice Number *</label
-          >
-          <input
-            type="text"
-            class="form-control"
-            id="invoice_number"
-            name="invoice_number"
-            required
-          />
+          {{ form.invoice_number.label(class="form-label") }} {{
+          form.invoice_number(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="customer_account" class="form-label"
-            >Customer Account Number *</label
-          >
-          <input
-            type="text"
-            class="form-control"
-            id="customer_account"
-            name="customer_account"
-            required
-          />
+          {{ form.customer_account.label(class="form-label") }} {{
+          form.customer_account(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="product_code" class="form-label">Product Code *</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_code"
-            name="product_code"
-            required
-          />
+          {{ form.product_code.label(class="form-label") }} {{
+          form.product_code(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="ordered_quantity" class="form-label"
-            >Ordered Quantity *</label
-          >
-          <input
-            type="number"
-            class="form-control"
-            id="ordered_quantity"
-            name="ordered_quantity"
-            required
-            min="1"
-          />
+          {{ form.ordered_quantity.label(class="form-label") }} {{
+          form.ordered_quantity(class="form-control", type="number", min="1") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="delivered_quantity" class="form-label"
-            >Delivered Quantity *</label
-          >
-          <input
-            type="number"
-            class="form-control"
-            id="delivered_quantity"
-            name="delivered_quantity"
-            required
-            min="0"
-          />
+          {{ form.delivered_quantity.label(class="form-label") }} {{
+          form.delivered_quantity(class="form-control", type="number", min="0")
+          }}
         </div>
       </div>
 
       <div class="mb-3">
-        <label for="notes" class="form-label">Correction Notes</label>
-        <textarea
-          class="form-control"
-          id="notes"
-          name="notes"
-          rows="3"
-        ></textarea>
+        {{ form.notes.label(class="form-label") }} {{
+        form.notes(class="form-control", rows="3") }}
       </div>
 
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">Record Correction</button>
-      </div>
+      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>

@@ -4,93 +4,48 @@
 
 <div class="card mt-4">
   <div class="card-body">
-    <form method="POST">
+    <form method="POST" action="{{ url_for('main.returns') }}">
+      {{ form.hidden_tag() }}
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="customer_account" class="form-label"
-            >Customer Account Number *</label
-          >
-          <input
-            type="text"
-            class="form-control"
-            id="customer_account"
-            name="customer_account"
-            required
-          />
+          {{ form.customer_account.label(class="form-label") }} {{
+          form.customer_account(class="form-control") }}
           <div class="form-text">Enter customer account number</div>
         </div>
         <div class="col-md-6">
-          <label for="customer_name" class="form-label">Customer Name</label>
-          <input
-            type="text"
-            class="form-control"
-            id="customer_name"
-            name="customer_name"
-          />
+          {{ form.customer_name.label(class="form-label") }} {{
+          form.customer_name(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="product_code" class="form-label">Product Code *</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_code"
-            name="product_code"
-            required
-          />
+          {{ form.product_code.label(class="form-label") }} {{
+          form.product_code(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="product_name" class="form-label">Product Name</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_name"
-            name="product_name"
-          />
+          {{ form.product_name.label(class="form-label") }} {{
+          form.product_name(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-4">
-          <label for="quantity" class="form-label">Quantity *</label>
-          <input
-            type="number"
-            class="form-control"
-            id="quantity"
-            name="quantity"
-            required
-            min="1"
-          />
+          {{ form.quantity.label(class="form-label") }} {{
+          form.quantity(class="form-control", type="number", min="1") }}
         </div>
         <div class="col-md-8">
-          <label for="reason" class="form-label">Reason for Return *</label>
-          <select class="form-select" id="reason" name="reason" required>
-            <option value="">Select a reason...</option>
-            <option value="damaged">Damaged Product</option>
-            <option value="wrong">Wrong Product Sent</option>
-            <option value="overstock">Overstocked</option>
-            <option value="other">Other</option>
-          </select>
+          {{ form.reason.label(class="form-label") }} {{
+          form.reason(class="form-select") }}
         </div>
       </div>
 
       <div class="mb-3">
-        <label for="notes" class="form-label">Additional Notes</label>
-        <textarea
-          class="form-control"
-          id="notes"
-          name="notes"
-          rows="3"
-        ></textarea>
+        {{ form.notes.label(class="form-label") }} {{
+        form.notes(class="form-control", rows="3") }}
       </div>
 
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">
-          Generate Return Form
-        </button>
-      </div>
+      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>

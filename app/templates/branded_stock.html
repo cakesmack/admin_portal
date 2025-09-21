@@ -7,85 +7,43 @@
 <div class="card mt-4">
   <div class="card-body">
     <form method="POST">
+      {{ form.hidden_tag() }}
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="customer_account" class="form-label"
-            >Customer Account Number *</label
-          >
-          <input
-            type="text"
-            class="form-control"
-            id="customer_account"
-            name="customer_account"
-            required
-          />
+          {{ form.customer_account.label(class="form-label") }} {{
+          form.customer_account(class="form-control") }}
           <div class="form-text">Enter customer account number</div>
         </div>
         <div class="col-md-6">
-          <label for="customer_name" class="form-label">Customer Name</label>
-          <input
-            type="text"
-            class="form-control"
-            id="customer_name"
-            name="customer_name"
-          />
+          {{ form.customer_name.label(class="form-label") }} {{
+          form.customer_name(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="product_code" class="form-label">Product Code *</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_code"
-            name="product_code"
-            required
-          />
+          {{ form.product_code.label(class="form-label") }} {{
+          form.product_code(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="product_name" class="form-label">Product Name</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_name"
-            name="product_name"
-          />
+          {{ form.product_name.label(class="form-label") }} {{
+          form.product_name(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="quantity_delivered" class="form-label"
-            >Quantity Delivered *</label
-          >
-          <input
-            type="number"
-            class="form-control"
-            id="quantity_delivered"
-            name="quantity_delivered"
-            required
-            min="1"
-          />
+          {{ form.quantity_delivered.label(class="form-label") }} {{
+          form.quantity_delivered(class="form-control", type="number", min="1")
+          }}
         </div>
         <div class="col-md-6">
-          <label for="current_stock" class="form-label"
-            >Current Stock Level *</label
-          >
-          <input
-            type="number"
-            class="form-control"
-            id="current_stock"
-            name="current_stock"
-            required
-            min="0"
-          />
+          {{ form.current_stock.label(class="form-label") }} {{
+          form.current_stock(class="form-control", type="number", min="0") }}
         </div>
       </div>
 
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">Record Delivery</button>
-      </div>
+      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>

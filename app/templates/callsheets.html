@@ -1,111 +1,1331 @@
-{% extends "base.html" %} {% block content %}
-<h2>Call Sheets</h2>
-<p class="text-muted">Manage customer call reminders and track orders</p>
+{% extends "base.html" %}
+{% block content %}
 
-<div class="card mt-4">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h5>Weekly Call Sheet - October 2023</h5>
+<!-- Include Select2 for autocomplete -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Call Sheets - {{ month_name }} {{ current_year }}</h2>
     <div>
-      <button class="btn btn-sm btn-outline-secondary me-2">
-        Previous Week
-      </button>
-      <button class="btn btn-sm btn-outline-secondary">Next Week</button>
+        <button class="btn btn-secondary me-2" onclick="viewArchivedCallsheets()">
+            <i class="bi bi-archive"></i> Archives
+        </button>
+        <button class="btn btn-warning me-2" onclick="window.location.href='/customers/import'">
+            <i class="bi bi-upload"></i> Import Customers
+        </button>
+        <button class="btn btn-info me-2" onclick="showManageCustomersModal()">
+            <i class="bi bi-people"></i> Manage Customers
+        </button>
+        <button class="btn btn-success" onclick="showAddCallsheetModal()">
+            <i class="bi bi-plus-circle"></i> Add Callsheet
+        </button>
     </div>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-striped table-hover">
-        <thead>
-          <tr>
-            <th>Account Number</th>
-            <th>Customer Name</th>
-            <th>Contact</th>
-            <th>Phone</th>
-            <th>Week 1</th>
-            <th>Week 2</th>
-            <th>Week 3</th>
-            <th>Week 4</th>
-            <th>Order Placed By</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for customer in callsheet_data %}
-          <tr>
-            <td>{{ customer.account_number }}</td>
-            <td>{{ customer.name }}</td>
-            <td>{{ customer.contact_name }}</td>
-            <td>{{ customer.phone }}</td>
-            <td>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  {%
-                  if
-                  customer.week_1
-                  %}checked{%
-                  endif
-                  %}
-                />
-              </div>
-            </td>
-            <td>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  {%
-                  if
-                  customer.week_2
-                  %}checked{%
-                  endif
-                  %}
-                />
-              </div>
-            </td>
-            <td>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  {%
-                  if
-                  customer.week_3
-                  %}checked{%
-                  endif
-                  %}
-                />
-              </div>
-            </td>
-            <td>
-              <div class="form-check">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  {%
-                  if
-                  customer.week_4
-                  %}checked{%
-                  endif
-                  %}
-                />
-              </div>
-            </td>
-            <td>
-              <input
-                type="text"
-                class="form-control form-control-sm"
-                value="{{ customer.order_placed_by }}"
-              />
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="d-flex justify-content-end mt-3">
-      <button class="btn btn-success">Save Changes</button>
-    </div>
-  </div>
 </div>
+
+<!-- Days of Week Tabs (Monday to Friday only) -->
+<ul class="nav nav-tabs" id="dayTabs" role="tablist">
+    {% for day in days_of_week %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}" 
+                id="{{ day }}-tab" 
+                data-bs-toggle="tab" 
+                data-bs-target="#{{ day }}" 
+                type="button">
+            {{ day }}
+            {% if callsheets_by_day[day] %}
+                <span class="badge bg-primary ms-1">{{ callsheets_by_day[day]|length }}</span>
+            {% endif %}
+        </button>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content mt-3" id="dayTabContent">
+    {% for day in days_of_week %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ day }}">
+        
+        {% if callsheets_by_day[day] %}
+        <!-- Callsheet tabs for this day -->
+        <ul class="nav nav-pills mb-3">
+            {% for callsheet in callsheets_by_day[day] %}
+            <li class="nav-item me-2">
+                <a class="nav-link {% if loop.first %}active{% endif %}" 
+                   data-bs-toggle="pill" 
+                   href="#callsheet-{{ callsheet.id }}">
+                    {{ callsheet.name }}
+                    <span class="ms-2">
+                        <i class="bi bi-pencil-square" 
+                           onclick="editCallsheet({{ callsheet.id }}, '{{ callsheet.name }}', '{{ day }}')"
+                           title="Edit"></i>
+                        <i class="bi bi-trash text-danger ms-1" 
+                           onclick="deleteCallsheet({{ callsheet.id }})"
+                           title="Delete"></i>
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        
+        <!-- Callsheet content -->
+        <div class="tab-content">
+            {% for callsheet in callsheets_by_day[day] %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" 
+                 id="callsheet-{{ callsheet.id }}">
+                
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <h5>{{ callsheet.name }} - {{ day }}</h5>
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="showAddCustomerModal({{ callsheet.id }})">
+                            <i class="bi bi-person-plus"></i> Add Customer
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th width="10%">Account</th>
+                                        <th width="20%">Customer</th>
+                                        <th width="12%">Contact</th>
+                                        <th width="10%">Phone</th>
+                                        <th width="12%">Status</th>
+                                        <th width="10%">Called By</th>
+                                        <th width="10%">Spoke To</th>
+                                        <th width="8%">Notes</th>
+                                        <th width="8%">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in callsheet.entries %}
+                                    <tr id="entry-{{ entry.id }}">
+                                        <td>{{ entry.customer.account_number }}</td>
+                                        <td>
+                                            <a href="#" onclick="editCustomer({{ entry.customer.id }}); return false;">
+                                                {{ entry.customer.name }}
+                                            </a>
+                                        </td>
+                                        <td>{{ entry.customer.contact_name or '-' }}</td>
+                                        <td>{{ entry.customer.phone or '-' }}</td>
+                                        <td>
+                                            <select class="form-select form-select-sm status-select" 
+                                                    onchange="updateCallStatus({{ entry.id }}, this.value)"
+                                                    style="background-color: var(--bs-{{ entry.get_status_badge() }}-bg-subtle)">
+                                                <option value="not_called" {% if entry.call_status == 'not_called' %}selected{% endif %}>Not Called</option>
+                                                <option value="no_answer" {% if entry.call_status == 'no_answer' %}selected{% endif %}>No Answer</option>
+                                                <option value="declined" {% if entry.call_status == 'declined' %}selected{% endif %}>Declined</option>
+                                                <option value="ordered" {% if entry.call_status == 'ordered' %}selected{% endif %}>Ordered</option>
+                                                <option value="callback" {% if entry.call_status == 'callback' %}selected{% endif %}>Callback</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <small>{{ entry.called_by or '-' }}</small>
+                                        </td>
+                                        <td>
+                                            <small>{{ entry.person_spoken_to or '-' }}</small>
+                                            {% if entry.callback_time %}
+                                                <br><span class="badge bg-info">{{ entry.callback_time }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-secondary" 
+                                                    onclick="showNotesModal({{ entry.id }}, '{{ entry.call_notes|e }}')">
+                                                <i class="bi bi-chat-dots"></i>
+                                                {% if entry.call_notes %}!{% endif %}
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-danger" 
+                                                    onclick="removeCustomer({{ entry.id }})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            No callsheets for {{ day }}. 
+            <button class="btn btn-sm btn-primary ms-2" 
+                    onclick="showAddCallsheetModal('{{ day }}')">
+                Add Callsheet
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add/Edit Callsheet Modal -->
+<div class="modal fade" id="callsheetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="callsheetModalTitle">Add New Callsheet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="notesEntryId">
+                <textarea class="form-control" id="notesText" rows="4"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Customers Modal -->
+<div class="modal fade" id="manageCustomersModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Customers</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-success" onclick="newCustomer()">
+                            <i class="bi bi-plus"></i> Add New Customer
+                        </button>
+                        <button class="btn btn-info ms-2" onclick="window.location.href='/customers/import'">
+                            <i class="bi bi-upload"></i> Import from File
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="customerTableSearch" 
+                               placeholder="Search customers..." onkeyup="filterCustomerTable()">
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-sm" id="customerTable">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Name</th>
+                                <th>Contact</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for customer in all_customers %}
+                            <tr>
+                                <td>{{ customer.account_number }}</td>
+                                <td>{{ customer.name }}</td>
+                                <td>{{ customer.contact_name or '-' }}</td>
+                                <td>{{ customer.phone or '-' }}</td>
+                                <td>{{ customer.email or '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="editCustomer({{ customer.id }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+// Modal instances
+let callsheetModal, statusModal, customerModal, manageCustomersModal, addCustomerModal, notesModal;
+let selectedCustomerId = null;
+
+// Initialize modals and autocomplete on page load
+document.addEventListener('DOMContentLoaded', function() {
+    callsheetModal = new bootstrap.Modal(document.getElementById('callsheetModal'));
+    statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+    customerModal = new bootstrap.Modal(document.getElementById('customerModal'));
+    manageCustomersModal = new bootstrap.Modal(document.getElementById('manageCustomersModal'));
+    addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+    notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
+    
+    // Initialize Select2 for customer search
+    $('#customerSearchSelect').select2({
+        theme: 'bootstrap-5',
+        dropdownParent: $('#addCustomerModal'),
+        placeholder: 'Type account number or customer name...',
+        minimumInputLength: 2,
+        allowClear: true,
+        ajax: {
+            url: '/api/customers/search',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: $.map(data, function (item) {
+                        return {
+                            text: item.display,
+                            id: item.id,
+                            data: item
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    }).on('select2:select', function (e) {
+        selectedCustomerId = e.params.data.id;
+        const customer = e.params.data.data;
+        $('#selectedCustomerInfo').show();
+        $('#selectedCustomerDetails').html(
+            `Account: ${customer.account_number}<br>
+             Name: ${customer.name}<br>
+             Contact: ${customer.contact_name || 'N/A'}<br>
+             Phone: ${customer.phone || 'N/A'}`
+        );
+    }).on('select2:clear', function () {
+        selectedCustomerId = null;
+        $('#selectedCustomerInfo').hide();
+    });
+});
+
+// Filter customer table in manage modal
+function filterCustomerTable() {
+    const input = document.getElementById('customerTableSearch');
+    const filter = input.value.toUpperCase();
+    const table = document.getElementById('customerTable');
+    const tr = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < tr.length; i++) {
+        const tds = tr[i].getElementsByTagName('td');
+        let match = false;
+        for (let j = 0; j < tds.length - 1; j++) {
+            if (tds[j].innerHTML.toUpperCase().indexOf(filter) > -1) {
+                match = true;
+                break;
+            }
+        }
+        tr[i].style.display = match ? '' : 'none';
+    }
+}
+
+// Callsheet Management
+function showAddCallsheetModal(day) {
+    document.getElementById('callsheetModalTitle').textContent = 'Add New Callsheet';
+    document.getElementById('callsheetId').value = '';
+    document.getElementById('callsheetName').value = '';
+    if (day) {
+        document.getElementById('callsheetDay').value = day;
+    }
+    callsheetModal.show();
+}
+
+function editCallsheet(id, name, day) {
+    event.stopPropagation();
+    document.getElementById('callsheetModalTitle').textContent = 'Edit Callsheet';
+    document.getElementById('callsheetId').value = id;
+    document.getElementById('callsheetName').value = name;
+    document.getElementById('callsheetDay').value = day;
+    callsheetModal.show();
+}
+
+async function saveCallsheet() {
+    const id = document.getElementById('callsheetId').value;
+    const name = document.getElementById('callsheetName').value;
+    const day = document.getElementById('callsheetDay').value;
+    
+    if (!name) return;
+    
+    try {
+        const url = id ? `/api/callsheet/${id}/update` : '/api/callsheet/create';
+        const body = id ? 
+            { name: name, day_of_week: day } : 
+            { name: name, day_of_week: day, month: {{ current_month }}, year: {{ current_year }} };
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function deleteCallsheet(callsheetId) {
+    event.stopPropagation();
+    if (!confirm('Are you sure you want to delete this callsheet?')) return;
+    
+    fetch(`/api/callsheet/${callsheetId}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
+    });
+}
+
+// Call Status Management (Simplified)
+function updateCallStatus(entryId, status) {
+    document.getElementById('statusEntryId').value = entryId;
+    document.getElementById('statusValue').value = status;
+    
+    // Reset fields
+    document.getElementById('orderDetails').style.display = 'none';
+    document.getElementById('callbackDetails').style.display = 'none';
+    document.getElementById('personSpokenTo').value = '';
+    document.getElementById('callbackTime').value = '';
+    document.getElementById('statusCallNotes').value = '';
+    
+    if (status === 'ordered') {
+        document.getElementById('orderDetails').style.display = 'block';
+        document.getElementById('statusModalTitle').textContent = 'Record Order';
+    } else if (status === 'callback') {
+        document.getElementById('callbackDetails').style.display = 'block';
+        document.getElementById('statusModalTitle').textContent = 'Schedule Callback';
+    } else if (status === 'no_answer') {
+        document.getElementById('statusModalTitle').textContent = 'No Answer';
+    } else if (status === 'declined') {
+        document.getElementById('statusModalTitle').textContent = 'Customer Declined';
+    } else if (status === 'not_called') {
+        // Reset to not called - no modal needed
+        saveCallStatusDirect(entryId, status);
+        return;
+    }
+    
+    statusModal.show();
+}
+
+async function saveCallStatus() {
+    const entryId = document.getElementById('statusEntryId').value;
+    const status = document.getElementById('statusValue').value;
+    
+    let data = { call_status: status };
+    
+    if (status === 'ordered') {
+        data.person_spoken_to = document.getElementById('personSpokenTo').value;
+    } else if (status === 'callback') {
+        data.callback_time = document.getElementById('callbackTime').value;
+    }
+    
+    data.call_notes = document.getElementById('statusCallNotes').value;
+    
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            statusModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function saveCallStatusDirect(entryId, status) {
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ call_status: status })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Customer Management
+function showManageCustomersModal() {
+    manageCustomersModal.show();
+}
+
+function newCustomer() {
+    document.getElementById('customerModalTitle').textContent = 'Add New Customer';
+    document.getElementById('customerId').value = '';
+    document.getElementById('customerAccount').value = '';
+    document.getElementById('customerName').value = '';
+    document.getElementById('customerContact').value = '';
+    document.getElementById('customerPhone').value = '';
+    document.getElementById('customerEmail').value = '';
+    document.getElementById('customerAddress').value = '';
+    document.getElementById('customerNotes').value = '';
+    manageCustomersModal.hide();
+    customerModal.show();
+}
+
+async function editCustomer(customerId) {
+    try {
+        const response = await fetch(`/api/customer/${customerId}`);
+        const customer = await response.json();
+        
+        document.getElementById('customerModalTitle').textContent = 'Edit Customer';
+        document.getElementById('customerId').value = customer.id;
+        document.getElementById('customerAccount').value = customer.account_number;
+        document.getElementById('customerName').value = customer.name;
+        document.getElementById('customerContact').value = customer.contact_name || '';
+        document.getElementById('customerPhone').value = customer.phone || '';
+        document.getElementById('customerEmail').value = customer.email || '';
+        document.getElementById('customerAddress').value = customer.address || '';
+        document.getElementById('customerNotes').value = customer.notes || '';
+        
+        manageCustomersModal.hide();
+        customerModal.show();
+    } catch (error) {
+        alert('Error loading customer: ' + error.message);
+    }
+}
+
+async function saveCustomer() {
+    const id = document.getElementById('customerId').value;
+    const data = {
+        account_number: document.getElementById('customerAccount').value,
+        name: document.getElementById('customerName').value,
+        contact_name: document.getElementById('customerContact').value,
+        phone: document.getElementById('customerPhone').value,
+        email: document.getElementById('customerEmail').value,
+        address: document.getElementById('customerAddress').value,
+        notes: document.getElementById('customerNotes').value
+    };
+    
+    if (!data.account_number || !data.name) {
+        alert('Account number and name are required');
+        return;
+    }
+    
+    try {
+        const url = id ? `/api/customer/${id}/update` : '/api/customer/create';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            customerModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Add Customer to Callsheet (with autocomplete)
+function showAddCustomerModal(callsheetId) {
+    document.getElementById('addCallsheetId').value = callsheetId;
+    $('#customerSearchSelect').val(null).trigger('change');
+    $('#selectedCustomerInfo').hide();
+    selectedCustomerId = null;
+    addCustomerModal.show();
+}
+
+async function addCustomerToCallsheet() {
+    const callsheetId = document.getElementById('addCallsheetId').value;
+    
+    if (!selectedCustomerId) {
+        alert('Please select a customer');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/callsheet/${callsheetId}/add-customer`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({customer_id: selectedCustomerId})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Other functions
+function removeCustomer(entryId) {
+    if (!confirm('Remove this customer from the callsheet?')) return;
+    
+    fetch(`/api/callsheet-entry/${entryId}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
+    });
+}
+
+function showNotesModal(entryId, currentNotes) {
+    document.getElementById('notesEntryId').value = entryId;
+    document.getElementById('notesText').value = currentNotes || '';
+    notesModal.show();
+}
+
+async function saveNotes() {
+    const entryId = document.getElementById('notesEntryId').value;
+    const notes = document.getElementById('notesText').value;
+    
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({call_notes: notes})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            notesModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function viewArchivedCallsheets() {
+    const month = prompt('Enter month number (1-12):');
+    const year = prompt('Enter year (e.g., 2024):');
+    
+    if (month && year) {
+        window.location.href = `/callsheets/archive/${month}/${year}`;
+    }
+}
+</script>
+
+<style>
+.nav-pills .nav-link {
+    background-color: #f8f9fa;
+    color: #333;
+    margin-bottom: 5px;
+}
+.nav-pills .nav-link.active {
+    background-color: #0d6efd;
+}
+.nav-pills .nav-link i {
+    cursor: pointer;
+    opacity: 0.7;
+}
+.nav-pills .nav-link i:hover {
+    opacity: 1;
+}
+.status-select {
+    min-width: 120px;
+}
+.table td {
+    vertical-align: middle;
+}
+.select2-container--bootstrap-5 .select2-selection {
+    min-height: 38px;
+}
+</style>
+{% endblock %}<form id="callsheetForm">
+                    <input type="hidden" id="callsheetId">
+                    <div class="mb-3">
+                        <label class="form-label">Callsheet Name</label>
+                        <input type="text" class="form-control" id="callsheetName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Day of Week</label>
+                        <select class="form-select" id="callsheetDay" required>
+                            {% for day in days_of_week %}
+                            <option value="{{ day }}">{{ day }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCallsheet()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Update Modal (Simplified) -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusModalTitle">Update Call Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="statusEntryId">
+                <input type="hidden" id="statusValue">
+                
+                <!-- Show for ordered status -->
+                <div id="orderDetails" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label">Person Spoken To</label>
+                        <input type="text" class="form-control" id="personSpokenTo" 
+                               placeholder="Name of person who placed the order">
+                    </div>
+                </div>
+                
+                <!-- Show for callback status -->
+                <div id="callbackDetails" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label">Callback Time</label>
+                        <input type="text" class="form-control" id="callbackTime" 
+                               placeholder="e.g., Tomorrow 2PM, Monday morning">
+                    </div>
+                </div>
+                
+                <!-- Always show notes -->
+                <div id="callNotes">
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="statusCallNotes" rows="3" 
+                                  placeholder="Any additional notes about this call"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCallStatus()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Customer to Callsheet Modal with Autocomplete -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Customer to Callsheet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="addCallsheetId">
+                <div class="mb-3">
+                    <label class="form-label">Search Customer (by account number or name)</label>
+                    <select class="form-control" id="customerSearchSelect" style="width: 100%;">
+                        <option></option>
+                    </select>
+                </div>
+                <div id="selectedCustomerInfo" class="alert alert-info" style="display:none;">
+                    <strong>Selected Customer:</strong><br>
+                    <span id="selectedCustomerDetails"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addCustomerToCallsheet()">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Edit Modal -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerModalTitle">Edit Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="customerForm">
+                    <input type="hidden" id="customerId">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Account Number *</label>
+                            <input type="text" class="form-control" id="customerAccount" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Business Name *</label>
+                            <input type="text" class="form-control" id="customerName" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Contact Name</label>
+                            <input type="text" class="form-control" id="customerContact">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="text" class="form-control" id="customerPhone">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="customerEmail">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Address</label>
+                            <input type="text" class="form-control" id="customerAddress">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="customerNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCustomer()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Call Notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="notesEntryId">
+                <textarea class="form-control" id="notesText" rows="4"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNotes()">Save Notes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Customers Modal -->
+<div class="modal fade" id="manageCustomersModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Customers</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-success" onclick="newCustomer()">
+                            <i class="bi bi-plus"></i> Add New Customer
+                        </button>
+                        <button class="btn btn-info ms-2" onclick="window.location.href='/customers/import'">
+                            <i class="bi bi-upload"></i> Import from File
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="customerTableSearch" 
+                               placeholder="Search customers..." onkeyup="filterCustomerTable()">
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-sm" id="customerTable">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Name</th>
+                                <th>Contact</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for customer in all_customers %}
+                            <tr>
+                                <td>{{ customer.account_number }}</td>
+                                <td>{{ customer.name }}</td>
+                                <td>{{ customer.contact_name or '-' }}</td>
+                                <td>{{ customer.phone or '-' }}</td>
+                                <td>{{ customer.email or '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="editCustomer({{ customer.id }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+// Modal instances
+let callsheetModal, statusModal, customerModal, manageCustomersModal, addCustomerModal, notesModal;
+let selectedCustomerId = null;
+
+// Initialize modals and autocomplete on page load
+document.addEventListener('DOMContentLoaded', function() {
+    callsheetModal = new bootstrap.Modal(document.getElementById('callsheetModal'));
+    statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
+    customerModal = new bootstrap.Modal(document.getElementById('customerModal'));
+    manageCustomersModal = new bootstrap.Modal(document.getElementById('manageCustomersModal'));
+    addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+    notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
+    
+    // Initialize Select2 for customer search
+    $('#customerSearchSelect').select2({
+        theme: 'bootstrap-5',
+        dropdownParent: $('#addCustomerModal'),
+        placeholder: 'Type account number or customer name...',
+        minimumInputLength: 2,
+        allowClear: true,
+        ajax: {
+            url: '/api/customers/search',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: $.map(data, function (item) {
+                        return {
+                            text: item.display,
+                            id: item.id,
+                            data: item
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    }).on('select2:select', function (e) {
+        selectedCustomerId = e.params.data.id;
+        const customer = e.params.data.data;
+        $('#selectedCustomerInfo').show();
+        $('#selectedCustomerDetails').html(
+            `Account: ${customer.account_number}<br>
+             Name: ${customer.name}<br>
+             Contact: ${customer.contact_name || 'N/A'}<br>
+             Phone: ${customer.phone || 'N/A'}`
+        );
+    }).on('select2:clear', function () {
+        selectedCustomerId = null;
+        $('#selectedCustomerInfo').hide();
+    });
+});
+
+// Filter customer table in manage modal
+function filterCustomerTable() {
+    const input = document.getElementById('customerTableSearch');
+    const filter = input.value.toUpperCase();
+    const table = document.getElementById('customerTable');
+    const tr = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < tr.length; i++) {
+        const tds = tr[i].getElementsByTagName('td');
+        let match = false;
+        for (let j = 0; j < tds.length - 1; j++) {
+            if (tds[j].innerHTML.toUpperCase().indexOf(filter) > -1) {
+                match = true;
+                break;
+            }
+        }
+        tr[i].style.display = match ? '' : 'none';
+    }
+}
+
+// Callsheet Management
+function showAddCallsheetModal(day) {
+    document.getElementById('callsheetModalTitle').textContent = 'Add New Callsheet';
+    document.getElementById('callsheetId').value = '';
+    document.getElementById('callsheetName').value = '';
+    if (day) {
+        document.getElementById('callsheetDay').value = day;
+    }
+    callsheetModal.show();
+}
+
+function editCallsheet(id, name, day) {
+    event.stopPropagation();
+    document.getElementById('callsheetModalTitle').textContent = 'Edit Callsheet';
+    document.getElementById('callsheetId').value = id;
+    document.getElementById('callsheetName').value = name;
+    document.getElementById('callsheetDay').value = day;
+    callsheetModal.show();
+}
+
+async function saveCallsheet() {
+    const id = document.getElementById('callsheetId').value;
+    const name = document.getElementById('callsheetName').value;
+    const day = document.getElementById('callsheetDay').value;
+    
+    if (!name) return;
+    
+    try {
+        const url = id ? `/api/callsheet/${id}/update` : '/api/callsheet/create';
+        const body = id ? 
+            { name: name, day_of_week: day } : 
+            { name: name, day_of_week: day, month: {{ current_month }}, year: {{ current_year }} };
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function deleteCallsheet(callsheetId) {
+    event.stopPropagation();
+    if (!confirm('Are you sure you want to delete this callsheet?')) return;
+    
+    fetch(`/api/callsheet/${callsheetId}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
+    });
+}
+
+// Call Status Management (Simplified)
+function updateCallStatus(entryId, status) {
+    document.getElementById('statusEntryId').value = entryId;
+    document.getElementById('statusValue').value = status;
+    
+    // Reset fields
+    document.getElementById('orderDetails').style.display = 'none';
+    document.getElementById('callbackDetails').style.display = 'none';
+    document.getElementById('personSpokenTo').value = '';
+    document.getElementById('callbackTime').value = '';
+    document.getElementById('statusCallNotes').value = '';
+    
+    if (status === 'ordered') {
+        document.getElementById('orderDetails').style.display = 'block';
+        document.getElementById('statusModalTitle').textContent = 'Record Order';
+    } else if (status === 'callback') {
+        document.getElementById('callbackDetails').style.display = 'block';
+        document.getElementById('statusModalTitle').textContent = 'Schedule Callback';
+    } else if (status === 'no_answer') {
+        document.getElementById('statusModalTitle').textContent = 'No Answer';
+    } else if (status === 'declined') {
+        document.getElementById('statusModalTitle').textContent = 'Customer Declined';
+    } else if (status === 'not_called') {
+        // Reset to not called - no modal needed
+        saveCallStatusDirect(entryId, status);
+        return;
+    }
+    
+    statusModal.show();
+}
+
+async function saveCallStatus() {
+    const entryId = document.getElementById('statusEntryId').value;
+    const status = document.getElementById('statusValue').value;
+    
+    let data = { call_status: status };
+    
+    if (status === 'ordered') {
+        data.person_spoken_to = document.getElementById('personSpokenTo').value;
+    } else if (status === 'callback') {
+        data.callback_time = document.getElementById('callbackTime').value;
+    }
+    
+    data.call_notes = document.getElementById('statusCallNotes').value;
+    
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            statusModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function saveCallStatusDirect(entryId, status) {
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ call_status: status })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Customer Management
+function showManageCustomersModal() {
+    manageCustomersModal.show();
+}
+
+function newCustomer() {
+    document.getElementById('customerModalTitle').textContent = 'Add New Customer';
+    document.getElementById('customerId').value = '';
+    document.getElementById('customerAccount').value = '';
+    document.getElementById('customerName').value = '';
+    document.getElementById('customerContact').value = '';
+    document.getElementById('customerPhone').value = '';
+    document.getElementById('customerEmail').value = '';
+    document.getElementById('customerAddress').value = '';
+    document.getElementById('customerNotes').value = '';
+    manageCustomersModal.hide();
+    customerModal.show();
+}
+
+async function editCustomer(customerId) {
+    try {
+        const response = await fetch(`/api/customer/${customerId}`);
+        const customer = await response.json();
+        
+        document.getElementById('customerModalTitle').textContent = 'Edit Customer';
+        document.getElementById('customerId').value = customer.id;
+        document.getElementById('customerAccount').value = customer.account_number;
+        document.getElementById('customerName').value = customer.name;
+        document.getElementById('customerContact').value = customer.contact_name || '';
+        document.getElementById('customerPhone').value = customer.phone || '';
+        document.getElementById('customerEmail').value = customer.email || '';
+        document.getElementById('customerAddress').value = customer.address || '';
+        document.getElementById('customerNotes').value = customer.notes || '';
+        
+        manageCustomersModal.hide();
+        customerModal.show();
+    } catch (error) {
+        alert('Error loading customer: ' + error.message);
+    }
+}
+
+async function saveCustomer() {
+    const id = document.getElementById('customerId').value;
+    const data = {
+        account_number: document.getElementById('customerAccount').value,
+        name: document.getElementById('customerName').value,
+        contact_name: document.getElementById('customerContact').value,
+        phone: document.getElementById('customerPhone').value,
+        email: document.getElementById('customerEmail').value,
+        address: document.getElementById('customerAddress').value,
+        notes: document.getElementById('customerNotes').value
+    };
+    
+    if (!data.account_number || !data.name) {
+        alert('Account number and name are required');
+        return;
+    }
+    
+    try {
+        const url = id ? `/api/customer/${id}/update` : '/api/customer/create';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            customerModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Add Customer to Callsheet (with autocomplete)
+function showAddCustomerModal(callsheetId) {
+    document.getElementById('addCallsheetId').value = callsheetId;
+    $('#customerSearchSelect').val(null).trigger('change');
+    $('#selectedCustomerInfo').hide();
+    selectedCustomerId = null;
+    addCustomerModal.show();
+}
+
+async function addCustomerToCallsheet() {
+    const callsheetId = document.getElementById('addCallsheetId').value;
+    
+    if (!selectedCustomerId) {
+        alert('Please select a customer');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/callsheet/${callsheetId}/add-customer`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({customer_id: selectedCustomerId})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Other functions
+function removeCustomer(entryId) {
+    if (!confirm('Remove this customer from the callsheet?')) return;
+    
+    fetch(`/api/callsheet-entry/${entryId}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Error: ' + data.message);
+    });
+}
+
+function showNotesModal(entryId, currentNotes) {
+    document.getElementById('notesEntryId').value = entryId;
+    document.getElementById('notesText').value = currentNotes || '';
+    notesModal.show();
+}
+
+async function saveNotes() {
+    const entryId = document.getElementById('notesEntryId').value;
+    const notes = document.getElementById('notesText').value;
+    
+    try {
+        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({call_notes: notes})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            notesModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function viewArchivedCallsheets() {
+    const month = prompt('Enter month number (1-12):');
+    const year = prompt('Enter year (e.g., 2024):');
+    
+    if (month && year) {
+        window.location.href = `/callsheets/archive/${month}/${year}`;
+    }
+}
+</script>
+
+<style>
+.nav-pills .nav-link {
+    background-color: #f8f9fa;
+    color: #333;
+    margin-bottom: 5px;
+}
+.nav-pills .nav-link.active {
+    background-color: #0d6efd;
+}
+.nav-pills .nav-link i {
+    cursor: pointer;
+    opacity: 0.7;
+}
+.nav-pills .nav-link i:hover {
+    opacity: 1;
+}
+.status-select {
+    min-width: 120px;
+}
+.table td {
+    vertical-align: middle;
+}
+.select2-container--bootstrap-5 .select2-selection {
+    min-height: 38px;
+}
+</style>
 {% endblock %}

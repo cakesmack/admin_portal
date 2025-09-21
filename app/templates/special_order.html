@@ -4,83 +4,41 @@
 
 <div class="card mt-4">
   <div class="card-body">
-    <form method="POST">
+    <form method="POST" action="{{ url_for('main.special_order') }}">
+      {{ form.hidden_tag() }}
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="supplier" class="form-label">Supplier Name *</label>
-          <input
-            type="text"
-            class="form-control"
-            id="supplier"
-            name="supplier"
-            required
-          />
+          {{ form.supplier.label(class="form-label") }} {{
+          form.supplier(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="customer_account" class="form-label"
-            >Customer Account Number *</label
-          >
-          <input
-            type="text"
-            class="form-control"
-            id="customer_account"
-            name="customer_account"
-            required
-          />
+          {{ form.customer_account.label(class="form-label") }} {{
+          form.customer_account(class="form-control") }}
         </div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="product_code" class="form-label">Product Code</label>
-          <input
-            type="text"
-            class="form-control"
-            id="product_code"
-            name="product_code"
-          />
+          {{ form.product_code.label(class="form-label") }} {{
+          form.product_code(class="form-control") }}
         </div>
         <div class="col-md-6">
-          <label for="quantity" class="form-label">Quantity *</label>
-          <input
-            type="number"
-            class="form-control"
-            id="quantity"
-            name="quantity"
-            required
-            min="1"
-          />
+          {{ form.quantity.label(class="form-label") }} {{
+          form.quantity(class="form-control", type="number", min="1") }}
         </div>
       </div>
 
       <div class="mb-3">
-        <label for="product_description" class="form-label"
-          >Product Description *</label
-        >
-        <input
-          type="text"
-          class="form-control"
-          id="product_description"
-          name="product_description"
-          required
-        />
+        {{ form.product_description.label(class="form-label") }} {{
+        form.product_description(class="form-control") }}
       </div>
 
       <div class="mb-3">
-        <label for="notes" class="form-label">Special Instructions</label>
-        <textarea
-          class="form-control"
-          id="notes"
-          name="notes"
-          rows="3"
-        ></textarea>
+        {{ form.notes.label(class="form-label") }} {{
+        form.notes(class="form-control", rows="3") }}
       </div>
 
-      <div class="d-grid">
-        <button type="submit" class="btn btn-primary">
-          Submit Order Request
-        </button>
-      </div>
+      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>
