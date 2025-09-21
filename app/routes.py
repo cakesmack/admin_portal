@@ -63,7 +63,7 @@ def dashboard():
     
     return render_template(
         'dashboard.html', 
-        title='Dashboard',
+        title='Hygiene & Catering Admin Portal',
         customer_count=customer_count,
         current_date=current_date
     )
@@ -537,7 +537,7 @@ def invoice_correction():
         }
         
         new_form = Form(
-            type='invoice_correction',
+            type='Invoiced Goods, Delivery Only',
             data=json.dumps(form_data),
             user_id=current_user.id
         )
@@ -547,7 +547,7 @@ def invoice_correction():
         flash('Invoice correction recorded successfully!', 'success')
         return redirect(url_for('main.dashboard'))
     
-    return render_template('invoice_correction.html', title='Invoice Correction', form=form)
+    return render_template('invoice_correction.html', title='Invoiced Goods, Delivery Only', form=form)
 
 @main.route('/special-order', methods=['GET', 'POST'])
 @login_required
