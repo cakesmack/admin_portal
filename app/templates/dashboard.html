@@ -1,74 +1,602 @@
 {% extends "base.html" %} {% block content %}
-<h2>Dashboard</h2>
-<div class="row mt-4">
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Call Sheets</h5>
-        <p class="card-text">Manage customer call sheets and track orders</p>
-        <a href="{{ url_for('main.callsheets') }}" class="btn btn-primary"
-          >Go to Call Sheets</a
-        >
+
+<style></style>
+
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Dashboard - Welcome, {{ current_user.username }}</h2>
+    <span class="text-muted">{{ current_date }}</span>
+  </div>
+
+  <div class="dashboard-container">
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <!-- Quick Stats -->
+      <div class="quick-stats">
+        <div class="stat-card">
+          <div class="stat-number" id="todaysCalls">0</div>
+          <div class="stat-label">Today's Calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="pendingOrders">0</div>
+          <div class="stat-label">Pending Orders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="todaysForms">0</div>
+          <div class="stat-label">Forms Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="activeCustomers">
+            {{ customer_count|default(0) }}
+          </div>
+          <div class="stat-label">Active Customers</div>
+        </div>
+      </div>
+
+      <!-- Call Sheets Section -->
+      <div class="card">
+        <div class="card-header callsheet-card">
+          <h5 class="mb-0">
+            <i class="bi bi-telephone-fill"></i> Call Sheet Management
+          </h5>
+        </div>
+        <div class="card-body">
+          <p>
+            Manage your daily call sheets, track customer contacts, and record
+            orders.
+          </p>
+          <div class="d-grid gap-2 d-md-block">
+            <a
+              href="{{ url_for('main.callsheets') }}"
+              class="btn btn-lg action-button"
+              style="
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+              "
+            >
+              <i class="bi bi-journal-check"></i> Open Call Sheets
+            </a>
+            <button
+              class="btn btn-outline-secondary"
+              onclick="viewTodaysCallsheet()"
+            >
+              <i class="bi bi-calendar-day"></i> Today's Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forms Section -->
+      <div class="card">
+        <div class="card-header forms-card">
+          <h5 class="mb-0">
+            <i class="bi bi-file-text-fill"></i> Forms & Documentation
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <div class="d-grid">
+                <a
+                  href="{{ url_for('main.returns') }}"
+                  class="btn action-button"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #667eea 0%,
+                      #764ba2 100%
+                    );
+                  "
+                >
+                  <i class="bi bi-arrow-return-left"></i> Credit / Uplift Form
+                </a>
+                <small class="text-muted mt-1">Process customer returns</small>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="d-grid">
+                <a
+                  href="{{ url_for('main.branded_stock') }}"
+                  class="btn action-button"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #f77062 0%,
+                      #fe5196 100%
+                    );
+                  "
+                >
+                  <i class="bi bi-box-seam"></i> Customers Own Stock
+                </a>
+                <small class="text-muted mt-1">Track Customers Own Stock</small>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="d-grid">
+                <a
+                  href="{{ url_for('main.invoice_correction') }}"
+                  class="btn action-button"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #fa709a 0%,
+                      #fee140 100%
+                    );
+                  "
+                >
+                  <i class="bi bi-receipt"></i> Invoiced Goods, Delivery Only
+                </a>
+                <small class="text-muted mt-1"
+                  >Record invoice discrepancies</small
+                >
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="d-grid">
+                <a
+                  href="{{ url_for('main.special_order') }}"
+                  class="btn action-button"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #30cfd0 0%,
+                      #330867 100%
+                    );
+                  "
+                >
+                  <i class="bi bi-star"></i> Special Orders
+                </a>
+                <small class="text-muted mt-1">Request special items</small>
+              </div>
+            </div>
+          </div>
+          <div class="text-center mt-3">
+            <a
+              href="{{ url_for('main.forms') }}"
+              class="btn btn-outline-primary"
+            >
+              <i class="bi bi-folder-open"></i> View All Forms
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company Updates Section -->
+      <div class="card">
+        <div class="card-header updates-card">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-megaphone-fill"></i> Company Updates
+            </h5>
+            <button class="btn btn-sm btn-light" onclick="showAddUpdateModal()">
+              <i class="bi bi-plus"></i> Add Update
+            </button>
+          </div>
+        </div>
+        <div class="card-body" style="max-height: 400px; overflow-y: auto">
+          <div id="updatesList">
+            <!-- Updates will be loaded here -->
+            <div class="update-item">
+              <div class="d-flex justify-content-between">
+                <strong>System Maintenance</strong>
+                <span class="badge bg-warning">Important</span>
+              </div>
+              <p class="mb-1">
+                The system will be under maintenance on Saturday from 2-4 PM.
+              </p>
+              <div class="update-meta">Posted by Admin • 2 hours ago</div>
+            </div>
+            <div class="update-item">
+              <strong>New Customer Added</strong>
+              <p class="mb-1">
+                Highland Resort has been added to our customer database.
+              </p>
+              <div class="update-meta">Posted by User • Yesterday</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Returns Form</h5>
-        <p class="card-text">Create and manage product return forms</p>
-        <a href="{{ url_for('main.returns') }}" class="btn btn-primary"
-          >Create Return Form</a
-        >
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Margin Calculator -->
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-calculator"></i> Margin Calculator
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Cost Price (£)</label>
+            <input
+              type="number"
+              class="form-control"
+              id="costPrice"
+              step="0.01"
+              onkeyup="calculateMargin()"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Selling Price (£)</label>
+            <input
+              type="number"
+              class="form-control"
+              id="sellingPrice"
+              step="0.01"
+              onkeyup="calculateMargin()"
+            />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Quantity</label>
+            <input
+              type="number"
+              class="form-control"
+              id="quantity"
+              value="1"
+              min="1"
+              onkeyup="calculateMargin()"
+            />
+          </div>
+          <div class="alert alert-info">
+            <div class="d-flex justify-content-between">
+              <span>Margin:</span>
+              <strong id="marginPercent">0%</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Profit:</span>
+              <strong id="profitAmount">£0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Total Profit:</span>
+              <strong id="totalProfit">£0.00</strong>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Branded Stock</h5>
-        <p class="card-text">Track customer branded stock deliveries</p>
-        <a href="{{ url_for('main.branded_stock') }}" class="btn btn-primary"
-          >Record Delivery</a
-        >
+
+      <!-- Todo List -->
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-check2-square"></i> Todo List</h6>
+            <button class="btn btn-sm btn-light" onclick="addTodo()">
+              <i class="bi bi-plus"></i>
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="todoList">
+            <!-- Todo items will be added here -->
+          </div>
+          <div class="input-group mt-3">
+            <input
+              type="text"
+              class="form-control"
+              id="newTodoInput"
+              placeholder="Add new task..."
+              onkeypress="if(event.key==='Enter') addTodo()"
+            />
+            <button class="btn btn-success" onclick="addTodo()">Add</button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Invoice Correction</h5>
-        <p class="card-text">Record invoice discrepancies and corrections</p>
-        <a
-          href="{{ url_for('main.invoice_correction') }}"
-          class="btn btn-primary"
-          >Record Correction</a
-        >
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">Special Orders</h5>
-        <p class="card-text">Request products from special suppliers</p>
-        <a href="{{ url_for('main.special_order') }}" class="btn btn-primary"
-          >Create Order Request</a
-        >
-      </div>
-    </div>
-  </div>
-  <!-- Add this card to the dashboard -->
-  <div class="col-md-4 mb-4">
-    <div class="card text-center">
-      <div class="card-body">
-        <h5 class="card-title">View All Forms</h5>
-        <p class="card-text">Access and print all submitted forms</p>
-        <a href="{{ url_for('main.forms') }}" class="btn btn-info"
-          >View Forms</a
-        >
+
+      <!-- Quick Links -->
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="bi bi-link-45deg"></i> Quick Links</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a
+              href="{{ url_for('main.callsheets') }}"
+              class="btn btn-outline-primary btn-sm"
+            >
+              <i class="bi bi-telephone"></i> Call Sheets
+            </a>
+            <a href="/customers/import" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-upload"></i> Import Customers
+            </a>
+            <a
+              href="{{ url_for('main.forms') }}"
+              class="btn btn-outline-primary btn-sm"
+            >
+              <i class="bi bi-folder"></i> View All Forms
+            </a>
+            <button
+              class="btn btn-outline-secondary btn-sm"
+              onclick="window.print()"
+            >
+              <i class="bi bi-printer"></i> Print Page
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Add Update Modal -->
+<div class="modal fade" id="addUpdateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Company Update</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Title</label>
+          <input type="text" class="form-control" id="updateTitle" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Message</label>
+          <textarea class="form-control" id="updateMessage" rows="3"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Priority</label>
+          <select class="form-select" id="updatePriority">
+            <option value="normal">Normal</option>
+            <option value="important">Important</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="updateSticky" />
+          <label class="form-check-label" for="updateSticky">
+            Pin this update to top
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" onclick="saveUpdate()">
+          Post Update
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  let todos = JSON.parse(localStorage.getItem("todos") || "[]");
+  let updates = JSON.parse(localStorage.getItem("companyUpdates") || "[]");
+  let addUpdateModal;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    addUpdateModal = new bootstrap.Modal(
+      document.getElementById("addUpdateModal")
+    );
+    loadTodos();
+    loadUpdates();
+    updateStats();
+  });
+
+  // Margin Calculator
+  function calculateMargin() {
+    const cost = parseFloat(document.getElementById("costPrice").value) || 0;
+    const selling =
+      parseFloat(document.getElementById("sellingPrice").value) || 0;
+    const quantity = parseFloat(document.getElementById("quantity").value) || 1;
+
+    if (cost > 0 && selling > 0) {
+      const profit = selling - cost;
+      const margin = (profit / selling) * 100;
+      const totalProfit = profit * quantity;
+
+      document.getElementById("marginPercent").textContent =
+        margin.toFixed(2) + "%";
+      document.getElementById("profitAmount").textContent =
+        "£" + profit.toFixed(2);
+      document.getElementById("totalProfit").textContent =
+        "£" + totalProfit.toFixed(2);
+    } else {
+      document.getElementById("marginPercent").textContent = "0%";
+      document.getElementById("profitAmount").textContent = "£0.00";
+      document.getElementById("totalProfit").textContent = "£0.00";
+    }
+  }
+
+  // Todo List Functions
+  function loadTodos() {
+    const todoList = document.getElementById("todoList");
+    todoList.innerHTML = "";
+
+    todos.forEach((todo, index) => {
+      const todoItem = document.createElement("div");
+      todoItem.className = `todo-item ${todo.completed ? "completed" : ""}`;
+      todoItem.innerHTML = `
+            <input type="checkbox" ${todo.completed ? "checked" : ""} 
+                   onchange="toggleTodo(${index})">
+            <span style="flex: 1">${todo.text}</span>
+            <button class="btn btn-sm btn-danger" onclick="deleteTodo(${index})">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+      todoList.appendChild(todoItem);
+    });
+  }
+
+  function addTodo() {
+    const input = document.getElementById("newTodoInput");
+    const text = input.value.trim();
+
+    if (text) {
+      todos.push({
+        text: text,
+        completed: false,
+        createdAt: new Date().toISOString(),
+      });
+      saveTodos();
+      loadTodos();
+      input.value = "";
+    }
+  }
+
+  function toggleTodo(index) {
+    todos[index].completed = !todos[index].completed;
+    saveTodos();
+    loadTodos();
+  }
+
+  function deleteTodo(index) {
+    if (confirm("Delete this task?")) {
+      todos.splice(index, 1);
+      saveTodos();
+      loadTodos();
+    }
+  }
+
+  function saveTodos() {
+    localStorage.setItem("todos", JSON.stringify(todos));
+  }
+
+  // Company Updates Functions
+  function showAddUpdateModal() {
+    addUpdateModal.show();
+  }
+
+  function saveUpdate() {
+    const title = document.getElementById("updateTitle").value;
+    const message = document.getElementById("updateMessage").value;
+    const priority = document.getElementById("updatePriority").value;
+    const sticky = document.getElementById("updateSticky").checked;
+
+    if (title && message) {
+      const update = {
+        title: title,
+        message: message,
+        priority: priority,
+        sticky: sticky,
+        author: "{{ current_user.username }}",
+        timestamp: new Date().toISOString(),
+      };
+
+      if (sticky) {
+        updates.unshift(update);
+      } else {
+        updates.push(update);
+      }
+
+      localStorage.setItem("companyUpdates", JSON.stringify(updates));
+      loadUpdates();
+      addUpdateModal.hide();
+
+      // Clear form
+      document.getElementById("updateTitle").value = "";
+      document.getElementById("updateMessage").value = "";
+      document.getElementById("updatePriority").value = "normal";
+      document.getElementById("updateSticky").checked = false;
+    }
+  }
+
+  function loadUpdates() {
+    const updatesList = document.getElementById("updatesList");
+    updatesList.innerHTML = "";
+
+    // Sort updates - sticky first, then by timestamp
+    const sortedUpdates = [...updates].sort((a, b) => {
+      if (a.sticky && !b.sticky) return -1;
+      if (!a.sticky && b.sticky) return 1;
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+
+    sortedUpdates.slice(0, 10).forEach((update) => {
+      const updateItem = document.createElement("div");
+      updateItem.className = "update-item";
+
+      const badge =
+        update.priority === "urgent"
+          ? "danger"
+          : update.priority === "important"
+          ? "warning"
+          : "secondary";
+
+      const timeAgo = getTimeAgo(new Date(update.timestamp));
+
+      updateItem.innerHTML = `
+            <div class="d-flex justify-content-between">
+                <strong>${update.title}</strong>
+                <div>
+                    ${
+                      update.sticky
+                        ? '<i class="bi bi-pin-angle-fill text-primary me-2"></i>'
+                        : ""
+                    }
+                    <span class="badge bg-${badge}">${update.priority}</span>
+                </div>
+            </div>
+            <p class="mb-1">${update.message}</p>
+            <div class="update-meta">Posted by ${
+              update.author
+            } • ${timeAgo}</div>
+        `;
+
+      updatesList.appendChild(updateItem);
+    });
+  }
+
+  function getTimeAgo(date) {
+    const seconds = Math.floor((new Date() - date) / 1000);
+
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+
+    return "Just now";
+  }
+
+  function updateStats() {
+    // These would normally fetch from your API
+    // For now, using placeholder values
+    document.getElementById("todaysCalls").textContent = Math.floor(
+      Math.random() * 50
+    );
+    document.getElementById("pendingOrders").textContent = Math.floor(
+      Math.random() * 20
+    );
+    document.getElementById("todaysForms").textContent = Math.floor(
+      Math.random() * 15
+    );
+  }
+
+  function viewTodaysCallsheet() {
+    const today = new Date().toLocaleLowerCase();
+    const days = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ];
+    const currentDay = days[new Date().getDay()];
+
+    if (currentDay === "saturday" || currentDay === "sunday") {
+      alert("No callsheets scheduled for weekends");
+    } else {
+      window.location.href = "/callsheets#" + currentDay;
+    }
+  }
+</script>
 {% endblock %}

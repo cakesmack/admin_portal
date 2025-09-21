@@ -55,7 +55,18 @@ def logout():
 @main.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', title='Dashboard')
+    # Get customer count
+    customer_count = Customer.query.count()
+    
+    # Get current date formatted
+    current_date = datetime.now().strftime('%A, %B %d, %Y')
+    
+    return render_template(
+        'dashboard.html', 
+        title='Dashboard',
+        customer_count=customer_count,
+        current_date=current_date
+    )
 
 @main.route('/callsheets')
 @login_required
