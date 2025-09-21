@@ -560,6 +560,8 @@ def special_order():
             'product_code': form.product_code.data,
             'product_description': form.product_description.data,
             'quantity': form.quantity.data,
+            'cost price' : form.cost_price.data,
+            'sell price' : form.sell_price.data,
             'notes': form.notes.data
         }
         

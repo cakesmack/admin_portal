@@ -86,7 +86,10 @@
   </head>
   <body>
     <div class="header">
-      <div class="company-name">{{ company_name }}</div>
+      <img
+        src="{{ url_for('static', filename='images/logo.png') }}"
+        alt="Highland Industrial Supplies"
+      />
       <div class="form-title">
         {{ form_type.replace('_', ' ').title() }} Form
       </div>

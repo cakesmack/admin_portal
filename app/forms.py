@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField
+from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField, IntegerField
 from wtforms.validators import DataRequired, Optional
 
 class LoginForm(FlaskForm):
@@ -43,8 +43,11 @@ class InvoiceCorrectionForm(FlaskForm):
 class SpecialOrderForm(FlaskForm):
     supplier = StringField('Supplier Name', validators=[DataRequired()])
     customer_account = StringField('Customer Account Number', validators=[DataRequired()])
+    customer_name = StringField('Customer Account Name', validators=[DataRequired()])
     product_code = StringField('Product Code')
     product_description = StringField('Product Description', validators=[DataRequired()])
     quantity = StringField('Quantity', validators=[DataRequired()])
+    cost_price = IntegerField('Cost Price', validators=[DataRequired()])
+    sell_price = IntegerField('Sell Price', validators=[DataRequired()])
     notes = TextAreaField('Special Instructions')
     submit = SubmitField('Submit Order Request')

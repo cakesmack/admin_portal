@@ -11,28 +11,45 @@
           {{ form.supplier.label(class="form-label") }} {{
           form.supplier(class="form-control") }}
         </div>
+      </div>
+      <div class="row mb-3">
         <div class="col-md-6">
           {{ form.customer_account.label(class="form-label") }} {{
           form.customer_account(class="form-control") }}
         </div>
+        <div class="col-md-6">
+          {{ form.customer_name.label(class="form-label") }} {{
+          form.customer_name(class="form-control") }}
+        </div>
       </div>
 
       <div class="row mb-3">
-        <div class="col-md-6">
+        <div class="col-md-3">
           {{ form.product_code.label(class="form-label") }} {{
           form.product_code(class="form-control") }}
         </div>
+
         <div class="col-md-6">
-          {{ form.quantity.label(class="form-label") }} {{
-          form.quantity(class="form-control", type="number", min="1") }}
+          {{ form.product_description.label(class="form-label") }} {{
+          form.product_description(class="form-control") }}
         </div>
       </div>
 
-      <div class="mb-3">
-        {{ form.product_description.label(class="form-label") }} {{
-        form.product_description(class="form-control") }}
-      </div>
+      <div class="row mb-3">
+        <div class="col-md-3">
+          {{ form.quantity.label(class="form-label") }} {{
+          form.quantity(class="form-control", type="number", min="1") }}
+        </div>
+        <div class="col-md-3">
+          {{ form.cost_price.label(class="form-label") }} {{
+          form.cost_price(class="form-control") }}
+        </div>
 
+        <div class="col-md-3">
+          {{ form.sell_price.label(class="form-label") }} {{
+          form.sell_price(class="form-control") }}
+        </div>
+      </div>
       <div class="mb-3">
         {{ form.notes.label(class="form-label") }} {{
         form.notes(class="form-control", rows="3") }}
