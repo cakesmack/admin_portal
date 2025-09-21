@@ -1,0 +1,861 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2>Customer Stock Management</h2>
+    {% if low_stock_count > 0 %}
+    <div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle"></i>
+      <strong>{{ low_stock_count }}</strong> item(s) are running low on stock
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <button class="btn btn-success" onclick="showAddStockModal()">
+      <i class="bi bi-plus-circle"></i> Add New Stock Item
+    </button>
+    <button class="btn btn-primary" onclick="showQuickTransactionModal()">
+      <i class="bi bi-arrow-down-up"></i> Quick Transaction
+    </button>
+  </div>
+</div>
+
+<!-- Stock Overview Cards -->
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h5 class="text-primary">{{ stock_items|length }}</h5>
+        <small>Total Stock Items</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h5 class="text-warning">{{ low_stock_count }}</h5>
+        <small>Low Stock Alerts</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h5 class="text-info">
+          {{ stock_items|map(attribute='customer')|unique|list|length }}
+        </h5>
+        <small>Customers with Stock</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h5 class="text-success">
+          {{ stock_items|sum(attribute='current_stock') }}
+        </h5>
+        <small>Total Units in Stock</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-4">
+        <label class="form-label">Filter by Customer</label>
+        <select
+          class="form-select"
+          id="customerFilter"
+          onchange="filterStock()"
+        >
+          <option value="">All Customers</option>
+          {% for customer in
+          stock_items|map(attribute='customer')|unique|sort(attribute='name') %}
+          <option value="{{ customer.id }}">{{ customer.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Search Product</label>
+        <input
+          type="text"
+          class="form-control"
+          id="productSearch"
+          placeholder="Search by product code or name"
+          onkeyup="filterStock()"
+        />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Stock Status</label>
+        <select
+          class="form-select"
+          id="stockStatusFilter"
+          onchange="filterStock()"
+        >
+          <option value="">All Stock</option>
+          <option value="low">Low Stock Only</option>
+          <option value="normal">Normal Stock</option>
+          <option value="zero">Out of Stock</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Items Table -->
+<div class="card">
+  <div class="card-header">
+    <h5>Current Stock Items</h5>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover" id="stockTable">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Product Code</th>
+            <th>Product Name</th>
+            <th>Current Stock</th>
+            <th>Unit Type</th>
+            <th>Reorder Level</th>
+            <th>Status</th>
+            <th>Last Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in stock_items %}
+          <tr
+            data-customer-id="{{ item.customer.id }}"
+            data-product="{{ item.product_name.lower() }} {{ item.product_code.lower() }}"
+            data-stock-status="{% if item.current_stock == 0 %}zero{% elif item.current_stock <= item.reorder_level %}low{% else %}normal{% endif %}"
+          >
+            <td>{{ item.customer.name }}</td>
+            <td><strong>{{ item.product_code }}</strong></td>
+            <td>{{ item.product_name }}</td>
+            <td>
+              <span
+                class="badge {% if item.current_stock == 0 %}bg-danger{% elif item.current_stock <= item.reorder_level %}bg-warning{% else %}bg-success{% endif %}"
+              >
+                {{ item.current_stock }}
+              </span>
+            </td>
+            <td>{{ item.unit_type }}</td>
+            <td>{{ item.reorder_level }}</td>
+            <td>
+              {% if item.current_stock == 0 %}
+              <span class="badge bg-danger">Out of Stock</span>
+              {% elif item.current_stock <= item.reorder_level %}
+              <span class="badge bg-warning">Low Stock</span>
+              {% else %}
+              <span class="badge bg-success">In Stock</span>
+              {% endif %}
+            </td>
+            <td>{{ item.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+              <div class="btn-group" role="group">
+                <button
+                  class="btn btn-sm btn-primary"
+                  onclick="showStockInModal({{ item.id }}, '{{ item.customer.name }}', '{{ item.product_name }}')"
+                >
+                  <i class="bi bi-plus"></i> In
+                </button>
+                <button
+                  class="btn btn-sm btn-warning"
+                  onclick="showStockOutModal({{ item.id }}, '{{ item.customer.name }}', '{{ item.product_name }}', {{ item.current_stock }})"
+                >
+                  <i class="bi bi-dash"></i> Out
+                </button>
+                <button
+                  class="btn btn-sm btn-info"
+                  onclick="showStockHistory({{ item.id }})"
+                >
+                  <i class="bi bi-clock-history"></i>
+                </button>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="editStockItem({{ item.id }})"
+                >
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add New Stock Item Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add New Stock Item</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <form id="addStockForm">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Customer *</label>
+              <select class="form-select" id="newStockCustomer" required>
+                <option value="">Select Customer</option>
+                {% for customer in
+                stock_items|map(attribute='customer')|unique|sort(attribute='name')
+                %}
+                <option value="{{ customer.id }}">{{ customer.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Product Code *</label>
+              <input
+                type="text"
+                class="form-control"
+                id="newStockProductCode"
+                required
+              />
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-8 mb-3">
+              <label class="form-label">Product Name *</label>
+              <input
+                type="text"
+                class="form-control"
+                id="newStockProductName"
+                required
+              />
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Unit Type</label>
+              <select class="form-select" id="newStockUnitType">
+                <option value="cases">Cases</option>
+                <option value="boxes">Boxes</option>
+                <option value="units">Units</option>
+                <option value="pallets">Pallets</option>
+                <option value="rolls">Rolls</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Initial Stock</label>
+              <input
+                type="number"
+                class="form-control"
+                id="newStockInitial"
+                min="0"
+                value="0"
+              />
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Reorder Level</label>
+              <input
+                type="number"
+                class="form-control"
+                id="newStockReorderLevel"
+                min="0"
+                value="5"
+              />
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Reference</label>
+              <input
+                type="text"
+                class="form-control"
+                id="newStockReference"
+                placeholder="Order/Delivery ref"
+              />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea
+              class="form-control"
+              id="newStockNotes"
+              rows="2"
+            ></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" onclick="saveNewStock()">
+          Create Stock Item
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock In Modal -->
+<div class="modal fade" id="stockInModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Stock In</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="stockInItemId" />
+        <div class="alert alert-info">
+          <strong>Customer:</strong> <span id="stockInCustomer"></span><br />
+          <strong>Product:</strong> <span id="stockInProduct"></span>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Quantity Received *</label>
+          <input
+            type="number"
+            class="form-control"
+            id="stockInQuantity"
+            min="1"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Reference</label>
+          <input
+            type="text"
+            class="form-control"
+            id="stockInReference"
+            placeholder="Delivery note, order number, etc."
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Notes</label>
+          <textarea class="form-control" id="stockInNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-success"
+          onclick="processStockIn()"
+        >
+          Add to Stock
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Out Modal -->
+<div class="modal fade" id="stockOutModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Stock Out</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="stockOutItemId" />
+        <div class="alert alert-info">
+          <strong>Customer:</strong> <span id="stockOutCustomer"></span><br />
+          <strong>Product:</strong> <span id="stockOutProduct"></span><br />
+          <strong>Available:</strong> <span id="stockOutAvailable"></span> units
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Quantity Taken *</label>
+          <input
+            type="number"
+            class="form-control"
+            id="stockOutQuantity"
+            min="1"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Reference</label>
+          <input
+            type="text"
+            class="form-control"
+            id="stockOutReference"
+            placeholder="Order number, invoice, etc."
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Notes</label>
+          <textarea class="form-control" id="stockOutNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-warning"
+          onclick="processStockOut()"
+        >
+          Remove from Stock
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock History Modal -->
+<div class="modal fade" id="stockHistoryModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Stock Transaction History</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div id="historyContent">
+          <!-- History will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Transaction Modal -->
+<div class="modal fade" id="quickTransactionModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Quick Stock Transaction</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Search Stock Item</label>
+          <input
+            type="text"
+            class="form-control"
+            id="quickSearchStock"
+            placeholder="Type customer name or product..."
+          />
+          <div id="quickSearchResults" class="mt-2"></div>
+        </div>
+        <div id="quickTransactionForm" style="display: none">
+          <input type="hidden" id="quickStockId" />
+          <div class="alert alert-info">
+            <strong>Selected:</strong> <span id="quickSelectedItem"></span>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Transaction Type</label>
+              <select class="form-select" id="quickTransactionType">
+                <option value="stock_in">Stock In</option>
+                <option value="stock_out">Stock Out</option>
+                <option value="adjustment">Adjustment</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Quantity</label>
+              <input
+                type="number"
+                class="form-control"
+                id="quickQuantity"
+                required
+              />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Reference</label>
+            <input type="text" class="form-control" id="quickReference" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" id="quickNotes" rows="2"></textarea>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick="processQuickTransaction()"
+          >
+            Process Transaction
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  let addStockModal,
+    stockInModal,
+    stockOutModal,
+    stockHistoryModal,
+    quickTransactionModal;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    addStockModal = new bootstrap.Modal(
+      document.getElementById("addStockModal")
+    );
+    stockInModal = new bootstrap.Modal(document.getElementById("stockInModal"));
+    stockOutModal = new bootstrap.Modal(
+      document.getElementById("stockOutModal")
+    );
+    stockHistoryModal = new bootstrap.Modal(
+      document.getElementById("stockHistoryModal")
+    );
+    quickTransactionModal = new bootstrap.Modal(
+      document.getElementById("quickTransactionModal")
+    );
+
+    // Quick search functionality
+    document
+      .getElementById("quickSearchStock")
+      .addEventListener("input", searchStockItems);
+  });
+
+  function showAddStockModal() {
+    addStockModal.show();
+  }
+
+  function showQuickTransactionModal() {
+    quickTransactionModal.show();
+  }
+
+  async function saveNewStock() {
+    const data = {
+      customer_id: document.getElementById("newStockCustomer").value,
+      product_code: document.getElementById("newStockProductCode").value,
+      product_name: document.getElementById("newStockProductName").value,
+      unit_type: document.getElementById("newStockUnitType").value,
+      initial_stock:
+        parseInt(document.getElementById("newStockInitial").value) || 0,
+      reorder_level:
+        parseInt(document.getElementById("newStockReorderLevel").value) || 5,
+      reference: document.getElementById("newStockReference").value,
+      notes: document.getElementById("newStockNotes").value,
+    };
+
+    if (!data.customer_id || !data.product_code || !data.product_name) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/customer-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        addStockModal.hide();
+        location.reload();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
+  }
+
+  function showStockInModal(itemId, customer, product) {
+    document.getElementById("stockInItemId").value = itemId;
+    document.getElementById("stockInCustomer").textContent = customer;
+    document.getElementById("stockInProduct").textContent = product;
+    document.getElementById("stockInQuantity").value = "";
+    document.getElementById("stockInReference").value = "";
+    document.getElementById("stockInNotes").value = "";
+    stockInModal.show();
+  }
+
+  async function processStockIn() {
+    const itemId = document.getElementById("stockInItemId").value;
+    const data = {
+      transaction_type: "stock_in",
+      quantity: parseInt(document.getElementById("stockInQuantity").value),
+      reference: document.getElementById("stockInReference").value,
+      notes: document.getElementById("stockInNotes").value,
+    };
+
+    if (!data.quantity || data.quantity < 1) {
+      alert("Please enter a valid quantity");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/customer-stock/${itemId}/transaction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }
+      );
+
+      const result = await response.json();
+      if (result.success) {
+        stockInModal.hide();
+        location.reload();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
+  }
+
+  function showStockOutModal(itemId, customer, product, available) {
+    document.getElementById("stockOutItemId").value = itemId;
+    document.getElementById("stockOutCustomer").textContent = customer;
+    document.getElementById("stockOutProduct").textContent = product;
+    document.getElementById("stockOutAvailable").textContent = available;
+    document.getElementById("stockOutQuantity").value = "";
+    document.getElementById("stockOutQuantity").max = available;
+    document.getElementById("stockOutReference").value = "";
+    document.getElementById("stockOutNotes").value = "";
+    stockOutModal.show();
+  }
+
+  async function processStockOut() {
+    const itemId = document.getElementById("stockOutItemId").value;
+    const quantity = parseInt(
+      document.getElementById("stockOutQuantity").value
+    );
+    const available = parseInt(
+      document.getElementById("stockOutAvailable").textContent
+    );
+
+    if (!quantity || quantity < 1) {
+      alert("Please enter a valid quantity");
+      return;
+    }
+
+    if (quantity > available) {
+      alert("Cannot take more stock than available");
+      return;
+    }
+
+    const data = {
+      transaction_type: "stock_out",
+      quantity: quantity,
+      reference: document.getElementById("stockOutReference").value,
+      notes: document.getElementById("stockOutNotes").value,
+    };
+
+    try {
+      const response = await fetch(
+        `/api/customer-stock/${itemId}/transaction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }
+      );
+
+      const result = await response.json();
+      if (result.success) {
+        stockOutModal.hide();
+        location.reload();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
+  }
+
+  async function showStockHistory(itemId) {
+    try {
+      const response = await fetch(`/api/customer-stock/${itemId}/history`);
+      const transactions = await response.json();
+
+      let historyHtml =
+        '<div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Quantity</th><th>Reference</th><th>Notes</th><th>User</th></tr></thead><tbody>';
+
+      transactions.forEach((transaction) => {
+        const date = new Date(transaction.transaction_date).toLocaleString();
+        const badgeClass =
+          transaction.transaction_type === "stock_in"
+            ? "bg-success"
+            : transaction.transaction_type === "stock_out"
+            ? "bg-warning"
+            : "bg-info";
+
+        historyHtml += `
+                <tr>
+                    <td>${date}</td>
+                    <td><span class="badge ${badgeClass}">${transaction.transaction_type.replace(
+          "_",
+          " "
+        )}</span></td>
+                    <td>${transaction.quantity}</td>
+                    <td>${transaction.reference || "-"}</td>
+                    <td>${transaction.notes || "-"}</td>
+                    <td>${transaction.created_by}</td>
+                </tr>
+            `;
+      });
+
+      historyHtml += "</tbody></table></div>";
+
+      if (transactions.length === 0) {
+        historyHtml = '<p class="text-muted">No transactions recorded yet.</p>';
+      }
+
+      document.getElementById("historyContent").innerHTML = historyHtml;
+      stockHistoryModal.show();
+    } catch (error) {
+      alert("Error loading history: " + error.message);
+    }
+  }
+
+  async function searchStockItems() {
+    const query = document.getElementById("quickSearchStock").value;
+
+    if (query.length < 2) {
+      document.getElementById("quickSearchResults").innerHTML = "";
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/customer-stock/search?q=${encodeURIComponent(query)}`
+      );
+      const items = await response.json();
+
+      let resultsHtml = "";
+      items.forEach((item) => {
+        resultsHtml += `
+                <div class="border rounded p-2 mb-2 cursor-pointer" onclick="selectQuickItem(${item.id}, '${item.customer_name}', '${item.product_name}', ${item.current_stock})">
+                    <strong>${item.customer_name}</strong> - ${item.product_name} (${item.product_code})
+                    <br><small>Current stock: ${item.current_stock} ${item.unit_type}</small>
+                </div>
+            `;
+      });
+
+      document.getElementById("quickSearchResults").innerHTML = resultsHtml;
+    } catch (error) {
+      console.error("Search error:", error);
+    }
+  }
+
+  function selectQuickItem(itemId, customer, product, currentStock) {
+    document.getElementById("quickStockId").value = itemId;
+    document.getElementById(
+      "quickSelectedItem"
+    ).textContent = `${customer} - ${product} (Current: ${currentStock})`;
+    document.getElementById("quickSearchResults").innerHTML = "";
+    document.getElementById("quickTransactionForm").style.display = "block";
+  }
+
+  async function processQuickTransaction() {
+    const itemId = document.getElementById("quickStockId").value;
+    const data = {
+      transaction_type: document.getElementById("quickTransactionType").value,
+      quantity: parseInt(document.getElementById("quickQuantity").value),
+      reference: document.getElementById("quickReference").value,
+      notes: document.getElementById("quickNotes").value,
+    };
+
+    if (!data.quantity) {
+      alert("Please enter a quantity");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/customer-stock/${itemId}/transaction`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }
+      );
+
+      const result = await response.json();
+      if (result.success) {
+        quickTransactionModal.hide();
+        location.reload();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
+  }
+
+  function filterStock() {
+    const customerFilter = document.getElementById("customerFilter").value;
+    const productSearch = document
+      .getElementById("productSearch")
+      .value.toLowerCase();
+    const statusFilter = document.getElementById("stockStatusFilter").value;
+
+    const rows = document.querySelectorAll("#stockTable tbody tr");
+
+    rows.forEach((row) => {
+      let show = true;
+
+      // Customer filter
+      if (customerFilter && row.dataset.customerId !== customerFilter) {
+        show = false;
+      }
+
+      // Product search
+      if (productSearch && !row.dataset.product.includes(productSearch)) {
+        show = false;
+      }
+
+      // Status filter
+      if (statusFilter && row.dataset.stockStatus !== statusFilter) {
+        show = false;
+      }
+
+      row.style.display = show ? "" : "none";
+    });
+  }
+
+  function editStockItem(itemId) {
+    // Implementation for editing stock items (reorder levels, etc.)
+    alert("Edit functionality would be implemented here");
+  }
+</script>
+
+<style>
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  .cursor-pointer:hover {
+    background-color: var(--dark-card-hover);
+  }
+
+  #quickSearchResults .border:hover {
+    border-color: var(--primary-blue) !important;
+  }
+</style>
+{% endblock %}

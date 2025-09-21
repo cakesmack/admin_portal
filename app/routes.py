@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive
+from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction
 from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm
 import json
 from datetime import datetime, date
@@ -67,6 +67,111 @@ def dashboard():
         customer_count=customer_count,
         current_date=current_date
     )
+
+# Todo API Routes
+@main.route('/api/todos', methods=['GET'])
+@login_required
+def get_todos():
+    todos = TodoItem.query.filter_by(user_id=current_user.id).order_by(TodoItem.created_at.desc()).all()
+    return jsonify([{
+        'id': todo.id,
+        'text': todo.text,
+        'completed': todo.completed,
+        'created_at': todo.created_at.isoformat()
+    } for todo in todos])
+
+@main.route('/api/todos', methods=['POST'])
+@login_required
+def create_todo():
+    data = request.json
+    todo = TodoItem(
+        text=data['text'],
+        user_id=current_user.id
+    )
+    db.session.add(todo)
+    db.session.commit()
+    return jsonify({'success': True, 'id': todo.id})
+
+@main.route('/api/todos/<int:todo_id>/toggle', methods=['POST'])
+@login_required
+def toggle_todo(todo_id):
+    todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
+    todo.completed = not todo.completed
+    db.session.commit()
+    return jsonify({'success': True})
+
+@main.route('/api/todos/<int:todo_id>', methods=['DELETE'])
+@login_required
+def delete_todo(todo_id):
+    todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
+    db.session.delete(todo)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# Company Updates API Routes
+@main.route('/api/company-updates', methods=['GET'])
+@login_required
+def get_company_updates():
+    updates = CompanyUpdate.query.join(User).order_by(
+        CompanyUpdate.sticky.desc(),
+        CompanyUpdate.created_at.desc()
+    ).limit(20).all()
+    
+    return jsonify([{
+        'id': update.id,
+        'title': update.title,
+        'message': update.message,
+        'priority': update.priority,
+        'sticky': update.sticky,
+        'is_event': update.is_event,
+        'event_date': update.event_date.isoformat() if update.event_date else None,
+        'created_at': update.created_at.isoformat(),
+        'author_name': update.author.username,
+        'can_delete': update.user_id == current_user.id
+    } for update in updates])
+
+@main.route('/api/company-updates', methods=['POST'])
+@login_required
+def create_company_update():
+    data = request.json
+    
+    event_date = None
+    if data.get('is_event') and data.get('event_date'):
+        event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
+    
+    update = CompanyUpdate(
+        title=data['title'],
+        message=data['message'],
+        priority=data.get('priority', 'normal'),
+        sticky=data.get('sticky', False),
+        is_event=data.get('is_event', False),
+        event_date=event_date,
+        user_id=current_user.id
+    )
+    db.session.add(update)
+    db.session.commit()
+    return jsonify({'success': True, 'id': update.id})
+
+@main.route('/api/company-updates/<int:update_id>', methods=['DELETE'])
+@login_required
+def delete_company_update(update_id):
+    update = CompanyUpdate.query.filter_by(id=update_id, user_id=current_user.id).first_or_404()
+    db.session.delete(update)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# Recent Forms API Route
+@main.route('/api/recent-forms', methods=['GET'])
+@login_required
+def get_recent_forms():
+    forms = Form.query.join(User).order_by(Form.date_created.desc()).limit(5).all()
+    
+    return jsonify([{
+        'id': form.id,
+        'type': form.type.replace('_', ' ').title(),
+        'date_created': form.date_created.isoformat(),
+        'author': form.author.username
+    } for form in forms])
 
 @main.route('/callsheets')
 @login_required
@@ -353,8 +458,6 @@ def archive_callsheets():
                         'customer_account': entry.customer.account_number,
                         'call_status': entry.call_status,
                         'called_by': entry.called_by,
-                        'order_details': entry.order_details,
-                        'order_value': entry.order_value,
                         'call_notes': entry.call_notes
                     } for entry in entries
                 ]
@@ -421,8 +524,7 @@ def reset_callsheets():
                     customer_id=old_entry.customer_id,
                     position=old_entry.position,
                     user_id=current_user.id,
-                    called=False,
-                    order_placed=False
+                    call_status='not_called'
                 )
                 db.session.add(new_entry)
         
@@ -557,11 +659,12 @@ def special_order():
         form_data = {
             'supplier': form.supplier.data,
             'customer_account': form.customer_account.data,
+            'customer_name': form.customer_name.data,
             'product_code': form.product_code.data,
             'product_description': form.product_description.data,
             'quantity': form.quantity.data,
-            'cost price' : form.cost_price.data,
-            'sell price' : form.sell_price.data,
+            'cost_price' : form.cost_price.data,
+            'sell_price' : form.sell_price.data,
             'notes': form.notes.data
         }
         
@@ -767,3 +870,147 @@ def import_customers():
             return redirect(request.url)
     
     return render_template('import_customers.html', title='Import Customers')
+
+
+# Add these routes to your routes.py
+
+@main.route('/customer-stock')
+@login_required
+def customer_stock():
+    # Get all customer stock with low stock alerts
+    stock_items = CustomerStock.query.join(Customer).order_by(Customer.name, CustomerStock.product_name).all()
+    low_stock_items = [item for item in stock_items if item.current_stock <= item.reorder_level]
+    
+    return render_template(
+        'customer_stock.html',
+        title='Customer Stock Management',
+        stock_items=stock_items,
+        low_stock_count=len(low_stock_items)
+    )
+
+@main.route('/api/customer-stock', methods=['POST'])
+@login_required
+def create_customer_stock():
+    data = request.json
+    
+    try:
+        # Check if this customer already has this product
+        existing = CustomerStock.query.filter_by(
+            customer_id=data['customer_id'],
+            product_code=data['product_code']
+        ).first()
+        
+        if existing:
+            return jsonify({'success': False, 'message': 'This customer already has this product in stock'}), 400
+        
+        stock_item = CustomerStock(
+            customer_id=data['customer_id'],
+            product_code=data['product_code'],
+            product_name=data['product_name'],
+            current_stock=data.get('initial_stock', 0),
+            unit_type=data.get('unit_type', 'cases'),
+            reorder_level=data.get('reorder_level', 5)
+        )
+        
+        db.session.add(stock_item)
+        db.session.flush()
+        
+        # Create initial stock transaction if there's initial stock
+        if data.get('initial_stock', 0) > 0:
+            transaction = StockTransaction(
+                stock_item_id=stock_item.id,
+                transaction_type='stock_in',
+                quantity=data['initial_stock'],
+                reference=data.get('reference', 'Initial Stock'),
+                notes=data.get('notes', 'Initial stock setup'),
+                created_by=current_user.id
+            )
+            db.session.add(transaction)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Stock item created successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/api/customer-stock/<int:stock_id>/transaction', methods=['POST'])
+@login_required
+def create_stock_transaction(stock_id):
+    stock_item = CustomerStock.query.get_or_404(stock_id)
+    data = request.json
+    
+    try:
+        transaction_type = data['transaction_type']
+        quantity = int(data['quantity'])
+        
+        # Create the transaction
+        transaction = StockTransaction(
+            stock_item_id=stock_id,
+            transaction_type=transaction_type,
+            quantity=quantity,
+            reference=data.get('reference', ''),
+            notes=data.get('notes', ''),
+            created_by=current_user.id
+        )
+        
+        # Update stock levels
+        if transaction_type == 'stock_in':
+            stock_item.current_stock += quantity
+        elif transaction_type == 'stock_out':
+            if stock_item.current_stock < quantity:
+                return jsonify({'success': False, 'message': 'Insufficient stock available'}), 400
+            stock_item.current_stock -= quantity
+        elif transaction_type == 'adjustment':
+            # For adjustments, quantity can be positive or negative
+            new_stock = stock_item.current_stock + quantity
+            if new_stock < 0:
+                return jsonify({'success': False, 'message': 'Cannot adjust to negative stock'}), 400
+            stock_item.current_stock = new_stock
+        
+        stock_item.updated_at = datetime.now()
+        
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Stock {transaction_type.replace("_", " ")} recorded successfully',
+            'new_stock_level': stock_item.current_stock
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/api/customer-stock/<int:stock_id>/history')
+@login_required
+def get_stock_history(stock_id):
+    stock_item = CustomerStock.query.get_or_404(stock_id)
+    transactions = StockTransaction.query.filter_by(stock_item_id=stock_id)\
+        .order_by(StockTransaction.transaction_date.desc()).all()
+    
+    return jsonify([transaction.to_dict() for transaction in transactions])
+
+@main.route('/api/customer-stock/search')
+@login_required
+def search_customer_stock():
+    customer_id = request.args.get('customer_id')
+    query = request.args.get('q', '').strip()
+    
+    stock_query = CustomerStock.query.join(Customer)
+    
+    if customer_id:
+        stock_query = stock_query.filter(CustomerStock.customer_id == customer_id)
+    
+    if query:
+        stock_query = stock_query.filter(
+            db.or_(
+                CustomerStock.product_code.ilike(f'%{query}%'),
+                CustomerStock.product_name.ilike(f'%{query}%'),
+                Customer.name.ilike(f'%{query}%')
+            )
+        )
+    
+    stock_items = stock_query.limit(20).all()
+    return jsonify([item.to_dict() for item in stock_items])

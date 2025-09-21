@@ -1,5 +1,6 @@
 from app import create_app, db
-from app.models import User, Customer, Product
+from app.models import User, Customer, Product, TodoItem, CompanyUpdate
+from datetime import datetime
 
 app = create_app()
 
@@ -43,6 +44,20 @@ with app.app_context():
             contact_name='Robert Johnson',
             phone='01463 789123',
             email='robert@cafeness.com'
+        ),
+        Customer(
+            account_number='CUST004',
+            name='Inverness Sports Club',
+            contact_name='Sarah Wilson',
+            phone='01463 456789',
+            email='sarah@invernesssports.com'
+        ),
+        Customer(
+            account_number='CUST005',
+            name='Highland University',
+            contact_name='David Campbell',
+            phone='01463 987654',
+            email='david@highland-uni.ac.uk'
         )
     ]
     
@@ -54,15 +69,55 @@ with app.app_context():
         Product(code='CAT002', name='Plastic Cutlery Pack', description='Disposable cutlery set (100 pieces)')
     ]
     
-    # Add to session and commit
+    # Add to session and commit users first
     db.session.add(admin_user)
     db.session.add(test_user)
+    db.session.commit()
     
+    # Add sample todo items for admin user
+    admin_todos = [
+        TodoItem(text='Review monthly sales report', user_id=admin_user.id),
+        TodoItem(text='Update customer database', user_id=admin_user.id),
+        TodoItem(text='Schedule team meeting', user_id=admin_user.id, completed=True)
+    ]
+    
+    # Add sample company updates
+    sample_updates = [
+        CompanyUpdate(
+            title='System Maintenance Scheduled',
+            message='The admin portal will be under maintenance this Saturday from 2-4 PM for system updates.',
+            priority='important',
+            sticky=True,
+            user_id=admin_user.id
+        ),
+        CompanyUpdate(
+            title='New Product Line Available',
+            message='We now have a new eco-friendly product line available for all customers. Contact sales for more information.',
+            priority='normal',
+            user_id=admin_user.id
+        ),
+        CompanyUpdate(
+            title='Monthly Team Meeting',
+            message='Monthly team meeting to discuss Q4 targets and customer feedback.',
+            priority='normal',
+            is_event=True,
+            event_date=datetime(2024, 12, 15, 10, 0),  # Sample meeting date
+            user_id=admin_user.id
+        )
+    ]
+    
+    # Add customers, products, todos, and updates
     for customer in customers:
         db.session.add(customer)
     
     for product in products:
         db.session.add(product)
+        
+    for todo in admin_todos:
+        db.session.add(todo)
+        
+    for update in sample_updates:
+        db.session.add(update)
     
     db.session.commit()
     
@@ -70,3 +125,8 @@ with app.app_context():
     print("\nTest credentials:")
     print("Username: admin, Password: admin123")
     print("Username: user, Password: user123")
+    print("\nSample data created:")
+    print(f"- {len(customers)} customers")
+    print(f"- {len(products)} products") 
+    print(f"- {len(admin_todos)} todo items for admin")
+    print(f"- {len(sample_updates)} company updates")
