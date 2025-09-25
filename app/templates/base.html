@@ -227,9 +227,10 @@
         </a>
       </div>
 
+      <!-- Main Navigation -->
+
       {% if current_user.is_authenticated %}
       <div class="nav-sidebar-nav">
-        <!-- Main Navigation -->
         <div class="nav-section">
           <div class="nav-section-title">Main</div>
           <div class="nav-item">
@@ -276,7 +277,7 @@
           <div class="nav-item">
             <a class="nav-link" href="{{ url_for('main.invoice_correction') }}">
               <i class="bi bi-receipt-cutoff"></i>
-              Invoice Correction
+              Invoiced Goods
             </a>
           </div>
           <div class="nav-item">
@@ -297,6 +298,18 @@
       <!-- Tools Section -->
       <div class="nav-section">
         <div class="nav-section-title">Tools</div>
+        <div class="nav-item">
+          <a class="nav-link" href="#" onclick="showContacts()">
+            <i class="bi bi-people-fill"></i>
+            Staff Contacts
+          </a>
+        </div>
+        <div class="nav-item">
+          <a class="nav-link" href="#" onclick="showCustomerDirectory()">
+            <i class="bi bi-building"></i>
+            Customer Directory
+          </a>
+        </div>
         <div class="nav-item">
           <a class="nav-link" href="#" onclick="showMarginCalculator()">
             <i class="bi bi-calculator"></i>
@@ -714,6 +727,123 @@
       </div>
     </div>
 
+    <!-- Staff Contacts Modal -->
+    <div class="modal fade" id="contactsModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-people-fill"></i> Staff Contacts
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <!-- Staff List -->
+              <div class="col-md-4">
+                <div class="input-group mb-3">
+                  <span class="input-group-text"
+                    ><i class="bi bi-search"></i
+                  ></span>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="contactSearch"
+                    placeholder="Search staff..."
+                    onkeyup="filterContacts()"
+                  />
+                </div>
+                <div id="staffList" class="list-group">
+                  <!-- Staff members will be loaded here -->
+                </div>
+              </div>
+
+              <!-- Staff Details -->
+              <div class="col-md-8">
+                <div id="staffDetails">
+                  <div class="text-center text-muted py-5">
+                    <i class="bi bi-person-circle" style="font-size: 3rem"></i>
+                    <p class="mt-3">
+                      Select a staff member to view their contact details
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Directory Modal -->
+    <div class="modal fade" id="customerDirectoryModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-building"></i> Customer Directory
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <!-- Customer List -->
+              <div class="col-md-4">
+                <div class="d-flex gap-2 mb-3">
+                  <div class="input-group flex-grow-1">
+                    <span class="input-group-text"
+                      ><i class="bi bi-search"></i
+                    ></span>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="customerSearch"
+                      placeholder="Search customers..."
+                      onkeyup="filterCustomers()"
+                    />
+                  </div>
+                  <button
+                    class="btn btn-success"
+                    onclick="showAddCustomerForm()"
+                  >
+                    <i class="bi bi-plus"></i>
+                  </button>
+                </div>
+                <div
+                  id="customerList"
+                  class="list-group"
+                  style="max-height: 500px; overflow-y: auto"
+                >
+                  <!-- Customers will be loaded here -->
+                </div>
+              </div>
+
+              <!-- Customer Details/Form -->
+              <div class="col-md-8">
+                <div id="customerDetails">
+                  <div class="text-center text-muted py-5">
+                    <i class="bi bi-building" style="font-size: 3rem"></i>
+                    <p class="mt-3">
+                      Select a customer to view their details, or click + to add
+                      a new customer
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main content -->
     <div class="main-content" id="mainContent">
       <div class="container-fluid">
@@ -1063,6 +1193,579 @@
           closeSidebar();
         }
       });
+
+      function showContacts() {
+        loadStaffList();
+        new bootstrap.Modal(document.getElementById("contactsModal")).show();
+      }
+
+      async function loadStaffList() {
+        try {
+          const response = await fetch("/api/staff-contacts");
+          const staff = await response.json();
+
+          const staffList = document.getElementById("staffList");
+          staffList.innerHTML = "";
+
+          staff.forEach((person) => {
+            const listItem = document.createElement("a");
+            listItem.href = "#";
+            listItem.className =
+              "list-group-item list-group-item-action staff-item";
+            listItem.onclick = () => showStaffDetails(person.id);
+            listItem.innerHTML = `
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">${person.full_name}</h6>
+          <span class="badge bg-${
+            person.role === "admin" ? "primary" : "secondary"
+          }">${person.role.toUpperCase()}</span>
+        </div>
+        <p class="mb-1">${person.job_title || "No job title"}</p>
+        <small>${person.email}</small>
+      `;
+            staffList.appendChild(listItem);
+          });
+        } catch (error) {
+          console.error("Error loading staff:", error);
+        }
+      }
+
+      async function showStaffDetails(userId) {
+        try {
+          // Remove active class from all items
+          document.querySelectorAll(".staff-item").forEach((item) => {
+            item.classList.remove("active");
+          });
+
+          // Add active class to clicked item
+          event.target.closest(".staff-item").classList.add("active");
+
+          const response = await fetch(`/api/users/${userId}/contact-info`);
+          const user = await response.json();
+
+          const detailsDiv = document.getElementById("staffDetails");
+          detailsDiv.innerHTML = `
+      <div class="card">
+        <div class="card-body">
+          <div class="text-center mb-4">
+            <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                 style="width: 80px; height: 80px;">
+              <i class="bi bi-person-fill" style="font-size: 2rem; color: white;"></i>
+            </div>
+            <h4 class="mt-2">${user.full_name}</h4>
+            <h5>
+              ${user.job_title}
+            </h5>
+            ${
+              !user.is_active
+                ? '<span class="badge bg-danger">INACTIVE</span>'
+                : ""
+            }
+          </div>
+          
+          <hr>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <strong><i class="bi bi-envelope-fill"></i> Email:</strong><br>
+                <a href="mailto:${user.email}" class="text-decoration-none">${
+            user.email
+          }</a>
+              </div>
+              
+              ${
+                user.job_title
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-briefcase-fill"></i> Job Title:</strong><br>
+                <span class="text-muted">${user.job_title}</span>
+              </div>
+              `
+                  : ""
+              }
+            </div>
+            
+            <div class="col-md-6">
+              ${
+                user.direct_phone
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-telephone-fill"></i> Direct Phone:</strong><br>
+                <a href="tel:${user.direct_phone}" class="text-decoration-none">${user.direct_phone}</a>
+              </div>
+              `
+                  : ""
+              }
+              
+              ${
+                user.mobile_phone
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-phone-fill"></i> Mobile:</strong><br>
+                <a href="tel:${user.mobile_phone}" class="text-decoration-none">${user.mobile_phone}</a>
+              </div>
+              `
+                  : ""
+              }
+            </div>
+          </div>
+          
+          <hr>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-2">
+                <strong><i class="bi bi-calendar-plus-fill"></i> Member Since:</strong><br>
+                <span class="text-muted">${new Date(
+                  user.created_at
+                ).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-2">
+                <strong><i class="bi bi-clock-fill"></i> Last Login:</strong><br>
+                <span class="text-muted">
+                  ${
+                    user.last_login
+                      ? new Date(user.last_login).toLocaleString()
+                      : "Never"
+                  }
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+        } catch (error) {
+          console.error("Error loading staff details:", error);
+        }
+      }
+
+      function filterContacts() {
+        const searchTerm = document
+          .getElementById("contactSearch")
+          .value.toLowerCase();
+        const staffItems = document.querySelectorAll(".staff-item");
+
+        staffItems.forEach((item) => {
+          const text = item.textContent.toLowerCase();
+          item.style.display = text.includes(searchTerm) ? "block" : "none";
+        });
+      }
+
+      function showCustomerDirectory() {
+        loadCustomerList();
+        new bootstrap.Modal(
+          document.getElementById("customerDirectoryModal")
+        ).show();
+      }
+
+      async function loadCustomerList() {
+        try {
+          const response = await fetch("/api/customers/directory");
+          const customers = await response.json();
+
+          const customerList = document.getElementById("customerList");
+          customerList.innerHTML = "";
+
+          customers.forEach((customer) => {
+            const listItem = document.createElement("a");
+            listItem.href = "#";
+            listItem.className =
+              "list-group-item list-group-item-action customer-item";
+            listItem.onclick = (e) => {
+              e.preventDefault();
+              showCustomerDetails(customer.id, listItem);
+            };
+            listItem.innerHTML = `
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">${customer.name}</h6>
+          <small class="text-muted">${customer.account_number}</small>
+        </div>
+        <p class="mb-1 text-muted">${
+          customer.contact_name || "No contact name"
+        }</p>
+        <small class="text-muted">${customer.phone || "No phone number"}</small>
+      `;
+            customerList.appendChild(listItem);
+          });
+        } catch (error) {
+          console.error("Error loading customers:", error);
+          const customerList = document.getElementById("customerList");
+          customerList.innerHTML =
+            '<div class="alert alert-danger">Error loading customers</div>';
+        }
+      }
+
+      async function showCustomerDetails(customerId, clickedElement = null) {
+        try {
+          // Remove active class from all items
+          document.querySelectorAll(".customer-item").forEach((item) => {
+            item.classList.remove("active");
+          });
+
+          // Add active class to clicked item
+          if (clickedElement) {
+            clickedElement.classList.add("active");
+          }
+
+          const response = await fetch(`/api/customer/${customerId}`);
+          const customer = await response.json();
+
+          const detailsDiv = document.getElementById("customerDetails");
+          detailsDiv.innerHTML = `
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-building"></i> ${customer.name}</h5>
+          <button class="btn btn-outline-primary btn-sm" onclick="showEditCustomerForm(${
+            customer.id
+          })">
+            <i class="bi bi-pencil"></i> Edit
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <strong><i class="bi bi-hash"></i> Account Number:</strong><br>
+                <span class="text-muted">${customer.account_number}</span>
+              </div>
+              
+              <div class="mb-3">
+                <strong><i class="bi bi-building-fill"></i> Company Name:</strong><br>
+                <span class="text-muted">${customer.name}</span>
+              </div>
+              
+              ${
+                customer.contact_name
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-person-fill"></i> Contact Person:</strong><br>
+                <span class="text-muted">${customer.contact_name}</span>
+              </div>
+              `
+                  : '<div class="mb-3"><span class="text-warning">No contact person on file</span></div>'
+              }
+            </div>
+            
+            <div class="col-md-6">
+              ${
+                customer.phone
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-telephone-fill"></i> Phone:</strong><br>
+                <a href="tel:${customer.phone}" class="text-decoration-none">${customer.phone}</a>
+              </div>
+              `
+                  : '<div class="mb-3"><span class="text-warning">No phone number on file</span></div>'
+              }
+              
+              ${
+                customer.email
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-envelope-fill"></i> Email:</strong><br>
+                <a href="mailto:${customer.email}" class="text-decoration-none">${customer.email}</a>
+              </div>
+              `
+                  : ""
+              }
+              
+              ${
+                customer.address
+                  ? `
+              <div class="mb-3">
+                <strong><i class="bi bi-geo-alt-fill"></i> Address:</strong><br>
+                <span class="text-muted">${customer.address}</span>
+              </div>
+              `
+                  : ""
+              }
+            </div>
+          </div>
+          
+          ${
+            customer.notes
+              ? `
+          <hr>
+          <div class="mb-3">
+            <strong><i class="bi bi-chat-square-text-fill"></i> Notes:</strong><br>
+            <span class="text-muted">${customer.notes}</span>
+          </div>
+          `
+              : ""
+          }
+          
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary btn-sm" onclick="copyToClipboard('${
+              customer.account_number
+            }')">
+              <i class="bi bi-clipboard"></i> Copy Account #
+            </button>
+            <button class="btn btn-success btn-sm" onclick="copyToClipboard('${
+              customer.phone || ""
+            }')">
+              <i class="bi bi-clipboard"></i> Copy Phone
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+        } catch (error) {
+          console.error("Error loading customer details:", error);
+          const detailsDiv = document.getElementById("customerDetails");
+          detailsDiv.innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle"></i>
+        Error loading customer details. Please try again.
+      </div>
+    `;
+        }
+      }
+
+      function showAddCustomerForm() {
+        const detailsDiv = document.getElementById("customerDetails");
+        detailsDiv.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Add New Customer</h5>
+      </div>
+      <div class="card-body">
+        <form id="addCustomerForm">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Account Number *</label>
+                <input type="text" class="form-control" id="newAccountNumber" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Company Name *</label>
+                <input type="text" class="form-control" id="newCompanyName" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Contact Person</label>
+                <input type="text" class="form-control" id="newContactName">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="newPhone">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="newEmail">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Address</label>
+                <textarea class="form-control" id="newAddress" rows="3"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" id="newNotes" rows="2"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success" onclick="saveNewCustomer()">
+              <i class="bi bi-check"></i> Save Customer
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="loadCustomerList(); showCustomerDirectory();">
+              <i class="bi bi-x"></i> Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+      }
+
+      async function showEditCustomerForm(customerId) {
+        try {
+          const response = await fetch(`/api/customer/${customerId}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch customer data");
+          }
+
+          const customer = await response.json();
+
+          const detailsDiv = document.getElementById("customerDetails");
+          detailsDiv.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="bi bi-pencil"></i> Edit Customer</h5>
+        </div>
+        <div class="card-body">
+          <form id="editCustomerForm">
+            <input type="hidden" id="editCustomerId" value="${customer.id}">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Account Number *</label>
+                  <input type="text" class="form-control" id="editAccountNumber" value="${
+                    customer.account_number
+                  }" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Company Name *</label>
+                  <input type="text" class="form-control" id="editCompanyName" value="${
+                    customer.name
+                  }" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Contact Person</label>
+                  <input type="text" class="form-control" id="editContactName" value="${
+                    customer.contact_name || ""
+                  }">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Phone Number</label>
+                  <input type="tel" class="form-control" id="editPhone" value="${
+                    customer.phone || ""
+                  }">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Email</label>
+                  <input type="email" class="form-control" id="editEmail" value="${
+                    customer.email || ""
+                  }">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Address</label>
+                  <textarea class="form-control" id="editAddress" rows="3">${
+                    customer.address || ""
+                  }</textarea>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Notes</label>
+              <textarea class="form-control" id="editNotes" rows="2">${
+                customer.notes || ""
+              }</textarea>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-success" onclick="saveEditCustomer()">
+                <i class="bi bi-check"></i> Update Customer
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="showCustomerDetails(${
+                customer.id
+              })">
+                <i class="bi bi-x"></i> Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+        } catch (error) {
+          console.error("Error loading customer for edit:", error);
+          alert("Error loading customer data for editing. Please try again.");
+        }
+      }
+
+      async function saveNewCustomer() {
+        const customerData = {
+          account_number: document.getElementById("newAccountNumber").value,
+          name: document.getElementById("newCompanyName").value,
+          contact_name: document.getElementById("newContactName").value,
+          phone: document.getElementById("newPhone").value,
+          email: document.getElementById("newEmail").value,
+          address: document.getElementById("newAddress").value,
+          notes: document.getElementById("newNotes").value,
+        };
+
+        try {
+          const response = await fetch("/api/customer/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(customerData),
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            alert("Customer created successfully!");
+            loadCustomerList();
+            showCustomerDetails(result.customer.id);
+          } else {
+            alert("Error: " + result.message);
+          }
+        } catch (error) {
+          alert("Error saving customer");
+        }
+      }
+
+      async function saveEditCustomer() {
+        const customerId = document.getElementById("editCustomerId").value;
+        const customerData = {
+          account_number: document.getElementById("editAccountNumber").value,
+          name: document.getElementById("editCompanyName").value,
+          contact_name: document.getElementById("editContactName").value,
+          phone: document.getElementById("editPhone").value,
+          email: document.getElementById("editEmail").value,
+          address: document.getElementById("editAddress").value,
+          notes: document.getElementById("editNotes").value,
+        };
+
+        // Basic validation
+        if (!customerData.account_number || !customerData.name) {
+          alert("Account Number and Company Name are required");
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/customer/${customerId}/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(customerData),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to update customer");
+          }
+
+          const result = await response.json();
+          if (result.success) {
+            alert("Customer updated successfully!");
+            loadCustomerList();
+            showCustomerDetails(parseInt(customerId));
+          } else {
+            alert("Error: " + result.message);
+          }
+        } catch (error) {
+          console.error("Error updating customer:", error);
+          alert("Error updating customer. Please try again.");
+        }
+      }
+
+      function filterCustomers() {
+        const searchTerm = document
+          .getElementById("customerSearch")
+          .value.toLowerCase();
+        const customerItems = document.querySelectorAll(".customer-item");
+
+        customerItems.forEach((item) => {
+          const text = item.textContent.toLowerCase();
+          item.style.display = text.includes(searchTerm) ? "block" : "none";
+        });
+      }
+
+      function copyToClipboard(text) {
+        if (text) {
+          navigator.clipboard.writeText(text).then(() => {
+            // Show a temporary success message
+            const originalText = event.target.innerHTML;
+            event.target.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            setTimeout(() => {
+              event.target.innerHTML = originalText;
+            }, 2000);
+          });
+        }
+      }
     </script>
 
     {% block scripts %}{% endblock %}

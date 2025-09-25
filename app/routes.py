@@ -188,11 +188,82 @@ def change_password():
     
     return render_template('change_password.html', form=form)
 
+@main.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+@admin_required
+def reset_user_password(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    try:
+        # Generate new temporary password
+        temp_password = user.generate_temp_password()
+        user.password = temp_password
+        user.must_change_password = True
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Password reset! New temporary password: {temp_password}'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
 @main.route('/logout')
 def logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.login'))
+
+@main.route('/api/staff-contacts')
+@login_required
+def get_staff_contacts():
+    """Get list of all active staff members for contacts"""
+    staff = User.query.filter_by(is_active=True).order_by(User.full_name).all()
+    
+    return jsonify([{
+        'id': user.id,
+        'full_name': user.full_name,
+        'email': user.email,
+        'job_title': user.job_title,
+        'role': user.role
+    } for user in staff])
+
+@main.route('/api/users/<int:user_id>/contact-info')
+@login_required
+def get_user_contact_info(user_id):
+    """Get contact information for a specific user"""
+    user = User.query.get_or_404(user_id)
+    
+    return jsonify({
+        'id': user.id,
+        'full_name': user.full_name,
+        'email': user.email,
+        'job_title': user.job_title,
+        'direct_phone': user.direct_phone,
+        'mobile_phone': user.mobile_phone,
+        'role': user.role,
+        'is_active': user.is_active,
+        'created_at': user.created_at.isoformat(),
+        'last_login': user.last_login.isoformat() if user.last_login else None
+    })
+
+
+@main.route('/api/customers/directory')
+@login_required
+def get_customers_directory():
+    """Get all customers for directory with contact details"""
+    customers = Customer.query.order_by(Customer.name).all()
+    
+    return jsonify([{
+        'id': customer.id,
+        'account_number': customer.account_number,
+        'name': customer.name,
+        'contact_name': customer.contact_name,
+        'phone': customer.phone,
+        'email': customer.email
+    } for customer in customers])
+
 
 @main.route('/dashboard')
 @login_required

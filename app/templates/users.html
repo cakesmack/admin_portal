@@ -59,6 +59,12 @@
                 class="btn btn-sm btn-outline-secondary"
                 >Edit</a
               >
+              <button
+                class="btn btn-sm btn-warning"
+                onclick="resetPassword({{ user.id }}, '{{ user.full_name }}')"
+              >
+                Reset Password
+              </button>
             </td>
           </tr>
           {% endfor %}
@@ -67,4 +73,33 @@
     </div>
   </div>
 </div>
-{% endblock %}
+{% block scripts %}
+<script>
+  async function resetPassword(userId, userName) {
+    if (
+      confirm(
+        `Reset password for ${userName}? They will be forced to change it on next login.`
+      )
+    ) {
+      try {
+        const response = await fetch(`/users/${userId}/reset-password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error resetting password");
+      }
+    }
+  }
+</script>
+{% endblock %} {% endblock %}

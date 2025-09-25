@@ -383,8 +383,8 @@ body,
   background: linear-gradient(
     135deg,
     var(--dark-card) 0%,
-    rgba(32, 201, 151, 0.2) 100%
-  );
+    rgba(16, 0, 58, 0.2) 100%
+  ) !important;
   color: var(--text-light);
   border-left: 4px solid var(--success);
 }

@@ -31,8 +31,17 @@
           <strong><i class="fas fa-envelope"></i> Email:</strong><br />
           <span class="text-muted">{{ user.email }}</span>
         </div>
+        <div class="mb-2">
+          <strong><i class="fas fa-envelope"></i> Phone:</strong><br />
+          <span class="text-muted">{{ user.direct_phone }}</span>
+        </div>
+        {% if user.mobile_phone %}
 
-        {% if user.job_title %}
+        <div class="mb-2">
+          <strong><i class="fas fa-envelope"></i> Mobile:</strong><br />
+          <span class="text-muted">{{ user.mobile }}</span>
+        </div>
+        {% endif %} {% if user.job_title %}
         <div class="mb-2">
           <strong><i class="fas fa-briefcase"></i> Job Title:</strong><br />
           <span class="text-muted">{{ user.job_title }}</span>
