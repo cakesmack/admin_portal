@@ -2,10 +2,11 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
 from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule
-from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm
+from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
 import json
 from datetime import datetime, date
 import calendar
+from functools import wraps
 
 main = Blueprint('main', __name__)
 
@@ -34,17 +35,158 @@ def login():
     
     form = LoginForm()
     if request.method == 'POST' and form.validate_on_submit():
-        # For MVP, using simple authentication
-        user = User.query.filter_by(username=form.username.data).first()
-        if user and user.password == form.password.data:  # Simple check for MVP
+        # Try login by email first, then username
+        user = User.query.filter_by(email=form.username.data).first() or \
+               User.query.filter_by(username=form.username.data).first()
+        
+        if user and user.password == form.password.data and user.is_active:
             login_user(user)
-            next_page = request.args.get('next')
+            user.last_login = datetime.now()
+            db.session.commit()
+            
             flash('Login successful!', 'success')
+            next_page = request.args.get('next')
+            
+            # Check if password change is required
+            if user.must_change_password:
+                return redirect(url_for('main.force_password_change'))
+            
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         else:
-            flash('Login unsuccessful. Please check username and password.', 'danger')
+            flash('Login unsuccessful. Please check your credentials.', 'danger')
     
     return render_template('login.html', title='Login', form=form)
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('main.dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@main.route('/users')
+@login_required
+@admin_required
+def users():
+    users = User.query.order_by(User.full_name).all()
+    return render_template('users.html', title='User Management', users=users)
+
+@main.route('/users/create', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def create_user():
+    form = CreateUserForm()
+    if form.validate_on_submit():
+        # Check if email already exists
+        if User.query.filter_by(email=form.email.data).first():
+            flash('Email address already registered.', 'danger')
+            return render_template('user_form.html', form=form, title='Create New User')
+        
+        # Generate username from email
+        username = form.email.data.split('@')[0].lower()
+        base_username = username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base_username}{counter}"
+            counter += 1
+        
+        # Generate temporary password
+        temp_password = User().generate_temp_password()
+        
+        user = User(
+            username=username,
+            email=form.email.data,
+            full_name=form.full_name.data,
+            password=temp_password,
+            role=form.role.data,
+            job_title=form.job_title.data or None,
+            direct_phone=form.direct_phone.data or None,
+            mobile_phone=form.mobile_phone.data or None,
+            must_change_password=True
+        )
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        flash(f'User created successfully! Temporary password: {temp_password}', 'success')
+        return redirect(url_for('main.users'))
+    
+    return render_template('user_form.html', form=form, title='Create New User')
+
+@main.route('/users/<int:user_id>')
+@login_required
+def user_profile(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Only admins can view other users, or users can view their own profile
+    if current_user.role != 'admin' and current_user.id != user_id:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    
+    # Get user activity
+    activities = user.get_recent_activity()
+    
+    return render_template('user_profile.html', user=user, activities=activities)
+
+@main.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    form = EditUserForm(obj=user)
+    
+    if form.validate_on_submit():
+        # Check if email is taken by another user
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user and existing_user.id != user_id:
+            flash('Email address already taken.', 'danger')
+            return render_template('user_form.html', form=form, title='Edit User', user=user)
+        
+        form.populate_obj(user)
+        db.session.commit()
+        
+        flash('User updated successfully!', 'success')
+        return redirect(url_for('main.users'))
+    
+    return render_template('user_form.html', form=form, title='Edit User', user=user)
+
+@main.route('/force-password-change', methods=['GET', 'POST'])
+@login_required
+def force_password_change():
+    if not current_user.must_change_password:
+        return redirect(url_for('main.dashboard'))
+    
+    form = ForcePasswordChangeForm()
+    if form.validate_on_submit():
+        current_user.password = form.new_password.data
+        current_user.must_change_password = False
+        current_user.last_login = datetime.now()
+        db.session.commit()
+        
+        flash('Password updated successfully!', 'success')
+        return redirect(url_for('main.dashboard'))
+    
+    return render_template('force_password_change.html', form=form)
+
+@main.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        if current_user.password != form.current_password.data:
+            flash('Current password is incorrect.', 'danger')
+            return render_template('change_password.html', form=form)
+        
+        current_user.password = form.new_password.data
+        db.session.commit()
+        
+        flash('Password changed successfully!', 'success')
+        return redirect(url_for('main.user_profile', user_id=current_user.id))
+    
+    return render_template('change_password.html', form=form)
 
 @main.route('/logout')
 def logout():

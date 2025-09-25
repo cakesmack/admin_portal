@@ -9,17 +9,23 @@ with app.app_context():
     db.drop_all()
     db.create_all()
     
-    # Create test users
+    ## Update the user creation part in init_db.py
     admin_user = User(
         username='admin',
-        password='admin123',  # In production, use proper hashing!
-        role='admin'
+        email='admin@company.com',  # Add email
+        full_name='System Administrator',  # Add full name
+        password='admin123',
+        role='admin',
+        must_change_password=False  # Admin doesn't need to change password
     )
-    
+
     test_user = User(
         username='user',
+        email='user@company.com',  # Add email
+        full_name='Test User',  # Add full name
         password='user123',
-        role='user'
+        role='staff',
+        must_change_password=False  # For testing, set to False
     )
     
     # Add sample customers

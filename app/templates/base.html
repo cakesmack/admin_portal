@@ -319,27 +319,84 @@
 
       <!-- User section at bottom -->
       <div class="nav-sidebar-user">
-        <div class="user-info">
-          <i class="bi bi-person-circle me-2"></i>
-          {{ current_user.username }}
-        </div>
-        <a class="nav-link" href="{{ url_for('main.logout') }}">
-          <i class="bi bi-box-arrow-right"></i>
-          Logout
-        </a>
+        <li class="nav-item dropdown">
+          <a
+            class="nav-link dropdown-toggle"
+            href="#"
+            id="userDropdown"
+            role="button"
+            data-bs-toggle="dropdown"
+          >
+            <i class="fas"></i> {{ current_user.full_name or
+            current_user.username }}
+          </a>
+          <ul class="dropdown-menu">
+            <li>
+              <a
+                class="dropdown-item"
+                href="{{ url_for('main.user_profile', user_id=current_user.id) }}"
+              >
+                <i class="fas fa-user"></i> My Profile
+              </a>
+            </li>
+            <li>
+              <a
+                class="dropdown-item"
+                href="{{ url_for('main.change_password') }}"
+              >
+                <i class="fas fa-key"></i> Change Password
+              </a>
+            </li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('main.logout') }}">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </a>
+            </li>
+          </ul>
+        </li>
       </div>
       {% endif %}
     </nav>
 
     <!-- Top navbar for mobile -->
     <nav class="top-navbar" id="topNavbar">
-      <button class="sidebar-toggle" onclick="toggleSidebar()">
-        <i class="bi bi-list"></i>
-      </button>
-      <div class="top-user-info">
-        {% if current_user.is_authenticated %} {{ current_user.username }} {%
-        endif %}
-      </div>
+      <li class="nav-item dropdown">
+        <a
+          class="nav-link dropdown-toggle"
+          href="#"
+          id="userDropdown"
+          role="button"
+          data-bs-toggle="dropdown"
+        >
+          <i class="fas fa-user"></i> {{ current_user.full_name or
+          current_user.username }}
+        </a>
+        <ul class="dropdown-menu">
+          <li>
+            <a
+              class="dropdown-item"
+              href="{{ url_for('main.user_profile', user_id=current_user.id) }}"
+            >
+              <i class="fas fa-user"></i> My Profile
+            </a>
+          </li>
+          <li>
+            <a
+              class="dropdown-item"
+              href="{{ url_for('main.change_password') }}"
+            >
+              <i class="fas fa-key"></i> Change Password
+            </a>
+          </li>
+          <li><hr class="dropdown-divider" /></li>
+          <li>
+            <a class="dropdown-item" href="{{ url_for('main.logout') }}">
+              <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+          </li>
+        </ul>
+      </li>
     </nav>
 
     <!-- Sidebar overlay for mobile -->

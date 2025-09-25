@@ -8,14 +8,72 @@ def load_user(user_id):
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(20), unique=True, nullable=False)
+    username = db.Column(db.String(20), unique=True, nullable=False)  # Keep for system use
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)  # Primary identifier
+    full_name = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(60), nullable=False)
     role = db.Column(db.String(20), nullable=False)
+    
+    # New fields for user management
+    job_title = db.Column(db.String(100))
+    direct_phone = db.Column(db.String(20))
+    mobile_phone = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, default=True)
+    must_change_password = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    
+    # Existing relationships...
     forms = db.relationship('Form', foreign_keys='Form.user_id', backref='author', lazy=True)
     callsheet_entries = db.relationship('CallsheetEntry', backref='entered_by', lazy=True)
     callsheets_created = db.relationship('Callsheet', backref='created_by_user', lazy=True)
     todo_items = db.relationship('TodoItem', backref='user', lazy=True, cascade='all, delete-orphan')
     company_updates = db.relationship('CompanyUpdate', backref='author', lazy=True, cascade='all, delete-orphan')
+    
+    def generate_temp_password(self):
+        """Generate a secure temporary password"""
+        import secrets
+        import string
+        chars = string.ascii_letters + string.digits + "!@#$%"
+        return ''.join(secrets.choice(chars) for _ in range(12))
+    
+    def get_recent_activity(self, limit=10):
+        """Get user's recent activity across all areas"""
+        activities = []
+        
+        # Recent forms
+        recent_forms = Form.query.filter_by(user_id=self.id).order_by(Form.date_created.desc()).limit(5).all()
+        for form in recent_forms:
+            activities.append({
+                'type': 'form_created',
+                'description': f'Created {form.type.replace("_", " ").title()} form',
+                'date': form.date_created,
+                'link': f'/form/{form.id}'
+            })
+        
+        # Recent company updates
+        recent_updates = CompanyUpdate.query.filter_by(user_id=self.id).order_by(CompanyUpdate.created_at.desc()).limit(3).all()
+        for update in recent_updates:
+            activities.append({
+                'type': 'company_update',
+                'description': f'Posted company update: {update.title}',
+                'date': update.created_at,
+                'link': None
+            })
+        
+        # Recent callsheet activity
+        recent_callsheet_entries = CallsheetEntry.query.filter_by(user_id=self.id).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
+        for entry in recent_callsheet_entries:
+            activities.append({
+                'type': 'callsheet_update',
+                'description': f'Updated callsheet entry for {entry.customer.name}',
+                'date': entry.updated_at,
+                'link': None
+            })
+        
+        # Sort by date and return limited results
+        activities.sort(key=lambda x: x['date'], reverse=True)
+        return activities[:limit]
 
 class TodoItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)

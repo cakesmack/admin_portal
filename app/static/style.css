@@ -67,7 +67,6 @@ body,
 }
 
 .card:hover {
-  transform: translateY(-4px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
   border-color: var(--primary-blue-light);
 }
@@ -374,8 +373,8 @@ body,
   background: linear-gradient(
     135deg,
     var(--dark-card) 0%,
-    rgba(23, 162, 184, 0.2) 100%
-  );
+    rgba(10, 1, 51, 0.2) 100%
+  ) !important;
   color: var(--text-light);
   border-left: 4px solid var(--info);
 }

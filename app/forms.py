@@ -1,7 +1,45 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField, IntegerField
-from wtforms.validators import DataRequired, Optional
+from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField, IntegerField, PasswordField, TelField
+from wtforms.validators import DataRequired, Email, Length, Optional, EqualTo, optional
+from wtforms.widgets import TextArea
 
+class CreateUserForm(FlaskForm):
+    full_name = StringField('Full Name', validators=[DataRequired(), Length(min=2, max=100)])
+    email = StringField('Email Address', validators=[DataRequired(), Email()])
+    role = SelectField('Role', choices=[('staff', 'Staff'), ('admin', 'Admin')], validators=[DataRequired()])
+    job_title = StringField('Job Title', validators=[Optional(), Length(max=100)])
+    direct_phone = TelField('Direct Phone', validators=[Optional()])
+    mobile_phone = TelField('Mobile Phone', validators=[Optional()])
+    
+class EditUserForm(FlaskForm):
+    full_name = StringField('Full Name', validators=[DataRequired(), Length(min=2, max=100)])
+    email = StringField('Email Address', validators=[DataRequired(), Email()])
+    role = SelectField('Role', choices=[('staff', 'Staff'), ('admin', 'Admin')], validators=[DataRequired()])
+    job_title = StringField('Job Title', validators=[Optional(), Length(max=100)])
+    direct_phone = TelField('Direct Phone', validators=[Optional()])
+    mobile_phone = TelField('Mobile Phone', validators=[Optional()])
+    is_active = BooleanField('Account Active')
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    confirm_password = PasswordField('Confirm New Password', validators=[
+        DataRequired(),
+        EqualTo('new_password', message='Passwords must match')
+    ])
+
+class ForcePasswordChangeForm(FlaskForm):
+    new_password = PasswordField('Set Your Password', validators=[
+        DataRequired(),
+        Length(min=8, message='Password must be at least 8 characters long')
+    ])
+    confirm_password = PasswordField('Confirm Password', validators=[
+        DataRequired(),
+        EqualTo('new_password', message='Passwords must match')
+    ])
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = StringField('Password', validators=[DataRequired()])

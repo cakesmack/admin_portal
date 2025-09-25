@@ -1,0 +1,212 @@
+{% extends "base.html" %} {% block content %}
+<div class="row">
+  <!-- User Info Card -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">
+        <h5><i class="fas fa-user"></i> User Profile</h5>
+      </div>
+      <div class="card-body">
+        <div class="text-center mb-3">
+          <div
+            class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center"
+            style="width: 80px; height: 80px"
+          >
+            <i class="fas fa-user fa-2x text-white"></i>
+          </div>
+          <h4 class="mt-2">{{ user.full_name }}</h4>
+          <span
+            class="badge bg-{{ 'primary' if user.role == 'admin' else 'secondary' }}"
+          >
+            {{ user.role.title() }}
+          </span>
+          {% if not user.is_active %}
+          <span class="badge bg-danger">Inactive</span>
+          {% endif %}
+        </div>
+
+        <hr />
+
+        <div class="mb-2">
+          <strong><i class="fas fa-envelope"></i> Email:</strong><br />
+          <span class="text-muted">{{ user.email }}</span>
+        </div>
+
+        {% if user.job_title %}
+        <div class="mb-2">
+          <strong><i class="fas fa-briefcase"></i> Job Title:</strong><br />
+          <span class="text-muted">{{ user.job_title }}</span>
+        </div>
+        {% endif %} {% if user.direct_phone %}
+        <div class="mb-2">
+          <strong><i class="fas fa-phone"></i> Direct Phone:</strong><br />
+          <span class="text-muted">{{ user.direct_phone }}</span>
+        </div>
+        {% endif %} {% if user.mobile_phone %}
+        <div class="mb-2">
+          <strong><i class="fas fa-mobile-alt"></i> Mobile:</strong><br />
+          <span class="text-muted">{{ user.mobile_phone }}</span>
+        </div>
+        {% endif %}
+
+        <hr />
+
+        <div class="mb-2">
+          <strong><i class="fas fa-calendar-plus"></i> Member Since:</strong
+          ><br />
+          <span class="text-muted"
+            >{{ user.created_at.strftime('%B %d, %Y') }}</span
+          >
+        </div>
+
+        <div class="mb-2">
+          <strong><i class="fas fa-clock"></i> Last Login:</strong><br />
+          <span class="text-muted">
+            {% if user.last_login %} {{ user.last_login.strftime('%B %d, %Y at
+            %I:%M %p') }} {% else %} Never {% endif %}
+          </span>
+        </div>
+
+        <hr />
+
+        <!-- Actions -->
+        <div class="d-grid gap-2">
+          {% if current_user.id == user.id %}
+          <a
+            href="{{ url_for('main.change_password') }}"
+            class="btn btn-outline-primary btn-sm"
+          >
+            <i class="fas fa-key"></i> Change Password
+          </a>
+          {% endif %} {% if current_user.role == 'admin' and current_user.id !=
+          user.id %}
+          <a
+            href="{{ url_for('main.edit_user', user_id=user.id) }}"
+            class="btn btn-outline-secondary btn-sm"
+          >
+            <i class="fas fa-edit"></i> Edit User
+          </a>
+          {% endif %} {% if current_user.role == 'admin' %}
+          <a
+            href="{{ url_for('main.users') }}"
+            class="btn btn-secondary btn-sm"
+          >
+            <i class="fas fa-arrow-left"></i> Back to Users
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Card -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div
+        class="card-header d-flex justify-content-between align-items-center"
+      >
+        <h5><i class="fas fa-chart-line"></i> Recent Activity</h5>
+        <small class="text-muted">Last 10 activities</small>
+      </div>
+      <div class="card-body">
+        {% if activities %}
+        <div class="timeline">
+          {% for activity in activities %}
+          <div class="activity-item d-flex mb-3">
+            <div class="activity-icon me-3">
+              {% if activity.type == 'form_created' %}
+              <i class="fas fa-file-alt text-primary"></i>
+              {% elif activity.type == 'company_update' %}
+              <i class="fas fa-bullhorn text-warning"></i>
+              {% elif activity.type == 'callsheet_update' %}
+              <i class="fas fa-phone text-info"></i>
+              {% else %}
+              <i class="fas fa-circle text-secondary"></i>
+              {% endif %}
+            </div>
+            <div class="activity-content flex-grow-1">
+              <div class="activity-description">
+                {% if activity.link %}
+                <a href="{{ activity.link }}" class="text-decoration-none">
+                  {{ activity.description }}
+                </a>
+                {% else %} {{ activity.description }} {% endif %}
+              </div>
+              <small class="text-muted">
+                <i class="fas fa-clock"></i>
+                {{ activity.date.strftime('%B %d, %Y at %I:%M %p') }}
+              </small>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+          <i class="fas fa-chart-line fa-3x mb-3"></i>
+          <h5>No Recent Activity</h5>
+          <p>This user hasn't performed any tracked activities yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mt-3">
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <h3 class="text-primary">{{ user.forms|length }}</h3>
+            <small class="text-muted">Forms Created</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <h3 class="text-warning">{{ user.company_updates|length }}</h3>
+            <small class="text-muted">Company Updates</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <h3 class="text-info">{{ user.callsheet_entries|length }}</h3>
+            <small class="text-muted">Callsheet Updates</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add some custom CSS for the timeline -->
+<style>
+  .activity-item {
+    position: relative;
+    padding-left: 0;
+  }
+
+  .activity-item:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 35px;
+    height: calc(100% - 10px);
+    width: 2px;
+    background: var(--border-color);
+  }
+
+  .activity-icon {
+    width: 20px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .activity-content {
+    min-height: 40px;
+    padding-left: 10px;
+  }
+</style>
+{% endblock %}
