@@ -1,0 +1,351 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Standing Order Schedule - {{ view_type|title }} View</h2>
+  <div>
+    <div class="btn-group" role="group">
+      <a
+        href="?view=day&date={{ target_date }}"
+        class="btn {% if view_type == 'day' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+      >
+        Day
+      </a>
+      <a
+        href="?view=week&date={{ target_date }}"
+        class="btn {% if view_type == 'week' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+      >
+        Week
+      </a>
+      <a
+        href="?view=month&date={{ target_date }}"
+        class="btn {% if view_type == 'month' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+      >
+        Month
+      </a>
+    </div>
+    <button class="btn btn-info ms-2" onclick="window.print()">
+      <i class="bi bi-printer"></i> Print
+    </button>
+    <a
+      href="{{ url_for('main.standing_orders') }}"
+      class="btn btn-secondary ms-2"
+    >
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+  </div>
+</div>
+
+<!-- Date Navigation -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center">
+      <button
+        class="btn btn-sm btn-outline-primary"
+        onclick="navigateDate('prev')"
+      >
+        <i class="bi bi-chevron-left"></i> Previous
+      </button>
+      <div class="text-center">
+        <h5 class="mb-0">
+          {% if view_type == 'day' %} {{ target_date.strftime('%A, %B %d, %Y')
+          }} {% elif view_type == 'week' %} Week of {{ start_date.strftime('%B
+          %d') }} - {{ end_date.strftime('%B %d, %Y') }} {% else %} {{
+          target_date.strftime('%B %Y') }} {% endif %}
+        </h5>
+      </div>
+      <button
+        class="btn btn-sm btn-outline-primary"
+        onclick="navigateDate('next')"
+      >
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h4>{{ total }}</h4>
+        <small>Total Orders</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h4 class="text-warning">{{ pending }}</h4>
+        <small>Pending</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h4 class="text-success">{{ completed }}</h4>
+        <small>Created</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <h4 class="text-secondary">{{ skipped }}</h4>
+        <small>Skipped</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Display -->
+<div class="card">
+  <div class="card-body">
+    {% if schedules_by_date %} {% for date, schedules in
+    schedules_by_date.items()|sort %}
+    <div class="mb-4">
+      <h5 class="border-bottom pb-2">
+        <i class="bi bi-calendar-day"></i>
+        {{ date.strftime('%A, %B %d, %Y') }}
+        <span class="badge bg-secondary ms-2"
+          >{{ schedules|length }} orders</span
+        >
+      </h5>
+
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th width="5%">
+                <input
+                  type="checkbox"
+                  onclick="toggleDateSelection('{{ date }}', this)"
+                />
+              </th>
+              <th width="20%">Customer</th>
+              <th width="10%">Account</th>
+              <th width="35%">Products</th>
+              <th width="15%">Status</th>
+              <th width="15%">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for schedule in schedules %}
+            <tr
+              class="{% if schedule.status == 'created' %}table-success{% elif schedule.status == 'skipped' %}table-secondary{% endif %}"
+            >
+              <td>
+                <input
+                  type="checkbox"
+                  class="schedule-check"
+                  data-date="{{ date }}"
+                  data-id="{{ schedule.id }}"
+                  {%
+                  if
+                  schedule.status
+                  !="pending"
+                  %}disabled{%
+                  endif
+                  %}
+                />
+              </td>
+              <td>
+                <strong>{{ schedule.standing_order.customer.name }}</strong>
+              </td>
+              <td>
+                <code
+                  >{{ schedule.standing_order.customer.account_number }}</code
+                >
+              </td>
+              <td>
+                {% for item in schedule.standing_order.items %}
+                <small
+                  >• {{ item.quantity }} {{ item.unit_type }} - {{
+                  item.product_name }}</small
+                ><br />
+                {% endfor %} {% if schedule.standing_order.special_instructions
+                %}
+                <small class="text-info">
+                  <i class="bi bi-info-circle"></i>
+                  {{ schedule.standing_order.special_instructions }}
+                </small>
+                {% endif %}
+              </td>
+              <td>
+                {% if schedule.status == 'created' %}
+                <span class="badge bg-success">Created</span>
+                {% if schedule.order_reference %}
+                <br /><small>Ref: {{ schedule.order_reference }}</small>
+                {% endif %} {% elif schedule.status == 'skipped' %}
+                <span class="badge bg-secondary">Skipped</span>
+                {% else %}
+                <span class="badge bg-warning">Pending</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if schedule.status == 'pending' %}
+                <button
+                  class="btn btn-sm btn-success"
+                  onclick="markCreated({{ schedule.id }})"
+                >
+                  <i class="bi bi-check"></i>
+                </button>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  onclick="skipSchedule({{ schedule.id }})"
+                >
+                  <i class="bi bi-x"></i>
+                </button>
+                {% endif %}
+                <a
+                  href="{{ url_for('main.view_standing_order', order_id=schedule.standing_order_id) }}"
+                  class="btn btn-sm btn-info"
+                >
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Bulk Actions for this date -->
+      {% if schedules|selectattr('status', 'equalto', 'pending')|list|length > 0
+      %}
+      <div class="mt-2">
+        <button
+          class="btn btn-sm btn-success"
+          onclick="markDateAsCreated('{{ date }}')"
+        >
+          Mark All for {{ date.strftime('%A') }} as Created
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %} {% else %}
+    <div class="text-center py-4">
+      <p class="text-muted">No standing orders scheduled for this period.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Print Styles -->
+<style>
+  @media print {
+    .btn,
+    .btn-group {
+      display: none !important;
+    }
+    .card {
+      border: 1px solid #000 !important;
+    }
+    input[type="checkbox"] {
+      display: none !important;
+    }
+  }
+</style>
+
+{% endblock %} {% block scripts %}
+<script>
+  const viewType = "{{ view_type }}";
+  const currentDate = "{{ target_date }}";
+
+  function navigateDate(direction) {
+    const date = new Date("{{ target_date }}");
+
+    if (viewType === "day") {
+      date.setDate(date.getDate() + (direction === "next" ? 1 : -1));
+    } else if (viewType === "week") {
+      date.setDate(date.getDate() + (direction === "next" ? 7 : -7));
+    } else {
+      date.setMonth(date.getMonth() + (direction === "next" ? 1 : -1));
+    }
+
+    const dateStr = date.toISOString().split("T")[0];
+    window.location.href = `?view=${viewType}&date=${dateStr}`;
+  }
+
+  function toggleDateSelection(date, checkbox) {
+    const checkboxes = document.querySelectorAll(
+      `.schedule-check[data-date="${date}"]:not(:disabled)`
+    );
+    checkboxes.forEach((cb) => (cb.checked = checkbox.checked));
+  }
+
+  async function markCreated(scheduleId) {
+    const reference = prompt("Order reference (optional):");
+    if (reference !== null) {
+      try {
+        const response = await fetch(
+          `/standing-orders/schedule/${scheduleId}/complete`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reference: reference }),
+          }
+        );
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error: " + error.message);
+      }
+    }
+  }
+
+  async function skipSchedule(scheduleId) {
+    const reason = prompt("Reason for skipping (optional):");
+    if (reason !== null) {
+      try {
+        const response = await fetch(
+          `/standing-orders/schedule/${scheduleId}/skip`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason: reason }),
+          }
+        );
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error: " + error.message);
+      }
+    }
+  }
+
+  async function markDateAsCreated(date) {
+    if (confirm(`Mark all pending orders for ${date} as created?`)) {
+      const checkboxes = document.querySelectorAll(
+        `.schedule-check[data-date="${date}"]:not(:disabled)`
+      );
+      const scheduleIds = Array.from(checkboxes).map((cb) => cb.dataset.id);
+
+      for (const scheduleId of scheduleIds) {
+        try {
+          await fetch(`/standing-orders/schedule/${scheduleId}/complete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reference: "", notes: "Bulk created" }),
+          });
+        } catch (error) {
+          console.error(`Error marking schedule ${scheduleId}:`, error);
+        }
+      }
+
+      location.reload();
+    }
+  }
+</script>
+{% endblock %}

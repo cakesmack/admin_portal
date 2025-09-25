@@ -11,7 +11,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(20), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     role = db.Column(db.String(20), nullable=False)
-    forms = db.relationship('Form', backref='author', lazy=True)
+    forms = db.relationship('Form', foreign_keys='Form.user_id', backref='author', lazy=True)
     callsheet_entries = db.relationship('CallsheetEntry', backref='entered_by', lazy=True)
     callsheets_created = db.relationship('Callsheet', backref='created_by_user', lazy=True)
     todo_items = db.relationship('TodoItem', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -144,8 +144,15 @@ class Form(db.Model):
     data = db.Column(db.Text, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-# Add this to your models.py
+    
+    # New fields for completion tracking
+    is_completed = db.Column(db.Boolean, default=False)
+    completed_date = db.Column(db.DateTime, nullable=True)
+    completed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    is_archived = db.Column(db.Boolean, default=False)
+    
+    # Define the completer relationship separately
+    completer = db.relationship('User', foreign_keys=[completed_by], backref='completed_forms')
 
 class CustomerStock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -198,3 +205,96 @@ class StockTransaction(db.Model):
             'transaction_date': self.transaction_date.isoformat(),
             'created_by': self.user.username
         }
+
+# Add these models to your app/models.py
+
+class StandingOrder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    
+    # Weekly delivery schedule (store as comma-separated day numbers: 0=Monday, 6=Sunday)
+    delivery_days = db.Column(db.String(20), nullable=False)  # e.g., "0,3" for Monday & Thursday
+    
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)  # Null means ongoing
+    
+    status = db.Column(db.String(20), default='active')  # active, paused, ended
+    
+    # Special instructions for this standing order
+    special_instructions = db.Column(db.Text)
+    
+    # Email notification settings
+    notification_email = db.Column(db.String(100))  # Email for reminders
+    notify_days_before = db.Column(db.Integer, default=1)  # How many days before to send reminder
+    
+    # Tracking
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    customer = db.relationship('Customer', backref='standing_orders')
+    created_by_user = db.relationship('User', backref='created_standing_orders')
+    items = db.relationship('StandingOrderItem', backref='standing_order', cascade='all, delete-orphan')
+    schedules = db.relationship('StandingOrderSchedule', backref='standing_order', cascade='all, delete-orphan')
+    logs = db.relationship('StandingOrderLog', backref='standing_order', cascade='all, delete-orphan')
+    
+    def get_delivery_days_list(self):
+        """Return list of day numbers"""
+        if self.delivery_days:
+            return [int(d) for d in self.delivery_days.split(',')]
+        return []
+    
+    def get_delivery_days_names(self):
+        """Return readable day names"""
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        day_numbers = self.get_delivery_days_list()
+        return [days[d] for d in day_numbers]
+
+class StandingOrderItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    standing_order_id = db.Column(db.Integer, db.ForeignKey('standing_order.id'), nullable=False)
+    
+    product_code = db.Column(db.String(50), nullable=False)
+    product_name = db.Column(db.String(100), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_type = db.Column(db.String(20), default='units')  # units, cases, boxes, etc.
+    
+    special_notes = db.Column(db.Text)  # Item-specific notes
+    
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+class StandingOrderSchedule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    standing_order_id = db.Column(db.Integer, db.ForeignKey('standing_order.id'), nullable=False)
+    
+    scheduled_date = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, created, skipped
+    
+    # Track when the actual order was created
+    order_created_date = db.Column(db.DateTime, nullable=True)
+    order_created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    
+    # Optional order reference from main system
+    order_reference = db.Column(db.String(50))
+    
+    notes = db.Column(db.Text)
+    
+    # Relationships
+    created_by_user = db.relationship('User', backref='created_orders_from_standing')
+    
+    # Unique constraint to prevent duplicate schedules
+    __table_args__ = (db.UniqueConstraint('standing_order_id', 'scheduled_date'),)
+
+class StandingOrderLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    standing_order_id = db.Column(db.Integer, db.ForeignKey('standing_order.id'), nullable=False)
+    
+    action_type = db.Column(db.String(50), nullable=False)  # created, modified, paused, resumed, ended, item_added, item_removed, etc.
+    action_details = db.Column(db.Text)  # JSON string with details of the change
+    
+    performed_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    performed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref='standing_order_actions')

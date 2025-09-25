@@ -1,56 +1,145 @@
 {% extends "base.html" %} {% block content %}
-<h2>Customers Own Stock Delivery Form</h2>
-<p class="text-muted">
-  Record customer Own stock deliveries and track inventory
-</p>
+<h2>Customer Stock Order Form</h2>
+<p class="text-muted">Process customer orders from their held inventory</p>
 
 <div class="card mt-4">
   <div class="card-body">
     <form method="POST">
       {{ form.hidden_tag() }}
+
+      <!-- Step 1: Customer Selection -->
       <div class="row mb-3">
         <div class="col-md-6">
-          {{ form.customer_account.label(class="form-label") }} {{
-          form.customer_account(class="form-control") }}
-          <div class="form-text">Enter customer account number</div>
+          <label class="form-label">Customer Account Number</label>
+          <div class="search-container position-relative">
+            <input
+              type="text"
+              class="form-control"
+              name="customer_account"
+              id="customerAccount"
+              placeholder="Search by account number or name"
+              required
+            />
+          </div>
         </div>
         <div class="col-md-6">
-          {{ form.customer_name.label(class="form-label") }} {{
-          form.customer_name(class="form-control") }}
+          <label class="form-label">Customer Name</label>
+          <div class="search-container position-relative">
+            <input
+              type="text"
+              class="form-control"
+              name="customer_name"
+              id="customerName"
+              placeholder="Search by name or account"
+              required
+            />
+          </div>
         </div>
       </div>
 
-      <div class="row mb-3">
-        <div class="col-md-6">
-          {{ form.product_code.label(class="form-label") }} {{
-          form.product_code(class="form-control") }}
-        </div>
-        <div class="col-md-6">
-          {{ form.product_name.label(class="form-label") }} {{
-          form.product_name(class="form-control") }}
+      <!-- Selected Customer Info -->
+      <div
+        id="selectedCustomerInfo"
+        class="alert alert-info mb-3"
+        style="display: none"
+      >
+        <strong>Selected Customer:</strong><br />
+        <span id="selectedCustomerDetails"></span>
+      </div>
+
+      <!-- Step 2: Available Stock Items -->
+      <div id="stockItemsSection" class="mb-4" style="display: none">
+        <h5>Available Stock Items:</h5>
+        <div id="availableStockItems" class="row">
+          <!-- Stock items will be populated here -->
         </div>
       </div>
 
-      <div class="row mb-3">
-        <div class="col-md-6">
-          {{ form.quantity_delivered.label(class="form-label") }} {{
-          form.quantity_delivered(class="form-control", type="number", min="1")
+      <!-- Step 3: Order Details (Hidden until item selected) -->
+      <div id="orderDetailsSection" style="display: none">
+        <input type="hidden" name="stock_item_id" id="stockItemId" />
+        <input type="hidden" name="customer_id" id="customerId" />
+
+        <div class="alert alert-success mb-3">
+          <strong>Selected Item:</strong> <span id="selectedItemDisplay"></span
+          ><br />
+          <strong>Available Stock:</strong> <span id="availableStock"></span>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            {{ form.product_code.label(class="form-label") }} {{
+            form.product_code(class="form-control", readonly=True) }}
+          </div>
+          <div class="col-md-8">
+            {{ form.product_name.label(class="form-label") }} {{
+            form.product_name(class="form-control", readonly=True) }}
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label class="form-label">Quantity Ordered *</label>
+            <input
+              type="number"
+              class="form-control"
+              name="quantity_delivered"
+              id="quantityOrdered"
+              min="1"
+              required
+              placeholder="Enter quantity"
+            />
+            <small class="form-text"
+              >Maximum available: <span id="maxQuantity"></span
+            ></small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">New Stock Level</label>
+            <input
+              type="number"
+              class="form-control"
+              name="current_stock"
+              id="newStockLevel"
+              readonly
+              style="background-color: #f8f9fa"
+            />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Order Reference</label>
+            <input
+              type="text"
+              class="form-control"
+              name="order_reference"
+              id="orderReference"
+              placeholder="Order number, invoice etc."
+            />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Order Notes</label>
+          <textarea
+            class="form-control"
+            name="order_notes"
+            id="orderNotes"
+            rows="3"
+            placeholder="Additional notes about this order"
+          ></textarea>
+        </div>
+
+        <div class="d-grid">
+          {{ form.submit(class="btn btn-primary", value="Process Stock Order")
           }}
         </div>
-        <div class="col-md-6">
-          {{ form.current_stock.label(class="form-label") }} {{
-          form.current_stock(class="form-control", type="number", min="0") }}
-        </div>
       </div>
-
-      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>
 
+<!-- Recent Stock Orders -->
 <div class="card mt-4">
   <div class="card-header">
-    <h5>Recent Branded Stock Deliveries</h5>
+    <h5>Recent Stock Orders</h5>
   </div>
   <div class="card-body">
     {% if recent_branded_stock %}
@@ -61,8 +150,9 @@
             <th>Date</th>
             <th>Customer</th>
             <th>Product</th>
-            <th>Qty Delivered</th>
-            <th>Stock Level</th>
+            <th>Qty Ordered</th>
+            <th>New Stock Level</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -73,71 +163,62 @@
             <td>{{ delivery.data.product_code }}</td>
             <td>{{ delivery.data.quantity_delivered }}</td>
             <td>{{ delivery.data.current_stock }}</td>
+            <td>
+              <a
+                href="{{ url_for('main.print_form', form_id=delivery.id) }}"
+                class="btn btn-sm btn-primary"
+                target="_blank"
+              >
+                <i class="bi bi-printer"></i> Print
+              </a>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <p class="text-muted">No branded stock deliveries recorded yet.</p>
+    <p class="text-muted">No stock orders recorded yet.</p>
     {% endif %}
   </div>
 </div>
-{% block scripts %}
+
+{% endblock %} {% block scripts %}
 <script>
-  let searchTimeout;
-  let currentResults = [];
+  let selectedCustomerId = null;
+  let selectedStockItem = null;
+  let customerSearchTimeout;
 
   document.addEventListener("DOMContentLoaded", function () {
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
-
-    // Add search functionality to BOTH fields
-    if (accountInput) {
-      setupSearchField(accountInput, "account");
-    }
-
-    if (nameInput) {
-      setupSearchField(nameInput, "name");
-    }
-
-    // Close dropdown when clicking outside
-    document.addEventListener("click", function (e) {
-      if (!e.target.closest(".search-container")) {
-        hideAllDropdowns();
-      }
-    });
+    setupCustomerSearch();
+    setupQuantityCalculation();
   });
 
-  function setupSearchField(input, fieldType) {
-    // Wrap the input in a container for positioning
-    if (!input.parentElement.classList.contains("search-container")) {
-      const container = document.createElement("div");
-      container.className = "search-container position-relative";
-      input.parentNode.insertBefore(container, input);
-      container.appendChild(input);
-    }
+  function setupCustomerSearch() {
+    const accountInput = document.getElementById("customerAccount");
+    const nameInput = document.getElementById("customerName");
 
+    if (accountInput) setupSearchField(accountInput, "account");
+    if (nameInput) setupSearchField(nameInput, "name");
+  }
+
+  function setupSearchField(input, fieldType) {
     input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
+      clearTimeout(customerSearchTimeout);
       const searchValue = this.value.trim();
 
       if (searchValue.length < 2) {
         hideDropdown(input);
-        clearOtherFields(fieldType);
+        clearCustomerSelection();
         return;
       }
 
-      // Debounce search
-      searchTimeout = setTimeout(() => {
-        searchCustomers(searchValue, input, fieldType);
+      customerSearchTimeout = setTimeout(() => {
+        searchCustomersWithStock(searchValue, input, fieldType);
       }, 300);
     });
 
     input.addEventListener("blur", function () {
-      // Delay hiding dropdown to allow clicking on results
       setTimeout(() => {
         if (!document.querySelector(".dropdown-results:hover")) {
           hideDropdown(input);
@@ -146,23 +227,40 @@
     });
   }
 
-  async function searchCustomers(searchValue, inputElement, fieldType) {
+  async function searchCustomersWithStock(
+    searchValue,
+    inputElement,
+    fieldType
+  ) {
     try {
       const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+        `/api/customer-stock/search?q=${encodeURIComponent(searchValue)}`
       );
-      const customers = await response.json();
+      const stockItems = await response.json();
 
-      currentResults = customers;
-      showDropdown(customers, inputElement, fieldType);
+      // Group by customer to only show customers with stock
+      const customerMap = new Map();
+      stockItems.forEach((item) => {
+        if (!customerMap.has(item.customer_id)) {
+          customerMap.set(item.customer_id, {
+            id: item.customer_id,
+            name: item.customer_name,
+            account_number: item.customer_id, // You might need this from API
+            stockCount: 0,
+          });
+        }
+        customerMap.get(item.customer_id).stockCount++;
+      });
+
+      const customers = Array.from(customerMap.values());
+      showCustomerDropdown(customers, inputElement, fieldType);
     } catch (error) {
       console.error("Error searching customers:", error);
       hideDropdown(inputElement);
     }
   }
 
-  function showDropdown(customers, inputElement, fieldType) {
-    // Remove existing dropdown
+  function showCustomerDropdown(customers, inputElement, fieldType) {
     hideDropdown(inputElement);
 
     if (customers.length === 0) {
@@ -170,7 +268,6 @@
       return;
     }
 
-    // Create dropdown
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
     dropdown.style.cssText = `
@@ -187,7 +284,7 @@
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     `;
 
-    customers.forEach((customer, index) => {
+    customers.forEach((customer) => {
       const item = document.createElement("div");
       item.className = "dropdown-item-custom";
       item.style.cssText = `
@@ -199,20 +296,12 @@
         `;
 
       item.innerHTML = `
-            <div style="font-weight: 600;">${customer.account_number} - ${
-        customer.name
-      }</div>
+            <div style="font-weight: 600;">${customer.name}</div>
             <small style="color: var(--text-muted);">
-                ${
-                  customer.contact_name
-                    ? "Contact: " + customer.contact_name
-                    : ""
-                }
-                ${customer.phone ? " | Phone: " + customer.phone : ""}
+                ${customer.stockCount} items in stock
             </small>
         `;
 
-      // Hover effect
       item.addEventListener("mouseenter", function () {
         this.style.backgroundColor = "var(--primary-blue)";
       });
@@ -221,7 +310,6 @@
         this.style.backgroundColor = "transparent";
       });
 
-      // Click to select
       item.addEventListener("click", function () {
         selectCustomer(customer);
         hideAllDropdowns();
@@ -230,30 +318,187 @@
       dropdown.appendChild(item);
     });
 
-    // Add to container
     inputElement.parentElement.appendChild(dropdown);
     inputElement.style.borderColor = "#28a745";
   }
 
-  function selectCustomer(customer) {
-    // Fill both fields
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
+  async function selectCustomer(customer) {
+    selectedCustomerId = customer.id;
 
-    if (accountInput) {
-      accountInput.value = customer.account_number;
-      accountInput.style.borderColor = "#28a745";
-    }
+    // Fill customer fields
+    document.getElementById("customerAccount").value =
+      customer.account_number || customer.id;
+    document.getElementById("customerName").value = customer.name;
+    document.getElementById("customerId").value = customer.id;
 
-    if (nameInput) {
-      nameInput.value = customer.name;
-      nameInput.style.borderColor = "#28a745";
-    }
+    // Style fields
+    document.getElementById("customerAccount").style.borderColor = "#28a745";
+    document.getElementById("customerName").style.borderColor = "#28a745";
 
     // Show customer info
-    showCustomerInfo(customer);
+    document.getElementById("selectedCustomerInfo").style.display = "block";
+    document.getElementById("selectedCustomerDetails").innerHTML = `
+        Name: ${customer.name}<br>
+        Stock Items: ${customer.stockCount}
+    `;
+
+    // Load and display stock items
+    await loadCustomerStockItems(customer.id);
+  }
+
+  async function loadCustomerStockItems(customerId) {
+    try {
+      const response = await fetch(
+        `/api/customer-stock/search?customer_id=${customerId}`
+      );
+      const stockItems = await response.json();
+
+      displayStockItems(stockItems);
+    } catch (error) {
+      console.error("Error loading stock items:", error);
+      alert("Error loading customer stock items");
+    }
+  }
+
+  function displayStockItems(stockItems) {
+    const itemsDiv = document.getElementById("availableStockItems");
+
+    if (stockItems.length === 0) {
+      itemsDiv.innerHTML =
+        '<div class="col-12"><div class="alert alert-warning">No stock items found for this customer</div></div>';
+      document.getElementById("stockItemsSection").style.display = "block";
+      return;
+    }
+
+    let html = "";
+    stockItems.forEach((item) => {
+      const statusClass =
+        item.current_stock === 0
+          ? "danger"
+          : item.current_stock <= item.reorder_level
+          ? "warning"
+          : "success";
+
+      html += `
+            <div class="col-md-4 mb-3">
+                <div class="card stock-item-card" onclick="selectStockItem(${
+                  item.id
+                }, '${item.product_code}', '${item.product_name}', ${
+        item.current_stock
+      }, '${item.unit_type}')" 
+                     style="cursor: pointer; transition: all 0.2s;">
+                    <div class="card-body">
+                        <h6 class="card-title">${item.product_code}</h6>
+                        <p class="card-text">${item.product_name}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-${statusClass}">${
+        item.current_stock
+      } ${item.unit_type}</span>
+                            ${
+                              item.current_stock <= item.reorder_level
+                                ? '<small class="text-warning">Low stock!</small>'
+                                : ""
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    itemsDiv.innerHTML = html;
+    document.getElementById("stockItemsSection").style.display = "block";
+
+    // Add hover effects
+    document.querySelectorAll(".stock-item-card").forEach((card) => {
+      card.addEventListener("mouseenter", function () {
+        this.style.transform = "translateY(-2px)";
+        this.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+        this.style.borderColor = "var(--primary-blue)";
+      });
+      card.addEventListener("mouseleave", function () {
+        this.style.transform = "translateY(0)";
+        this.style.boxShadow = "";
+        this.style.borderColor = "";
+      });
+    });
+  }
+
+  function selectStockItem(
+    itemId,
+    productCode,
+    productName,
+    currentStock,
+    unitType
+  ) {
+    selectedStockItem = {
+      id: itemId,
+      product_code: productCode,
+      product_name: productName,
+      current_stock: currentStock,
+      unit_type: unitType,
+    };
+
+    // Fill form fields
+    document.querySelector('input[name="product_code"]').value = productCode;
+    document.querySelector('input[name="product_name"]').value = productName;
+    document.getElementById("stockItemId").value = itemId;
+
+    // Update display
+    document.getElementById(
+      "selectedItemDisplay"
+    ).textContent = `${productCode} - ${productName}`;
+    document.getElementById(
+      "availableStock"
+    ).textContent = `${currentStock} ${unitType}`;
+    document.getElementById(
+      "maxQuantity"
+    ).textContent = `${currentStock} ${unitType}`;
+    document.getElementById("quantityOrdered").max = currentStock;
+
+    // Show order details section
+    document.getElementById("orderDetailsSection").style.display = "block";
+
+    // Scroll to order section
+    document
+      .getElementById("orderDetailsSection")
+      .scrollIntoView({ behavior: "smooth" });
+  }
+
+  function setupQuantityCalculation() {
+    const quantityInput = document.getElementById("quantityOrdered");
+    if (quantityInput) {
+      quantityInput.addEventListener("input", function () {
+        calculateNewStockLevel();
+      });
+    }
+  }
+
+  function calculateNewStockLevel() {
+    const ordered =
+      parseInt(document.getElementById("quantityOrdered").value) || 0;
+    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
+    const newLevel = Math.max(0, available - ordered);
+
+    document.getElementById("newStockLevel").value = newLevel;
+
+    // Visual feedback
+    const input = document.getElementById("quantityOrdered");
+    if (ordered > available) {
+      input.style.borderColor = "#dc3545";
+    } else {
+      input.style.borderColor = "#28a745";
+    }
+  }
+
+  function clearCustomerSelection() {
+    selectedCustomerId = null;
+    selectedStockItem = null;
+    document.getElementById("selectedCustomerInfo").style.display = "none";
+    document.getElementById("stockItemsSection").style.display = "none";
+    document.getElementById("orderDetailsSection").style.display = "none";
+    document.getElementById("customerId").value = "";
+    document.getElementById("stockItemId").value = "";
   }
 
   function hideDropdown(inputElement) {
@@ -269,65 +514,6 @@
       dropdown.remove();
     });
   }
-
-  function clearOtherFields(fieldType) {
-    if (fieldType === "account") {
-      const nameInput = document.querySelector('input[name="customer_name"]');
-      if (nameInput) {
-        nameInput.value = "";
-        nameInput.style.borderColor = "";
-      }
-    } else {
-      const accountInput = document.querySelector(
-        'input[name="customer_account"]'
-      );
-      if (accountInput) {
-        accountInput.value = "";
-        accountInput.style.borderColor = "";
-      }
-    }
-    hideCustomerInfo();
-  }
-
-  function showCustomerInfo(customer) {
-    hideCustomerInfo();
-
-    const infoDiv = document.createElement("div");
-    infoDiv.id = "customer-info";
-    infoDiv.className = "alert alert-success mt-3";
-    infoDiv.innerHTML = `
-        <strong>✓ Customer Selected:</strong><br>
-        <div class="row">
-            <div class="col-md-6">
-                <small>
-                    <strong>Account:</strong> ${customer.account_number}<br>
-                    <strong>Name:</strong> ${customer.name}
-                </small>
-            </div>
-            <div class="col-md-6">
-                <small>
-                    <strong>Contact:</strong> ${
-                      customer.contact_name || "N/A"
-                    }<br>
-                    <strong>Phone:</strong> ${customer.phone || "N/A"}
-                </small>
-            </div>
-        </div>
-    `;
-
-    // Insert after the second customer field
-    const nameField = document
-      .querySelector('input[name="customer_name"]')
-      .closest(".col-md-6");
-    nameField.insertAdjacentElement("afterend", infoDiv);
-  }
-
-  function hideCustomerInfo() {
-    const existingInfo = document.getElementById("customer-info");
-    if (existingInfo) {
-      existingInfo.remove();
-    }
-  }
 </script>
 
 <style>
@@ -335,22 +521,13 @@
     position: relative;
   }
 
-  .dropdown-results {
-    border: 2px solid var(--border-color) !important;
-    background: var(--dark-card) !important;
+  .stock-item-card {
+    border: 2px solid var(--border-color);
+    transition: all 0.2s ease;
   }
 
-  .dropdown-results::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .dropdown-results::-webkit-scrollbar-track {
-    background: var(--dark-bg);
-  }
-
-  .dropdown-results::-webkit-scrollbar-thumb {
-    background: var(--primary-blue);
-    border-radius: 3px;
+  .stock-item-card:hover {
+    border-color: var(--primary-blue) !important;
   }
 </style>
-{% endblock %} {% endblock %}
+{% endblock %}

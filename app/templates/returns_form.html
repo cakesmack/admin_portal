@@ -11,13 +11,15 @@
           {{ form.customer_account.label(class="form-label") }} {{
           form.customer_account(class="form-control") }}
           <div class="form-text">Enter customer account number</div>
-        </div>
-        <div class="col-md-6">
           {{ form.customer_name.label(class="form-label") }} {{
           form.customer_name(class="form-control") }}
         </div>
+        <div class="col-md-6">
+          {{ form.customer_address.label(class="form-label") }} {{
+          form.customer_address(class="form-control") }}
+        </div>
       </div>
-
+      <br />
       <div class="row mb-3">
         <div class="col-md-6">
           {{ form.product_code.label(class="form-label") }} {{
@@ -31,10 +33,14 @@
 
       <div class="row mb-3">
         <div class="col-md-4">
+          {{ form.price.label(class="form-label") }} {{
+          form.price(class="form-control", type="number", min="1") }}
+        </div>
+        <div class="col-md-4">
           {{ form.quantity.label(class="form-label") }} {{
           form.quantity(class="form-control", type="number", min="1") }}
         </div>
-        <div class="col-md-8">
+        <div class="col-md-4">
           {{ form.reason.label(class="form-label") }} {{
           form.reason(class="form-select") }}
         </div>

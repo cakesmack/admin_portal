@@ -1,0 +1,415 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Standing Order Details</h2>
+  <div>
+    <a href="{{ url_for('main.standing_orders') }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Back to List
+    </a>
+  </div>
+</div>
+
+<!-- Customer Information Card -->
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-person"></i> Customer Information</h5>
+      </div>
+      <div class="card-body">
+        <p><strong>Name:</strong> {{ order.customer.name }}</p>
+        <p><strong>Account:</strong> {{ order.customer.account_number }}</p>
+        {% if order.customer.contact_name %}
+        <p><strong>Contact:</strong> {{ order.customer.contact_name }}</p>
+        {% endif %} {% if order.customer.phone %}
+        <p><strong>Phone:</strong> {{ order.customer.phone }}</p>
+        {% endif %} {% if order.customer.email %}
+        <p><strong>Email:</strong> {{ order.customer.email }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-calendar"></i> Order Information</h5>
+      </div>
+      <div class="card-body">
+        <p>
+          <strong>Status:</strong>
+          {% if order.status == 'active' %}
+          <span class="badge bg-success">Active</span>
+          {% elif order.status == 'paused' %}
+          <span class="badge bg-warning">Paused</span>
+          {% else %}
+          <span class="badge bg-secondary">{{ order.status|title }}</span>
+          {% endif %}
+        </p>
+        <p>
+          <strong>Delivery Days:</strong>
+          {% for day in order.get_delivery_days_names() %}
+          <span class="badge bg-info">{{ day }}</span>
+          {% endfor %}
+        </p>
+        <p>
+          <strong>Start Date:</strong> {{ order.start_date.strftime('%d/%m/%Y')
+          }}
+        </p>
+        <p>
+          <strong>End Date:</strong>
+          {% if order.end_date %} {{ order.end_date.strftime('%d/%m/%Y') }} {%
+          else %}
+          <span class="badge bg-success">Ongoing</span>
+          {% endif %}
+        </p>
+        {% if order.special_instructions %}
+        <p>
+          <strong>Special Instructions:</strong><br />{{
+          order.special_instructions }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Products Card -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-box"></i> Products</h5>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Product Code</th>
+            <th>Product Name</th>
+            <th>Quantity</th>
+            <th>Unit Type</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in order.items %}
+          <tr>
+            <td><code>{{ item.product_code }}</code></td>
+            <td>{{ item.product_name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit_type }}</td>
+            <td>{{ item.special_notes or '-' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Current Month Schedule -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">
+      <i class="bi bi-calendar-month"></i>
+      Current Month Schedule - {{ today.strftime('%B %Y') }}
+    </h5>
+  </div>
+  <div class="card-body">
+    {% if schedules %}
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Status</th>
+            <th>Order Reference</th>
+            <th>Created By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for schedule in schedules %}
+          <tr
+            class="{% if schedule.status == 'created' %}table-success{% elif schedule.status == 'skipped' %}table-secondary{% endif %}"
+          >
+            <td>{{ schedule.scheduled_date.strftime('%d/%m/%Y') }}</td>
+            <td>{{ schedule.scheduled_date.strftime('%A') }}</td>
+            <td>
+              {% if schedule.status == 'created' %}
+              <span class="badge bg-success">Created</span>
+              {% elif schedule.status == 'skipped' %}
+              <span class="badge bg-secondary">Skipped</span>
+              {% else %}
+              <span class="badge bg-warning">Pending</span>
+              {% endif %}
+            </td>
+            <td>{{ schedule.order_reference or '-' }}</td>
+            <td>
+              {% if schedule.created_by_user %} {{
+              schedule.created_by_user.username }} {% if
+              schedule.order_created_date %}
+              <br /><small
+                >{{ schedule.order_created_date.strftime('%H:%M') }}</small
+              >
+              {% endif %} {% else %} - {% endif %}
+            </td>
+            <td>
+              {% if schedule.status == 'pending' %}
+              <button
+                class="btn btn-sm btn-success"
+                onclick="markCreated({{ schedule.id }})"
+              >
+                <i class="bi bi-check"></i> Created
+              </button>
+              <button
+                class="btn btn-sm btn-secondary"
+                onclick="skipSchedule({{ schedule.id }})"
+              >
+                <i class="bi bi-x"></i> Skip
+              </button>
+              {% elif schedule.notes %}
+              <small>{{ schedule.notes }}</small>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">
+      No schedules for this month yet. Click "Generate Schedules" to create
+      them.
+    </p>
+    <button class="btn btn-primary" onclick="generateSchedulesForOrder()">
+      <i class="bi bi-arrow-clockwise"></i> Generate Schedules
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-gear"></i> Actions</h5>
+  </div>
+  <div class="card-body">
+    <div class="d-flex gap-2 flex-wrap">
+      {% if order.status == 'active' %}
+      <button class="btn btn-warning" onclick="pauseOrder()">
+        <i class="bi bi-pause"></i> Pause Order
+      </button>
+      {% elif order.status == 'paused' %}
+      <button class="btn btn-success" onclick="resumeOrder()">
+        <i class="bi bi-play"></i> Resume Order
+      </button>
+      {% endif %} {% if order.status != 'ended' %}
+      <button class="btn btn-danger" onclick="endOrder()">
+        <i class="bi bi-stop"></i> End Order
+      </button>
+      {% endif %}
+
+      <button class="btn btn-primary" onclick="editOrder()">
+        <i class="bi bi-pencil"></i> Edit Order
+      </button>
+
+      <button class="btn btn-info" onclick="window.print()">
+        <i class="bi bi-printer"></i> Print Details
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- History Log -->
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-clock-history"></i> History Log</h5>
+  </div>
+  <div class="card-body">
+    {% if logs %}
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Date/Time</th>
+            <th>Action</th>
+            <th>Details</th>
+            <th>Performed By</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td>{{ log.performed_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>
+              <span class="badge bg-secondary"
+                >{{ log.action_type|replace('_', ' ')|title }}</span
+              >
+            </td>
+            <td>
+              {% if log.action_details %}
+              <small>{{ log.action_details }}</small>
+              {% else %} - {% endif %}
+            </td>
+            <td>{{ log.user.username }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No history recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  const orderId = {{ order.id }};
+
+  async function markCreated(scheduleId) {
+      const reference = prompt('Enter order reference (optional):');
+      if (reference !== null) {
+          try {
+              const response = await fetch(`/standing-orders/schedule/${scheduleId}/complete`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({
+                      reference: reference,
+                      notes: ''
+                  })
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+
+  async function skipSchedule(scheduleId) {
+      const reason = prompt('Reason for skipping (optional):');
+      if (reason !== null) {
+          try {
+              const response = await fetch(`/standing-orders/schedule/${scheduleId}/skip`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({reason: reason})
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+
+  async function pauseOrder() {
+      const reason = prompt('Reason for pausing (optional):');
+      if (reason !== null) {
+          try {
+              const response = await fetch(`/standing-orders/${orderId}/pause`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({reason: reason})
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+
+  async function resumeOrder() {
+      if (confirm('Resume this standing order?')) {
+          try {
+              const response = await fetch(`/standing-orders/${orderId}/resume`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'}
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+
+  async function endOrder() {
+      if (confirm('Are you sure you want to end this standing order? This action cannot be undone.')) {
+          try {
+              const response = await fetch(`/standing-orders/${orderId}/end`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'}
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  window.location.href = '/standing-orders';
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+
+  function editOrder() {
+      alert('Edit functionality will be implemented in the next update.');
+      // You can implement an edit form similar to the create form
+  }
+
+  async function generateSchedulesForOrder() {
+      if (confirm('Generate schedules for this order for the next month?')) {
+          try {
+              const response = await fetch('/standing-orders/generate-schedules', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'}
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                  location.reload();
+              } else {
+                  alert('Error: ' + data.message);
+              }
+          } catch (error) {
+              alert('Error: ' + error.message);
+          }
+      }
+  }
+</script>
+
+<style>
+  @media print {
+    .btn,
+    .card-header .badge {
+      display: none !important;
+    }
+  }
+</style>
+{% endblock %}

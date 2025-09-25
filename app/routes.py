@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction
+from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule
 from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm
 import json
 from datetime import datetime, date
@@ -164,14 +164,22 @@ def delete_company_update(update_id):
 @main.route('/api/recent-forms', methods=['GET'])
 @login_required
 def get_recent_forms():
-    forms = Form.query.join(User).order_by(Form.date_created.desc()).limit(5).all()
+    forms = Form.query.filter_by(is_archived=False).join(User, Form.user_id == User.id).order_by(Form.date_created.desc()).limit(5).all()
     
-    return jsonify([{
-        'id': form.id,
-        'type': form.type.replace('_', ' ').title(),
-        'date_created': form.date_created.isoformat(),
-        'author': form.author.username
-    } for form in forms])
+    result = []
+    for form in forms:
+        form_data = json.loads(form.data)
+        result.append({
+            'id': form.id,
+            'type': form.type.replace('_', ' ').title(),
+            'date_created': form.date_created.isoformat(),
+            'author': form.author.username,
+            'customer_account': form_data.get('customer_account', 'N/A'),
+            'customer_name': form_data.get('customer_name', 'N/A'),
+            'is_completed': form.is_completed
+        })
+    
+    return jsonify(result)
 
 @main.route('/callsheets')
 @login_required
@@ -590,14 +598,57 @@ def returns():
 def branded_stock():
     form = BrandedStockForm()
     if form.validate_on_submit():
-        form_data = {
-            'customer_account': form.customer_account.data,
-            'customer_name': form.customer_name.data,
-            'product_code': form.product_code.data,
-            'product_name': form.product_name.data,
-            'quantity_delivered': form.quantity_delivered.data,
-            'current_stock': form.current_stock.data
-        }
+        # Check if this is a stock order (has stock_item_id)
+        stock_item_id = request.form.get('stock_item_id')
+        
+        if stock_item_id:
+            # Process stock order
+            stock_item = CustomerStock.query.get_or_404(stock_item_id)
+            quantity_ordered = int(request.form.get('quantity_delivered', 0))
+            
+            # Validate quantity
+            if quantity_ordered > stock_item.current_stock:
+                flash('Cannot order more than available stock', 'danger')
+                return redirect(url_for('main.branded_stock'))
+            
+            # Create stock transaction
+            transaction = StockTransaction(
+                stock_item_id=stock_item_id,
+                transaction_type='stock_out',
+                quantity=quantity_ordered,
+                reference=request.form.get('order_reference', ''),
+                notes=request.form.get('order_notes', ''),
+                created_by=current_user.id
+            )
+            
+            # Update stock level
+            stock_item.current_stock -= quantity_ordered
+            stock_item.updated_at = datetime.now()
+            
+            db.session.add(transaction)
+            
+            # Create form record for printing
+            form_data = {
+                'customer_account': request.form.get('customer_account'),
+                'customer_name': request.form.get('customer_name'),
+                'product_code': request.form.get('product_code'),
+                'product_name': request.form.get('product_name'),
+                'quantity_delivered': quantity_ordered,
+                'current_stock': stock_item.current_stock,
+                'order_reference': request.form.get('order_reference', ''),
+                'order_notes': request.form.get('order_notes', ''),
+                'transaction_type': 'Customer Stock Order'
+            }
+        else:
+            # Regular branded stock delivery
+            form_data = {
+                'customer_account': form.customer_account.data,
+                'customer_name': form.customer_name.data,
+                'product_code': form.product_code.data,
+                'product_name': form.product_name.data,
+                'quantity_delivered': form.quantity_delivered.data,
+                'current_stock': form.current_stock.data
+            }
         
         new_form = Form(
             type='branded_stock',
@@ -607,10 +658,10 @@ def branded_stock():
         db.session.add(new_form)
         db.session.commit()
         
-        flash(f'Branded stock delivery #{new_form.id} has been recorded successfully!', 'success')
-        return redirect(url_for('main.forms'))
+        flash(f'Stock order #{new_form.id} has been processed successfully!', 'success')
+        return redirect(url_for('main.branded_stock'))
     
-    # Get recent branded stock deliveries for the table
+    # Get recent branded stock orders for the table
     recent_forms = Form.query.filter_by(type='branded_stock').order_by(Form.date_created.desc()).limit(5).all()
     recent_branded_stock = []
     
@@ -622,7 +673,8 @@ def branded_stock():
         }
         recent_branded_stock.append(form_dict)
     
-    return render_template('branded_stock.html', title='Branded Stock', form=form, recent_branded_stock=recent_branded_stock)
+    return render_template('branded_stock.html', title='Customer Stock Orders', form=form, recent_branded_stock=recent_branded_stock)
+
 
 @main.route('/invoice-correction', methods=['GET', 'POST'])
 @login_required
@@ -694,20 +746,98 @@ def api_products():
 @main.route('/forms')
 @login_required
 def forms():
-    all_forms = Form.query.order_by(Form.date_created.desc()).all()
+    # Get filter parameters
+    form_type = request.args.get('type', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    submitted_by = request.args.get('submitted_by', '')
+    customer_search = request.args.get('customer', '')
+    show_archived = request.args.get('show_archived', 'false') == 'true'
     
+    # Base query
+    query = Form.query
+    
+    # Apply archived filter
+    if not show_archived:
+        query = query.filter_by(is_archived=False)
+    
+    # Apply filters
+    if form_type:
+        query = query.filter(Form.type == form_type)
+    
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(Form.date_created >= date_from_obj)
+        except:
+            pass
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+            date_to_obj = date_to_obj.replace(hour=23, minute=59, second=59)
+            query = query.filter(Form.date_created <= date_to_obj)
+        except:
+            pass
+    
+    if submitted_by:
+        query = query.join(User, Form.user_id == User.id).filter(User.username.ilike(f'%{submitted_by}%'))
+    
+    # Order by date
+    all_forms = query.order_by(Form.date_created.desc()).all()
+    
+    # Filter by customer if specified (this needs to be done after loading since customer data is in JSON)
+    if customer_search:
+        filtered_forms = []
+        for form in all_forms:
+            form_data = json.loads(form.data)
+            customer_account = form_data.get('customer_account', '')
+            customer_name = form_data.get('customer_name', '')
+            if customer_search.lower() in customer_account.lower() or customer_search.lower() in customer_name.lower():
+                filtered_forms.append(form)
+        all_forms = filtered_forms
+    
+    # Prepare forms with data
     forms_with_data = []
     for form in all_forms:
+        form_data = json.loads(form.data)
         form_dict = {
             'id': form.id,
             'type': form.type.replace('_', ' ').title(),
+            'type_raw': form.type,
             'date_created': form.date_created,
             'author': User.query.get(form.user_id).username if User.query.get(form.user_id) else 'Unknown',
-            'data': json.loads(form.data)
+            'data': form_data,
+            'customer_account': form_data.get('customer_account', 'N/A'),
+            'customer_name': form_data.get('customer_name', 'N/A'),
+            'is_completed': form.is_completed,
+            'completed_date': form.completed_date,
+            'completed_by': User.query.get(form.completed_by).username if form.completed_by else None,
+            'is_archived': form.is_archived
         }
         forms_with_data.append(form_dict)
     
-    return render_template('forms.html', title='All Forms', forms=forms_with_data)
+    # Get unique form types for filter dropdown
+    unique_types = db.session.query(Form.type).distinct().all()
+    form_types = [t[0] for t in unique_types]
+    
+    # Get all users for filter dropdown
+    all_users = User.query.all()
+    
+    return render_template('forms.html', 
+                         title='All Forms', 
+                         forms=forms_with_data,
+                         form_types=form_types,
+                         all_users=all_users,
+                         current_filters={
+                             'type': form_type,
+                             'date_from': date_from,
+                             'date_to': date_to,
+                             'submitted_by': submitted_by,
+                             'customer': customer_search,
+                             'show_archived': show_archived
+                         })
+
 
 @main.route('/form/<int:form_id>')
 @login_required
@@ -727,6 +857,51 @@ def view_form(form_id):
         form_id=form_id,
         datetime=datetime
     )
+
+
+@main.route('/api/form/<int:form_id>/complete', methods=['POST'])
+@login_required
+def complete_form(form_id):
+    form = Form.query.get_or_404(form_id)
+    
+    try:
+        form.is_completed = True
+        form.completed_date = datetime.now()
+        form.completed_by = current_user.id
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Form marked as completed'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/api/form/<int:form_id>/archive', methods=['POST'])
+@login_required
+def archive_form(form_id):
+    form = Form.query.get_or_404(form_id)
+    
+    try:
+        form.is_archived = True
+        if not form.is_completed:
+            form.is_completed = True
+            form.completed_date = datetime.now()
+            form.completed_by = current_user.id
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Form archived successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/api/form/<int:form_id>/unarchive', methods=['POST'])
+@login_required
+def unarchive_form(form_id):
+    form = Form.query.get_or_404(form_id)
+    
+    try:
+        form.is_archived = False
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Form restored from archive'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/form/print/<int:form_id>')
 @login_required
@@ -1014,3 +1189,365 @@ def search_customer_stock():
     
     stock_items = stock_query.limit(20).all()
     return jsonify([item.to_dict() for item in stock_items])
+
+# Add these routes to your app/routes.py
+
+from datetime import date, timedelta, datetime
+import calendar
+
+@main.route('/standing-orders')
+@login_required
+def standing_orders():
+    # Get all standing orders
+    orders = StandingOrder.query.join(Customer).filter(
+        StandingOrder.status != 'ended'
+    ).order_by(Customer.name).all()
+    
+    # Get today's standing orders
+    today = date.today()
+    today_day = today.weekday()  # 0 = Monday, 6 = Sunday
+    
+    todays_orders = []
+    for order in orders:
+        if order.status == 'active' and str(today_day) in order.delivery_days.split(','):
+            # Check if there's a schedule for today
+            schedule = StandingOrderSchedule.query.filter_by(
+                standing_order_id=order.id,
+                scheduled_date=today
+            ).first()
+            
+            todays_orders.append({
+                'order': order,
+                'schedule': schedule,
+                'status': schedule.status if schedule else 'pending'
+            })
+    
+    # Get statistics
+    active_count = len([o for o in orders if o.status == 'active'])
+    paused_count = len([o for o in orders if o.status == 'paused'])
+    
+    # Get this week's pending schedules
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    
+    pending_this_week = StandingOrderSchedule.query.filter(
+        StandingOrderSchedule.scheduled_date.between(week_start, week_end),
+        StandingOrderSchedule.status == 'pending'
+    ).count()
+    
+    return render_template('standing_orders.html',
+                         orders=orders,
+                         todays_orders=todays_orders,
+                         today=today,
+                         active_count=active_count,
+                         paused_count=paused_count,
+                         pending_this_week=pending_this_week)
+
+@main.route('/standing-orders/new', methods=['GET', 'POST'])
+@login_required
+def new_standing_order():
+    if request.method == 'POST':
+        data = request.json
+        
+        try:
+            # Create standing order
+            standing_order = StandingOrder(
+                customer_id=data['customer_id'],
+                delivery_days=','.join(data['delivery_days']),
+                start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
+                end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
+                special_instructions=data.get('special_instructions', ''),
+                notification_email=data.get('notification_email', ''),
+                notify_days_before=data.get('notify_days_before', 1),
+                created_by=current_user.id
+            )
+            
+            db.session.add(standing_order)
+            db.session.flush()
+            
+            # Add items
+            for item in data['items']:
+                order_item = StandingOrderItem(
+                    standing_order_id=standing_order.id,
+                    product_code=item['product_code'],
+                    product_name=item['product_name'],
+                    quantity=item['quantity'],
+                    unit_type=item.get('unit_type', 'units'),
+                    special_notes=item.get('notes', '')
+                )
+                db.session.add(order_item)
+            
+            # Log creation
+            log = StandingOrderLog(
+                standing_order_id=standing_order.id,
+                action_type='created',
+                action_details=json.dumps({'customer': data.get('customer_name', ''), 'items_count': len(data['items'])}),
+                performed_by=current_user.id
+            )
+            db.session.add(log)
+            
+            # Generate initial schedules for the first month
+            generate_schedules_for_order(standing_order.id)
+            
+            db.session.commit()
+            
+            return jsonify({'success': True, 'id': standing_order.id})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 400
+    
+    # GET request - show form
+    customers = Customer.query.order_by(Customer.name).all()
+    return render_template('standing_order_form.html', customers=customers)
+
+@main.route('/standing-orders/<int:order_id>')
+@login_required
+def view_standing_order(order_id):
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    # Get schedules for current month
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    month_end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+    
+    schedules = StandingOrderSchedule.query.filter(
+        StandingOrderSchedule.standing_order_id == order_id,
+        StandingOrderSchedule.scheduled_date.between(month_start, month_end)
+    ).order_by(StandingOrderSchedule.scheduled_date).all()
+    
+    # Get logs
+    logs = StandingOrderLog.query.filter_by(
+        standing_order_id=order_id
+    ).order_by(StandingOrderLog.performed_at.desc()).limit(20).all()
+    
+    return render_template('standing_order_detail.html',
+                         order=order,
+                         schedules=schedules,
+                         logs=logs,
+                         today=today)
+
+@main.route('/standing-orders/<int:order_id>/pause', methods=['POST'])
+@login_required
+def pause_standing_order(order_id):
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    try:
+        order.status = 'paused'
+        order.updated_at = datetime.now()
+        
+        # Log the action
+        log = StandingOrderLog(
+            standing_order_id=order_id,
+            action_type='paused',
+            action_details=json.dumps({'reason': request.json.get('reason', '')}),
+            performed_by=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Standing order paused'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/<int:order_id>/resume', methods=['POST'])
+@login_required
+def resume_standing_order(order_id):
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    try:
+        order.status = 'active'
+        order.updated_at = datetime.now()
+        
+        # Log the action
+        log = StandingOrderLog(
+            standing_order_id=order_id,
+            action_type='resumed',
+            action_details='{}',
+            performed_by=current_user.id
+        )
+        db.session.add(log)
+        
+        # Generate schedules for the next month
+        generate_schedules_for_order(order_id)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Standing order resumed'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/<int:order_id>/end', methods=['POST'])
+@login_required
+def end_standing_order(order_id):
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    try:
+        order.status = 'ended'
+        order.end_date = date.today()
+        order.updated_at = datetime.now()
+        
+        # Cancel all future schedules
+        future_schedules = StandingOrderSchedule.query.filter(
+            StandingOrderSchedule.standing_order_id == order_id,
+            StandingOrderSchedule.scheduled_date > date.today(),
+            StandingOrderSchedule.status == 'pending'
+        ).all()
+        
+        for schedule in future_schedules:
+            schedule.status = 'skipped'
+            schedule.notes = 'Standing order ended'
+        
+        # Log the action
+        log = StandingOrderLog(
+            standing_order_id=order_id,
+            action_type='ended',
+            action_details=json.dumps({'end_date': str(date.today())}),
+            performed_by=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Standing order ended'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/schedule/<int:schedule_id>/complete', methods=['POST'])
+@login_required
+def complete_schedule(schedule_id):
+    schedule = StandingOrderSchedule.query.get_or_404(schedule_id)
+    
+    try:
+        schedule.status = 'created'
+        schedule.order_created_date = datetime.now()
+        schedule.order_created_by = current_user.id
+        schedule.order_reference = request.json.get('reference', '')
+        schedule.notes = request.json.get('notes', '')
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Order marked as created'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/schedule/<int:schedule_id>/skip', methods=['POST'])
+@login_required
+def skip_schedule(schedule_id):
+    schedule = StandingOrderSchedule.query.get_or_404(schedule_id)
+    
+    try:
+        schedule.status = 'skipped'
+        schedule.notes = request.json.get('reason', 'Manually skipped')
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Order skipped'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/generate-schedules', methods=['POST'])
+@login_required
+def generate_all_schedules():
+    """Generate schedules for all active standing orders for the next month"""
+    try:
+        active_orders = StandingOrder.query.filter_by(status='active').all()
+        count = 0
+        
+        for order in active_orders:
+            count += generate_schedules_for_order(order.id)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Generated {count} new schedules'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+@main.route('/standing-orders/schedule-view')
+@login_required
+def schedule_view():
+    """Monthly/weekly/daily schedule view"""
+    view_type = request.args.get('view', 'month')  # month, week, or day
+    target_date = request.args.get('date', str(date.today()))
+    
+    try:
+        target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+    except:
+        target_date = date.today()
+    
+    if view_type == 'day':
+        start_date = target_date
+        end_date = target_date
+    elif view_type == 'week':
+        start_date = target_date - timedelta(days=target_date.weekday())
+        end_date = start_date + timedelta(days=6)
+    else:  # month
+        start_date = date(target_date.year, target_date.month, 1)
+        end_date = date(target_date.year, target_date.month, calendar.monthrange(target_date.year, target_date.month)[1])
+    
+    # Get schedules in date range
+    schedules = StandingOrderSchedule.query.join(StandingOrder).join(Customer).filter(
+        StandingOrderSchedule.scheduled_date.between(start_date, end_date)
+    ).order_by(StandingOrderSchedule.scheduled_date, Customer.name).all()
+    
+    # Group by date
+    schedules_by_date = {}
+    for schedule in schedules:
+        date_key = schedule.scheduled_date
+        if date_key not in schedules_by_date:
+            schedules_by_date[date_key] = []
+        schedules_by_date[date_key].append(schedule)
+    
+    # Calculate completion stats
+    total = len(schedules)
+    completed = len([s for s in schedules if s.status == 'created'])
+    pending = len([s for s in schedules if s.status == 'pending'])
+    skipped = len([s for s in schedules if s.status == 'skipped'])
+    
+    return render_template('standing_order_schedule.html',
+                         view_type=view_type,
+                         target_date=target_date,
+                         start_date=start_date,
+                         end_date=end_date,
+                         schedules_by_date=schedules_by_date,
+                         total=total,
+                         completed=completed,
+                         pending=pending,
+                         skipped=skipped)
+
+# Helper function to generate schedules
+def generate_schedules_for_order(order_id, months_ahead=1):
+    """Generate schedule entries for a standing order"""
+    order = StandingOrder.query.get(order_id)
+    if not order or order.status != 'active':
+        return 0
+    
+    count = 0
+    today = date.today()
+    end_date = today + timedelta(days=30 * months_ahead)
+    
+    if order.end_date and order.end_date < end_date:
+        end_date = order.end_date
+    
+    current_date = max(order.start_date, today)
+    delivery_days = order.get_delivery_days_list()
+    
+    while current_date <= end_date:
+        if current_date.weekday() in delivery_days:
+            # Check if schedule already exists
+            existing = StandingOrderSchedule.query.filter_by(
+                standing_order_id=order_id,
+                scheduled_date=current_date
+            ).first()
+            
+            if not existing:
+                schedule = StandingOrderSchedule(
+                    standing_order_id=order_id,
+                    scheduled_date=current_date,
+                    status='pending'
+                )
+                db.session.add(schedule)
+                count += 1
+        
+        current_date += timedelta(days=1)
+    
+    return count

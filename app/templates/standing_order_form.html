@@ -1,0 +1,333 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>New Standing Order</h2>
+  <a href="{{ url_for('main.standing_orders') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form id="standingOrderForm">
+      <!-- Customer Selection -->
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <label class="form-label">Customer *</label>
+          <select
+            class="form-select"
+            id="customerId"
+            required
+            onchange="updateCustomerInfo()"
+          >
+            <option value="">Select Customer</option>
+            {% for customer in customers %}
+            <option
+              value="{{ customer.id }}"
+              data-account="{{ customer.account_number }}"
+              data-name="{{ customer.name }}"
+            >
+              {{ customer.account_number }} - {{ customer.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <div id="customerInfo" class="alert alert-info" style="display: none">
+            <strong>Selected Customer:</strong><br />
+            <span id="customerDetails"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delivery Days -->
+      <div class="mb-4">
+        <label class="form-label">Delivery Days * (Weekly)</label>
+        <div class="btn-group-toggle" data-toggle="buttons">
+          <div class="d-flex gap-2 flex-wrap">
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="0" /> Monday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="1" /> Tuesday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="2" /> Wednesday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="3" /> Thursday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="4" /> Friday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="5" /> Saturday
+            </label>
+            <label class="btn btn-outline-primary">
+              <input type="checkbox" name="deliveryDays" value="6" /> Sunday
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dates -->
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <label class="form-label">Start Date *</label>
+          <input type="date" class="form-control" id="startDate" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">End Date (leave blank for ongoing)</label>
+          <input type="date" class="form-control" id="endDate" />
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div class="mb-4">
+        <h5>Products</h5>
+        <div id="productsContainer">
+          <!-- Products will be added here -->
+        </div>
+        <button
+          type="button"
+          class="btn btn-success mt-2"
+          onclick="addProductRow()"
+        >
+          <i class="bi bi-plus"></i> Add Product
+        </button>
+      </div>
+
+      <!-- Special Instructions -->
+      <div class="mb-4">
+        <label class="form-label">Special Instructions</label>
+        <textarea
+          class="form-control"
+          id="specialInstructions"
+          rows="3"
+          placeholder="Any special delivery instructions or notes"
+        ></textarea>
+      </div>
+
+      <!-- Notifications -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h6 class="mb-0">Email Notifications (Optional)</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-8">
+              <label class="form-label">Notification Email</label>
+              <input
+                type="email"
+                class="form-control"
+                id="notificationEmail"
+                placeholder="email@example.com"
+              />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Notify Days Before</label>
+              <select class="form-select" id="notifyDaysBefore">
+                <option value="0">Same day</option>
+                <option value="1" selected>1 day before</option>
+                <option value="2">2 days before</option>
+                <option value="3">3 days before</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit Buttons -->
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-circle"></i> Create Standing Order
+        </button>
+        <a
+          href="{{ url_for('main.standing_orders') }}"
+          class="btn btn-secondary"
+        >
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Product Row Template -->
+<template id="productRowTemplate">
+  <div class="product-row border rounded p-3 mb-2">
+    <div class="row">
+      <div class="col-md-3">
+        <label class="form-label">Product Code *</label>
+        <input type="text" class="form-control product-code" required />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Product Name *</label>
+        <input type="text" class="form-control product-name" required />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Quantity *</label>
+        <input
+          type="number"
+          class="form-control product-quantity"
+          min="1"
+          required
+        />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Unit</label>
+        <select class="form-select product-unit">
+          <option value="units">Units</option>
+          <option value="cases">Cases</option>
+          <option value="boxes">Boxes</option>
+          <option value="packs">Packs</option>
+        </select>
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button
+          type="button"
+          class="btn btn-danger btn-sm"
+          onclick="removeProductRow(this)"
+        >
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="row mt-2">
+      <div class="col-12">
+        <input
+          type="text"
+          class="form-control product-notes"
+          placeholder="Special notes for this item (optional)"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+{% endblock %} {% block scripts %}
+<script>
+  // Toggle delivery day buttons
+  document
+    .querySelectorAll('input[name="deliveryDays"]')
+    .forEach((checkbox) => {
+      checkbox.addEventListener("change", function () {
+        const label = this.parentElement;
+        if (this.checked) {
+          label.classList.remove("btn-outline-primary");
+          label.classList.add("btn-primary");
+        } else {
+          label.classList.remove("btn-primary");
+          label.classList.add("btn-outline-primary");
+        }
+      });
+    });
+
+  // Update customer info display
+  function updateCustomerInfo() {
+    const select = document.getElementById("customerId");
+    const selectedOption = select.options[select.selectedIndex];
+
+    if (select.value) {
+      const customerInfo = document.getElementById("customerInfo");
+      const customerDetails = document.getElementById("customerDetails");
+
+      customerDetails.innerHTML = `
+            Account: ${selectedOption.dataset.account}<br>
+            Name: ${selectedOption.dataset.name}
+        `;
+      customerInfo.style.display = "block";
+    } else {
+      document.getElementById("customerInfo").style.display = "none";
+    }
+  }
+
+  // Add product row
+  function addProductRow() {
+    const template = document.getElementById("productRowTemplate");
+    const clone = template.content.cloneNode(true);
+    document.getElementById("productsContainer").appendChild(clone);
+  }
+
+  // Remove product row
+  function removeProductRow(button) {
+    button.closest(".product-row").remove();
+  }
+
+  // Initialize with one product row
+  addProductRow();
+
+  // Form submission
+  document
+    .getElementById("standingOrderForm")
+    .addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      // Validate at least one delivery day is selected
+      const deliveryDays = Array.from(
+        document.querySelectorAll('input[name="deliveryDays"]:checked')
+      ).map((cb) => cb.value);
+
+      if (deliveryDays.length === 0) {
+        alert("Please select at least one delivery day");
+        return;
+      }
+
+      // Collect product data
+      const products = [];
+      document.querySelectorAll(".product-row").forEach((row) => {
+        const product = {
+          product_code: row.querySelector(".product-code").value,
+          product_name: row.querySelector(".product-name").value,
+          quantity: parseInt(row.querySelector(".product-quantity").value),
+          unit_type: row.querySelector(".product-unit").value,
+          notes: row.querySelector(".product-notes").value,
+        };
+
+        if (product.product_code && product.product_name && product.quantity) {
+          products.push(product);
+        }
+      });
+
+      if (products.length === 0) {
+        alert("Please add at least one product");
+        return;
+      }
+
+      // Prepare data
+      const customerSelect = document.getElementById("customerId");
+      const data = {
+        customer_id: customerSelect.value,
+        customer_name:
+          customerSelect.options[customerSelect.selectedIndex].dataset.name,
+        delivery_days: deliveryDays,
+        start_date: document.getElementById("startDate").value,
+        end_date: document.getElementById("endDate").value,
+        special_instructions: document.getElementById("specialInstructions")
+          .value,
+        notification_email: document.getElementById("notificationEmail").value,
+        notify_days_before: parseInt(
+          document.getElementById("notifyDaysBefore").value
+        ),
+        items: products,
+      };
+
+      try {
+        const response = await fetch("/standing-orders/new", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          window.location.href = `/standing-orders/${result.id}`;
+        } else {
+          alert("Error: " + result.message);
+        }
+      } catch (error) {
+        alert("Error creating standing order: " + error.message);
+      }
+    });
+</script>
+{% endblock %}

@@ -205,18 +205,47 @@
       </div>
       <div class="modal-body">
         <form id="addStockForm">
+          <!-- Customer Search Section -->
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label">Customer *</label>
-              <select class="form-select" id="newStockCustomer" required>
-                <option value="">Select Customer</option>
-                {% for customer in
-                stock_items|map(attribute='customer')|unique|sort(attribute='name')
-                %}
-                <option value="{{ customer.id }}">{{ customer.name }}</option>
-                {% endfor %}
-              </select>
+              <label class="form-label">Customer Account Number *</label>
+              <div class="search-container position-relative">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newStockCustomerAccount"
+                  required
+                  placeholder="Search by account number or name"
+                />
+              </div>
             </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Customer Name *</label>
+              <div class="search-container position-relative">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="newStockCustomerName"
+                  required
+                  placeholder="Search by name or account"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Selected Customer Info -->
+          <div
+            id="selectedCustomerInfo"
+            class="alert alert-info mb-3"
+            style="display: none"
+          >
+            <strong>Selected Customer:</strong><br />
+            <span id="selectedCustomerDetails"></span>
+          </div>
+
+          <input type="hidden" id="newStockCustomerId" />
+
+          <div class="row">
             <div class="col-md-6 mb-3">
               <label class="form-label">Product Code *</label>
               <input
@@ -225,6 +254,16 @@
                 id="newStockProductCode"
                 required
               />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Unit Type</label>
+              <select class="form-select" id="newStockUnitType">
+                <option value="cases">Cases</option>
+                <option value="boxes">Boxes</option>
+                <option value="units">Units</option>
+                <option value="pallets">Pallets</option>
+                <option value="rolls">Rolls</option>
+              </select>
             </div>
           </div>
           <div class="row">
@@ -238,14 +277,14 @@
               />
             </div>
             <div class="col-md-4 mb-3">
-              <label class="form-label">Unit Type</label>
-              <select class="form-select" id="newStockUnitType">
-                <option value="cases">Cases</option>
-                <option value="boxes">Boxes</option>
-                <option value="units">Units</option>
-                <option value="pallets">Pallets</option>
-                <option value="rolls">Rolls</option>
-              </select>
+              <label class="form-label">Reorder Level</label>
+              <input
+                type="number"
+                class="form-control"
+                id="newStockReorderLevel"
+                min="0"
+                value="5"
+              />
             </div>
           </div>
           <div class="row">
@@ -259,23 +298,13 @@
                 value="0"
               />
             </div>
-            <div class="col-md-4 mb-3">
-              <label class="form-label">Reorder Level</label>
-              <input
-                type="number"
-                class="form-control"
-                id="newStockReorderLevel"
-                min="0"
-                value="5"
-              />
-            </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-8 mb-3">
               <label class="form-label">Reference</label>
               <input
                 type="text"
                 class="form-control"
                 id="newStockReference"
-                placeholder="Order/Delivery ref"
+                placeholder="Order/Delivery reference"
               />
             </div>
           </div>
@@ -842,6 +871,232 @@
   function editStockItem(itemId) {
     // Implementation for editing stock items (reorder levels, etc.)
     alert("Edit functionality would be implemented here");
+  }
+
+  // Add this to your existing script section, after the document.addEventListener part:
+
+  let selectedCustomerId = null;
+  let customerSearchTimeout;
+
+  // Initialize customer search when modal opens
+  document
+    .getElementById("addStockModal")
+    .addEventListener("shown.bs.modal", function () {
+      setupCustomerSearch();
+    });
+
+  function setupCustomerSearch() {
+    const accountInput = document.getElementById("newStockCustomerAccount");
+    const nameInput = document.getElementById("newStockCustomerName");
+
+    // Setup search for both fields
+    if (accountInput) setupCustomerSearchField(accountInput, "account");
+    if (nameInput) setupCustomerSearchField(nameInput, "name");
+  }
+
+  function setupCustomerSearchField(input, fieldType) {
+    input.addEventListener("input", function () {
+      clearTimeout(customerSearchTimeout);
+      const searchValue = this.value.trim();
+
+      if (searchValue.length < 2) {
+        hideCustomerDropdown(input);
+        if (fieldType === "account") {
+          document.getElementById("newStockCustomerName").value = "";
+        } else {
+          document.getElementById("newStockCustomerAccount").value = "";
+        }
+        clearSelectedCustomer();
+        return;
+      }
+
+      customerSearchTimeout = setTimeout(() => {
+        searchCustomersForStock(searchValue, input, fieldType);
+      }, 300);
+    });
+
+    input.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (!document.querySelector(".customer-dropdown-results:hover")) {
+          hideCustomerDropdown(input);
+        }
+      }, 200);
+    });
+  }
+
+  async function searchCustomersForStock(searchValue, inputElement, fieldType) {
+    try {
+      const response = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+      );
+      const customers = await response.json();
+
+      showCustomerDropdown(customers, inputElement, fieldType);
+    } catch (error) {
+      console.error("Error searching customers:", error);
+      hideCustomerDropdown(inputElement);
+    }
+  }
+
+  function showCustomerDropdown(customers, inputElement, fieldType) {
+    hideCustomerDropdown(inputElement);
+
+    if (customers.length === 0) {
+      inputElement.style.borderColor = "#dc3545";
+      return;
+    }
+
+    const dropdown = document.createElement("div");
+    dropdown.className = "customer-dropdown-results";
+    dropdown.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--dark-card);
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1050;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    `;
+
+    customers.forEach((customer) => {
+      const item = document.createElement("div");
+      item.className = "customer-dropdown-item";
+      item.style.cssText = `
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+            color: var(--text-light);
+        `;
+
+      item.innerHTML = `
+            <div style="font-weight: 600;">${customer.account_number} - ${
+        customer.name
+      }</div>
+            <small style="color: var(--text-muted);">
+                ${
+                  customer.contact_name
+                    ? "Contact: " + customer.contact_name
+                    : ""
+                }
+                ${customer.phone ? " | Phone: " + customer.phone : ""}
+            </small>
+        `;
+
+      item.addEventListener("mouseenter", function () {
+        this.style.backgroundColor = "var(--primary-blue)";
+      });
+
+      item.addEventListener("mouseleave", function () {
+        this.style.backgroundColor = "transparent";
+      });
+
+      item.addEventListener("click", function () {
+        selectCustomerForStock(customer);
+        hideAllCustomerDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function selectCustomerForStock(customer) {
+    selectedCustomerId = customer.id;
+
+    // Fill both customer fields
+    document.getElementById("newStockCustomerAccount").value =
+      customer.account_number;
+    document.getElementById("newStockCustomerName").value = customer.name;
+    document.getElementById("newStockCustomerId").value = customer.id;
+
+    // Style the fields
+    document.getElementById("newStockCustomerAccount").style.borderColor =
+      "#28a745";
+    document.getElementById("newStockCustomerName").style.borderColor =
+      "#28a745";
+
+    // Show customer info
+    document.getElementById("selectedCustomerInfo").style.display = "block";
+    document.getElementById("selectedCustomerDetails").innerHTML = `
+        Account: ${customer.account_number}<br>
+        Name: ${customer.name}<br>
+        Contact: ${customer.contact_name || "N/A"}<br>
+        Phone: ${customer.phone || "N/A"}
+    `;
+  }
+
+  function hideCustomerDropdown(inputElement) {
+    const existing = inputElement.parentElement.querySelector(
+      ".customer-dropdown-results"
+    );
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  function hideAllCustomerDropdowns() {
+    document
+      .querySelectorAll(".customer-dropdown-results")
+      .forEach((dropdown) => {
+        dropdown.remove();
+      });
+  }
+
+  function clearSelectedCustomer() {
+    selectedCustomerId = null;
+    document.getElementById("newStockCustomerId").value = "";
+    document.getElementById("selectedCustomerInfo").style.display = "none";
+  }
+
+  // Update the saveNewStock function to use the selected customer ID
+  async function saveNewStock() {
+    if (!selectedCustomerId) {
+      alert("Please select a customer first");
+      return;
+    }
+
+    const data = {
+      customer_id: selectedCustomerId,
+      product_code: document.getElementById("newStockProductCode").value,
+      product_name: document.getElementById("newStockProductName").value,
+      unit_type: document.getElementById("newStockUnitType").value,
+      initial_stock:
+        parseInt(document.getElementById("newStockInitial").value) || 0,
+      reorder_level:
+        parseInt(document.getElementById("newStockReorderLevel").value) || 5,
+      reference: document.getElementById("newStockReference").value,
+      notes: document.getElementById("newStockNotes").value,
+    };
+
+    if (!data.product_code || !data.product_name) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/customer-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        addStockModal.hide();
+        location.reload();
+      } else {
+        alert("Error: " + result.message);
+      }
+    } catch (error) {
+      alert("Error: " + error.message);
+    }
   }
 </script>
 

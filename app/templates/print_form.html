@@ -10,6 +10,7 @@
         margin: 0;
         padding: 20px;
         color: #000;
+        background: white;
       }
       .header {
         text-align: center;
@@ -20,56 +21,136 @@
       .company-name {
         font-size: 24px;
         font-weight: bold;
+        color: #084385;
       }
       .form-title {
         font-size: 20px;
         margin: 10px 0;
       }
-      .form-details {
+      .form-info {
+        display: flex;
+        justify-content: space-between;
         margin-bottom: 20px;
       }
-      .form-data {
+      .info-container {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .customer-details,
+      .additional-info {
+        flex: 1;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .customer-details h4,
+      .additional-info h4 {
+        margin-top: 0;
+        color: #084385;
+        font-size: 14px;
+      }
+      .customer-details .detail-row {
+        display: flex;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+      .customer-details .label {
+        font-weight: bold;
+        width: 120px;
+      }
+      .additional-info p {
+        font-size: 13px;
+        margin: 5px 0;
+      }
+      .products-table {
         width: 100%;
         border-collapse: collapse;
         margin-bottom: 20px;
       }
-      .form-data th,
-      .form-data td {
-        border: 1px solid #000;
-        padding: 8px;
+      .products-table th {
+        background-color: #084385;
+        color: white;
+        padding: 6px;
         text-align: left;
+        border: 1px solid #084385;
+        font-size: 13px;
       }
-      .form-data th {
-        background-color: #f2f2f2;
-        width: 30%;
+      .products-table td {
+        border: 1px solid #ddd;
+        padding: 5px;
+        min-height: 25px;
+        font-size: 12px;
+      }
+      .products-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+      /* Empty rows for manual filling */
+      .products-table .empty-row td {
+        height: 25px;
+        background: white;
+      }
+      .form-options {
+        border: 1px solid #084385;
+        padding: 8px 15px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+      }
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .checkbox-item input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+      }
+
+      .signature-area {
+        margin-top: 40px;
+        page-break-inside: avoid;
+      }
+      .signature-container {
+        display: flex;
+        justify-content: space-around;
+        gap: 40px;
+        margin-bottom: 30px;
+      }
+      .signature-box {
+        flex: 1;
+        text-align: center;
+      }
+      .signature-line {
+        border-top: 2px solid #000;
+        margin: 40px auto 10px;
+        width: 200px;
       }
       .footer {
         margin-top: 30px;
         border-top: 1px solid #000;
         padding-top: 10px;
         font-size: 12px;
-      }
-      .signature-area {
-        margin-top: 50px;
-      }
-      .signature-line {
-        border-top: 1px solid #000;
-        width: 300px;
-        margin: 40px 0 10px;
+        text-align: center;
       }
       @media print {
         .no-print {
           display: none;
         }
         body {
-          padding: 0;
+          padding: 10px;
         }
         .btn {
           display: none;
         }
       }
       .btn {
-        padding: 6px 12px;
+        padding: 8px 16px;
         margin: 0 5px;
         border: 1px solid #007bff;
         background-color: #007bff;
@@ -82,48 +163,193 @@
         background-color: #6c757d;
         border-color: #6c757d;
       }
+      .form-number {
+        font-size: 18px;
+        font-weight: bold;
+        color: #084385;
+      }
     </style>
   </head>
   <body>
     <div class="header">
-      <img
-        src="{{ url_for('static', filename='images/logo.png') }}"
-        alt="Highland Industrial Supplies"
-      />
+      <div class="company-name">HIGHLAND INDUSTRIAL SUPPLIES</div>
+      <div>Hygiene & Catering Division</div>
       <div class="form-title">
-        {{ form_type.replace('_', ' ').title() }} Form
+        {% if form_type == 'returns' %} CREDIT / UPLIFT FORM {% elif form_type
+        == 'branded_stock' %} CUSTOMER'S OWN STOCK DELIVERY {% elif form_type ==
+        'special_order' %} SPECIAL ORDER REQUEST {% else %} {{
+        form_type.replace('_', ' ').upper() }} {% endif %}
       </div>
     </div>
 
-    <div class="form-details">
-      <div><strong>Form ID:</strong> #{{ form_id }}</div>
+    <div class="form-info">
       <div>
-        <strong>Date Created:</strong> {{ date_created.strftime('%Y-%m-%d
-        %H:%M') }}
+        <span class="form-number">Form #{{ form_id }}</span>
       </div>
-      <div><strong>Submitted By:</strong> {{ author }}</div>
+      <div><strong>Date:</strong> {{ date_created.strftime('%d/%m/%Y') }}</div>
     </div>
 
-    <table class="form-data">
-      <tbody>
-        {% for key, value in form_data.items() %}
+    <!-- Combined Info Container -->
+    <div class="info-container">
+      <!-- Customer Details Section -->
+      <div class="customer-details">
+        <h4>Customer Details</h4>
+        <div class="detail-row">
+          <span class="label">Account:</span>
+          <span>{{ form_data.get('customer_account', 'N/A') }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Name:</span>
+          <span>{{ form_data.get('customer_name', 'N/A') }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Address:</span>
+          <span>{{ form_data.get('address', '________________') }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Contact:</span>
+          <span>{{ form_data.get('contact', '________________') }}</span>
+        </div>
+      </div>
+
+      <!-- Additional Information -->
+      <div class="additional-info">
+        <h4>Additional Information</h4>
+        {% if form_data.get('notes') %}
+        <p><strong>Notes:</strong> {{ form_data.get('notes') }}</p>
+        {% endif %} {% if form_type == 'returns' and form_data.get('reason') %}
+        <p><strong>Return reason:</strong> {{ form_data.get('reason') }}</p>
+        {% endif %} {% if form_type == 'special_order' and
+        form_data.get('supplier') %}
+        <p><strong>Supplier:</strong> {{ form_data.get('supplier') }}</p>
+        <p><strong>Cost:</strong> £{{ form_data.get('cost_price', '0') }}</p>
+        {% endif %} {% if form_type == 'Invoiced Goods, Delivery Only' %}
+        <p>
+          <strong>Invoice:</strong> #{{ form_data.get('invoice_number', '') }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Special Options for Returns Form -->
+    {% if form_type == 'returns' %}
+    <div class="form-options">
+      <div class="checkbox-group">
+        <span style="font-weight: bold; margin-right: 20px">Return Type:</span>
+        <div class="checkbox-item">
+          <input type="checkbox" id="credit" />
+          <label for="credit">CREDIT</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="uplift" />
+          <label for="uplift">UPLIFT ONLY</label>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Products Table -->
+    <h4 style="color: #084385; font-size: 14px; margin-bottom: 10px">
+      Product Details
+    </h4>
+    <table class="products-table">
+      <thead>
         <tr>
-          <th>{{ key.replace('_', ' ').title() }}</th>
-          <td>{{ value or 'N/A' }}</td>
+          <th width="20%">Stock Code</th>
+          <th width="15%">Quantity</th>
+          <th width="15%">Price (£)</th>
+          <th width="50%">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if form_type == 'returns' %}
+        <tr>
+          <td>{{ form_data.get('product_code', '') }}</td>
+          <td>{{ form_data.get('quantity', '') }}</td>
+          <td></td>
+          <td>{{ form_data.get('product_name', '') }}</td>
+        </tr>
+        {% elif form_type == 'branded_stock' %}
+        <tr>
+          <td>{{ form_data.get('product_code', '') }}</td>
+          <td>{{ form_data.get('quantity_delivered', '') }}</td>
+          <td></td>
+          <td>{{ form_data.get('product_name', '') }}</td>
+        </tr>
+        {% elif form_type == 'invoice_correction' or form_type == 'Invoiced
+        Goods, Delivery Only' %}
+        <tr>
+          <td>{{ form_data.get('product_code', '') }}</td>
+          <td>
+            {% set ordered = form_data.get('ordered_quantity', 0)|int %} {% set
+            delivered = form_data.get('delivered_quantity', 0)|int %} {{ ordered
+            - delivered }}
+          </td>
+          <td></td>
+          <td>
+            To be delivered (Invoice #{{ form_data.get('invoice_number', '') }})
+          </td>
+        </tr>
+        {% elif form_type == 'special_order' %}
+        <tr>
+          <td>{{ form_data.get('product_code', '') }}</td>
+          <td>{{ form_data.get('quantity', '') }}</td>
+          <td>{{ form_data.get('sell_price', '') }}</td>
+          <td>{{ form_data.get('product_description', '') }}</td>
+        </tr>
+        {% else %}
+        <!-- Default single product row -->
+        <tr>
+          <td>{{ form_data.get('product_code', '') }}</td>
+          <td>{{ form_data.get('quantity', '') }}</td>
+          <td></td>
+          <td>
+            {{ form_data.get('product_name',
+            form_data.get('product_description', '')) }}
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- Add empty rows for manual entries -->
+        {% for i in range(5) %}
+        <tr class="empty-row">
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
 
+    <!-- Signature Area -->
     <div class="signature-area">
-      <div>Customer Signature:</div>
-      <div class="signature-line"></div>
-      <div>Date: _________________________</div>
+      <div class="signature-container">
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <div>Driver Signature</div>
+        </div>
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <div>Customer Signature</div>
+        </div>
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <div>Date</div>
+        </div>
+      </div>
     </div>
 
     <div class="footer">
-      <div>Highland Industrial Supplies - Hygiene and Catering Division</div>
-      <div>Form printed on: <span id="print-date"></span></div>
+      <div>
+        <strong>Highland Industrial Supplies</strong> - Hygiene and Catering
+        Division
+      </div>
+      <div>Tel: 01463 123456 | Email: orders@highland-supplies.co.uk</div>
+      <div style="margin-top: 10px; font-size: 10px">
+        Form generated by: {{ author }} | Printed on:
+        <span id="print-date"></span>
+      </div>
     </div>
 
     <div class="no-print" style="margin-top: 20px; text-align: center">
@@ -134,12 +360,7 @@
     <script>
       // Show current date and time
       document.getElementById("print-date").textContent =
-        new Date().toLocaleString();
-
-      // Auto-print when the page loads (optional)
-      // window.onload = function() {
-      //     window.print();
-      // }
+        new Date().toLocaleString("en-GB");
     </script>
   </body>
 </html>

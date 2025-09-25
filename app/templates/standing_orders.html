@@ -1,0 +1,371 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Standing Orders Management</h2>
+  <div>
+    <a href="{{ url_for('main.schedule_view') }}" class="btn btn-info">
+      <i class="bi bi-calendar-week"></i> Schedule View
+    </a>
+    <a href="{{ url_for('main.new_standing_order') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle"></i> New Standing Order
+    </a>
+    <button class="btn btn-primary" onclick="generateSchedules()">
+      <i class="bi bi-arrow-clockwise"></i> Generate Schedules
+    </button>
+  </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="text-primary">{{ active_count }}</h4>
+        <small>Active Orders</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="text-warning">{{ paused_count }}</h4>
+        <small>Paused Orders</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="text-info">{{ pending_this_week }}</h4>
+        <small>Pending This Week</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body text-center">
+        <h4 class="text-success">{{ todays_orders|length }}</h4>
+        <small>Today's Deliveries</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Today's Standing Orders -->
+{% if todays_orders %}
+<div class="card mb-4">
+  <div class="card-header bg-warning text-dark">
+    <h5 class="mb-0">
+      <i class="bi bi-truck"></i> Today's Standing Orders - {{
+      today.strftime('%A, %B %d, %Y') }}
+    </h5>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in todays_orders %}
+          <tr>
+            <td>
+              <strong>{{ item.order.customer.name }}</strong><br />
+              <small class="text-muted"
+                >{{ item.order.customer.account_number }}</small
+              >
+            </td>
+            <td>
+              {% for product in item.order.items %}
+              <small>{{ product.quantity }} x {{ product.product_name }}</small
+              ><br />
+              {% endfor %}
+            </td>
+            <td>
+              {% if item.status == 'created' %}
+              <span class="badge bg-success">Created</span>
+              {% elif item.status == 'skipped' %}
+              <span class="badge bg-secondary">Skipped</span>
+              {% else %}
+              <span class="badge bg-warning">Pending</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.schedule and item.status == 'pending' %}
+              <button
+                class="btn btn-sm btn-success"
+                onclick="markAsCreated({{ item.schedule.id }})"
+              >
+                <i class="bi bi-check"></i> Mark Created
+              </button>
+              {% endif %}
+              <a
+                href="{{ url_for('main.view_standing_order', order_id=item.order.id) }}"
+                class="btn btn-sm btn-info"
+              >
+                <i class="bi bi-eye"></i> View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- All Standing Orders -->
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-list"></i> All Standing Orders</h5>
+  </div>
+  <div class="card-body">
+    {% if orders %}
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Account</th>
+            <th>Delivery Days</th>
+            <th>Items</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+          <tr class="{% if order.status == 'paused' %}table-warning{% endif %}">
+            <td>
+              <strong>{{ order.customer.name }}</strong>
+            </td>
+            <td>
+              <code>{{ order.customer.account_number }}</code>
+            </td>
+            <td>
+              {% for day in order.get_delivery_days_names() %}
+              <span class="badge bg-info">{{ day }}</span>
+              {% endfor %}
+            </td>
+            <td>
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                onclick="showItems({{ order.id }})"
+              >
+                {{ order.items|length }} items
+              </button>
+              <div id="items-{{ order.id }}" style="display: none" class="mt-2">
+                {% for item in order.items %}
+                <small
+                  >• {{ item.quantity }} {{ item.unit_type }} - {{
+                  item.product_name }}</small
+                ><br />
+                {% endfor %}
+              </div>
+            </td>
+            <td>
+              <small>{{ order.start_date.strftime('%d/%m/%Y') }}</small>
+            </td>
+            <td>
+              {% if order.end_date %}
+              <small>{{ order.end_date.strftime('%d/%m/%Y') }}</small>
+              {% else %}
+              <span class="badge bg-success">Ongoing</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if order.status == 'active' %}
+              <span class="badge bg-success">Active</span>
+              {% elif order.status == 'paused' %}
+              <span class="badge bg-warning">Paused</span>
+              {% else %}
+              <span class="badge bg-secondary">{{ order.status|title }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm" role="group">
+                <a
+                  href="{{ url_for('main.view_standing_order', order_id=order.id) }}"
+                  class="btn btn-info"
+                  title="View Details"
+                >
+                  <i class="bi bi-eye"></i>
+                </a>
+                {% if order.status == 'active' %}
+                <button
+                  class="btn btn-warning"
+                  onclick="pauseOrder({{ order.id }})"
+                  title="Pause"
+                >
+                  <i class="bi bi-pause"></i>
+                </button>
+                {% elif order.status == 'paused' %}
+                <button
+                  class="btn btn-success"
+                  onclick="resumeOrder({{ order.id }})"
+                  title="Resume"
+                >
+                  <i class="bi bi-play"></i>
+                </button>
+                {% endif %} {% if order.status != 'ended' %}
+                <button
+                  class="btn btn-danger"
+                  onclick="endOrder({{ order.id }})"
+                  title="End"
+                >
+                  <i class="bi bi-stop"></i>
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4">
+      <p class="text-muted">No standing orders set up yet.</p>
+      <a
+        href="{{ url_for('main.new_standing_order') }}"
+        class="btn btn-primary"
+      >
+        Create First Standing Order
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  function showItems(orderId) {
+    const itemsDiv = document.getElementById(`items-${orderId}`);
+    if (itemsDiv.style.display === "none") {
+      itemsDiv.style.display = "block";
+    } else {
+      itemsDiv.style.display = "none";
+    }
+  }
+
+  async function pauseOrder(orderId) {
+    const reason = prompt("Reason for pausing this standing order (optional):");
+    if (reason !== null) {
+      try {
+        const response = await fetch(`/standing-orders/${orderId}/pause`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error pausing order: " + error.message);
+      }
+    }
+  }
+
+  async function resumeOrder(orderId) {
+    if (confirm("Resume this standing order?")) {
+      try {
+        const response = await fetch(`/standing-orders/${orderId}/resume`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error resuming order: " + error.message);
+      }
+    }
+  }
+
+  async function endOrder(orderId) {
+    if (confirm("End this standing order? This action cannot be undone.")) {
+      try {
+        const response = await fetch(`/standing-orders/${orderId}/end`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error ending order: " + error.message);
+      }
+    }
+  }
+
+  async function markAsCreated(scheduleId) {
+    const reference = prompt("Order reference number (optional):");
+    if (reference !== null) {
+      try {
+        const response = await fetch(
+          `/standing-orders/schedule/${scheduleId}/complete`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reference: reference, notes: "" }),
+          }
+        );
+
+        const data = await response.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error marking order as created: " + error.message);
+      }
+    }
+  }
+
+  async function generateSchedules() {
+    if (
+      confirm(
+        "Generate schedules for all active standing orders for the next month?"
+      )
+    ) {
+      try {
+        const response = await fetch("/standing-orders/generate-schedules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (error) {
+        alert("Error generating schedules: " + error.message);
+      }
+    }
+  }
+</script>
+{% endblock %}

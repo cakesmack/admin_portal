@@ -10,8 +10,10 @@ class LoginForm(FlaskForm):
 class ReturnsForm(FlaskForm):
     customer_account = StringField('Customer Account Number', validators=[DataRequired()])
     customer_name = StringField('Customer Name')
+    customer_address = StringField('Customer Address')
     product_code = StringField('Product Code', validators=[DataRequired()])
     product_name = StringField('Product Name')
+    price = StringField('Price')
     quantity = StringField('Quantity', validators=[DataRequired()])
     reason = SelectField('Reason for Return', choices=[
         ('damaged', 'Damaged Product'),
@@ -51,3 +53,4 @@ class SpecialOrderForm(FlaskForm):
     sell_price = IntegerField('Sell Price', validators=[DataRequired()])
     notes = TextAreaField('Special Instructions')
     submit = SubmitField('Submit Order Request')
+
