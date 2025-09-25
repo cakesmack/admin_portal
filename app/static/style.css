@@ -94,33 +94,11 @@ body,
 
 /* Dashboard Layout */
 .dashboard-container {
-  display: flex;
-  gap: 24px;
   margin-top: 0;
 }
 
 .main-content {
   flex: 1;
-}
-
-.sidebar {
-  width: 380px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
-}
-
-.sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background: var(--dark-bg);
-  border-radius: 3px;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: var(--primary-blue);
-  border-radius: 3px;
 }
 
 /* Buttons */
@@ -598,11 +576,6 @@ body,
   .dashboard-container {
     flex-direction: column;
     gap: 16px;
-  }
-
-  .sidebar {
-    width: 100%;
-    max-height: none;
   }
 
   .card-body {

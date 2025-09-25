@@ -16,130 +16,998 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
       rel="stylesheet"
     />
+    <style>
+      /* Navigation Sidebar Styles */
+      .nav-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 280px;
+        background: linear-gradient(
+          180deg,
+          var(--primary-blue) 0%,
+          var(--primary-blue-dark) 100%
+        );
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease;
+        z-index: 1050;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .nav-sidebar.collapsed {
+        transform: translateX(-280px);
+      }
+
+      .nav-sidebar-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-shrink: 0;
+      }
+
+      .nav-sidebar-brand {
+        color: white !important;
+        font-weight: 700;
+        font-size: 1.3rem;
+        text-decoration: none;
+      }
+
+      .nav-sidebar-nav {
+        padding: 1rem 0;
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .nav-section {
+        margin-bottom: 2rem;
+      }
+
+      .nav-section-title {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 0 1.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .nav-sidebar-nav .nav-item,
+      .nav-section .nav-item {
+        margin: 0.25rem 1rem;
+      }
+
+      .nav-sidebar-nav .nav-link,
+      .nav-section .nav-link {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        color: rgba(255, 255, 255, 0.85) !important;
+        text-decoration: none;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        border: 1px solid transparent;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .nav-sidebar-nav .nav-link:hover,
+      .nav-section .nav-link:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: white !important;
+        transform: translateX(4px);
+      }
+
+      .nav-sidebar-nav .nav-link.active,
+      .nav-section .nav-link.active {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: white !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .nav-sidebar-nav .nav-link i,
+      .nav-section .nav-link i {
+        margin-right: 0.75rem;
+        font-size: 1.1rem;
+        width: 20px;
+        text-align: center;
+      }
+
+      .top-navbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: var(--primary-blue);
+        box-shadow: 0 2px 10px rgba(8, 67, 133, 0.3);
+        z-index: 1040;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1rem;
+        transform: translateY(-60px);
+        transition: transform 0.3s ease;
+      }
+
+      .sidebar-toggle {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 8px;
+        transition: background 0.3s ease;
+      }
+
+      .main-content {
+        margin-left: 280px;
+        min-height: 100vh;
+        transition: margin-left 0.3s ease;
+      }
+
+      .main-content.expanded {
+        margin-left: 0;
+      }
+
+      .nav-sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .nav-sidebar-overlay.show {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      @media (max-width: 768px) {
+        .nav-sidebar {
+          transform: translateX(-280px);
+        }
+        .nav-sidebar.show {
+          transform: translateX(0);
+        }
+        .main-content {
+          margin-left: 0;
+          padding-top: 80px;
+        }
+        .top-navbar {
+          transform: translateY(0);
+        }
+      }
+
+      @media (min-width: 769px) {
+        .main-content {
+          padding-top: 2rem;
+        }
+      }
+
+      .nav-sidebar-user {
+        padding: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: var(--primary-blue-dark);
+        flex-shrink: 0;
+        margin-top: auto;
+      }
+
+      .nav-sidebar-user .user-info {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .nav-sidebar-user .nav-link {
+        margin: 0;
+        justify-content: center;
+        font-size: 0.9rem;
+      }
+    </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-      <div class="container">
-        <a class="navbar-brand" href="{{ url_for('main.dashboard') }}"
-          >HIS - Hygiene & Catering</a
-        >
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav me-auto">
-            {% if current_user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.dashboard') }}"
-                >Dashboard</a
-              >
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.standing_orders') }}">
-                Standing Orders
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.callsheets') }}"
-                >Call Sheets</a
-              >
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.customer_stock') }}">
-                Customer Stock
-              </a>
-            </li>
+    <!-- Navigation Sidebar -->
+    <nav class="nav-sidebar" id="navSidebar">
+      <div class="nav-sidebar-header">
+        <a href="{{ url_for('main.dashboard') }}" class="nav-sidebar-brand">
+          <i class="bi bi-building-fill me-2"></i>
+          HIS - H&C
+        </a>
+      </div>
 
-            <li class="nav-item dropdown">
-              <a
-                class="nav-link dropdown-toggle"
-                href="#"
-                id="formsDropdown"
-                role="button"
-                data-bs-toggle="dropdown"
-              >
-                Forms
-              </a>
-              <ul class="dropdown-menu">
-                <li>
-                  <a class="dropdown-item" href="{{ url_for('main.returns') }}"
-                    >Returns</a
-                  >
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{{ url_for('main.branded_stock') }}"
-                    >Customer's Own Stock</a
-                  >
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{{ url_for('main.invoice_correction') }}"
-                    >Invoice Correction</a
-                  >
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item"
-                    href="{{ url_for('main.special_order') }}"
-                    >Special Order</a
-                  >
-                </li>
-                <!-- Add this to the navbar -->
-                <li class="nav-item">
-                  <a class="nav-link" href="{{ url_for('main.forms') }}"
-                    >View Forms</a
-                  >
-                </li>
-              </ul>
-            </li>
-            {% endif %}
-          </ul>
-          <ul class="navbar-nav">
-            {% if current_user.is_authenticated %}
-            <li class="nav-item">
-              <span class="navbar-text me-3"
-                >Hello, {{ current_user.username }}</span
-              >
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.logout') }}">Logout</a>
-            </li>
-            {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('main.login') }}">Login</a>
-            </li>
-            {% endif %}
-          </ul>
+      {% if current_user.is_authenticated %}
+      <div class="nav-sidebar-nav">
+        <!-- Main Navigation -->
+        <div class="nav-section">
+          <div class="nav-section-title">Main</div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+              <i class="bi bi-speedometer2"></i>
+              Dashboard
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.standing_orders') }}">
+              <i class="bi bi-arrow-repeat"></i>
+              Standing Orders
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.callsheets') }}">
+              <i class="bi bi-telephone-fill"></i>
+              Call Sheets
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.customer_stock') }}">
+              <i class="bi bi-boxes"></i>
+              Customer Stock
+            </a>
+          </div>
         </div>
+
+        <!-- Forms Section -->
+        <div class="nav-section">
+          <div class="nav-section-title">Forms</div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.returns') }}">
+              <i class="bi bi-arrow-return-left"></i>
+              Returns
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.branded_stock') }}">
+              <i class="bi bi-bag-check"></i>
+              Customer's Own Stock
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.invoice_correction') }}">
+              <i class="bi bi-receipt-cutoff"></i>
+              Invoice Correction
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.special_order') }}">
+              <i class="bi bi-star-fill"></i>
+              Special Order
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.forms') }}">
+              <i class="bi bi-file-earmark-text"></i>
+              View All Forms
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tools Section -->
+      <div class="nav-section">
+        <div class="nav-section-title">Tools</div>
+        <div class="nav-item">
+          <a class="nav-link" href="#" onclick="showMarginCalculator()">
+            <i class="bi bi-calculator"></i>
+            Margin Calculator
+          </a>
+        </div>
+        <div class="nav-item">
+          <a class="nav-link" href="#" onclick="showTodoModal()">
+            <i class="bi bi-check2-square"></i>
+            My Todo List
+          </a>
+        </div>
+        <div class="nav-item">
+          <a class="nav-link" href="#" onclick="showUnitConverter()">
+            <i class="bi bi-arrows-expand"></i>
+            Unit Converter
+          </a>
+        </div>
+      </div>
+
+      <!-- User section at bottom -->
+      <div class="nav-sidebar-user">
+        <div class="user-info">
+          <i class="bi bi-person-circle me-2"></i>
+          {{ current_user.username }}
+        </div>
+        <a class="nav-link" href="{{ url_for('main.logout') }}">
+          <i class="bi bi-box-arrow-right"></i>
+          Logout
+        </a>
+      </div>
+      {% endif %}
+    </nav>
+
+    <!-- Top navbar for mobile -->
+    <nav class="top-navbar" id="topNavbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="top-user-info">
+        {% if current_user.is_authenticated %} {{ current_user.username }} {%
+        endif %}
       </div>
     </nav>
 
-    <div class="container mt-4">
-      {% with messages = get_flashed_messages(with_categories=true) %} {% if
-      messages %} {% for category, message in messages %}
-      <div
-        class="alert alert-{{ category }} alert-dismissible fade show"
-        role="alert"
-      >
-        {{ message }}
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="alert"
-        ></button>
+    <!-- Sidebar overlay for mobile -->
+    <div
+      class="nav-sidebar-overlay"
+      id="navSidebarOverlay"
+      onclick="closeSidebar()"
+    ></div>
+
+    <!-- Margin Calculator Modal -->
+    <div class="modal fade" id="marginCalculatorModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-calculator"></i> Margin Calculator
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Cost Price (£)</label>
+              <input
+                type="number"
+                class="form-control"
+                id="costPrice"
+                step="0.01"
+                placeholder="Enter cost price"
+                onkeyup="calculateFromCost()"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Desired Margin (%)</label>
+              <input
+                type="number"
+                class="form-control"
+                id="desiredMargin"
+                step="0.1"
+                placeholder="Enter desired margin"
+                onkeyup="calculateFromMargin()"
+              />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Selling Price (£)</label>
+              <input
+                type="number"
+                class="form-control"
+                id="sellingPrice"
+                step="0.01"
+                placeholder="Calculated selling price"
+                readonly
+                style="background-color: #f8f9fa"
+              />
+            </div>
+          </div>
+        </div>
       </div>
-      {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock %}
+    </div>
+
+    <!-- Todo List Modal -->
+    <div class="modal fade" id="todoModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-check2-square"></i> My Todo List
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div id="todoList"></div>
+            <div class="input-group mt-3">
+              <input
+                type="text"
+                class="form-control"
+                id="newTodoInput"
+                placeholder="Add new task..."
+                onkeypress="if(event.key==='Enter') addTodo()"
+              />
+              <button class="btn btn-success" onclick="addTodo()">
+                <i class="bi bi-plus"></i> Add
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unit Converter Modal -->
+    <div class="modal fade" id="unitConverterModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-arrows-expand"></i> Unit Converter
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <!-- Length Converter -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-rulers"></i> Length / Distance
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="lengthFrom"
+                        placeholder="Enter value"
+                        onkeyup="convertLength()"
+                      />
+                      <select
+                        class="form-select"
+                        id="lengthFromUnit"
+                        onchange="convertLength()"
+                      >
+                        <option value="mm">mm</option>
+                        <option value="cm" selected>cm</option>
+                        <option value="m">m</option>
+                        <option value="in">in</option>
+                        <option value="ft">ft</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div
+                    class="col-md-2 text-center d-flex align-items-center justify-content-center"
+                  >
+                    <i class="bi bi-arrow-left-right"></i>
+                  </div>
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="lengthTo"
+                        readonly
+                        style="background-color: #f8f9fa"
+                      />
+                      <select
+                        class="form-select"
+                        id="lengthToUnit"
+                        onchange="convertLength()"
+                      >
+                        <option value="mm">mm</option>
+                        <option value="cm">cm</option>
+                        <option value="m">m</option>
+                        <option value="in" selected>in</option>
+                        <option value="ft">ft</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Volume Converter -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-droplet"></i> Volume / Capacity
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="volumeFrom"
+                        placeholder="Enter value"
+                        onkeyup="convertVolume()"
+                      />
+                      <select
+                        class="form-select"
+                        id="volumeFromUnit"
+                        onchange="convertVolume()"
+                      >
+                        <option value="ml" selected>ml</option>
+                        <option value="l">l</option>
+                        <option value="floz">fl oz</option>
+                        <option value="cup">cups</option>
+                        <option value="pint">pints</option>
+                        <option value="gal">gal</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div
+                    class="col-md-2 text-center d-flex align-items-center justify-content-center"
+                  >
+                    <i class="bi bi-arrow-left-right"></i>
+                  </div>
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="volumeTo"
+                        readonly
+                        style="background-color: #f8f9fa"
+                      />
+                      <select
+                        class="form-select"
+                        id="volumeToUnit"
+                        onchange="convertVolume()"
+                      >
+                        <option value="ml">ml</option>
+                        <option value="l">l</option>
+                        <option value="floz" selected>fl oz</option>
+                        <option value="cup">cups</option>
+                        <option value="pint">pints</option>
+                        <option value="gal">gal</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Weight Converter -->
+            <div class="card">
+              <div class="card-header">
+                <h6 class="mb-0">
+                  <i class="bi bi-speedometer"></i> Weight / Mass
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="weightFrom"
+                        placeholder="Enter value"
+                        onkeyup="convertWeight()"
+                      />
+                      <select
+                        class="form-select"
+                        id="weightFromUnit"
+                        onchange="convertWeight()"
+                      >
+                        <option value="g" selected>g</option>
+                        <option value="kg">kg</option>
+                        <option value="oz">oz</option>
+                        <option value="lb">lb</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div
+                    class="col-md-2 text-center d-flex align-items-center justify-content-center"
+                  >
+                    <i class="bi bi-arrow-left-right"></i>
+                  </div>
+                  <div class="col-md-5">
+                    <div class="input-group">
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="weightTo"
+                        readonly
+                        style="background-color: #f8f9fa"
+                      />
+                      <select
+                        class="form-select"
+                        id="weightToUnit"
+                        onchange="convertWeight()"
+                      >
+                        <option value="g">g</option>
+                        <option value="kg">kg</option>
+                        <option value="oz" selected>oz</option>
+                        <option value="lb">lb</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="clearAllConverters()"
+            >
+              <i class="bi bi-arrow-clockwise"></i> Clear All
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content" id="mainContent">
+      <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %} {% if
+        messages %} {% for category, message in messages %}
+        <div
+          class="alert alert-{{ category }} alert-dismissible fade show"
+          role="alert"
+        >
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+          ></button>
+        </div>
+        {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock %}
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      function showMarginCalculator() {
+        new bootstrap.Modal(
+          document.getElementById("marginCalculatorModal")
+        ).show();
+      }
+
+      function showTodoModal() {
+        loadTodos();
+        new bootstrap.Modal(document.getElementById("todoModal")).show();
+      }
+
+      function showUnitConverter() {
+        new bootstrap.Modal(
+          document.getElementById("unitConverterModal")
+        ).show();
+      }
+
+      function calculateFromCost() {
+        const cost =
+          parseFloat(document.getElementById("costPrice").value) || 0;
+        const margin =
+          parseFloat(document.getElementById("desiredMargin").value) || 0;
+        if (cost > 0 && margin > 0) {
+          const sellingPrice = cost / (1 - margin / 100);
+          document.getElementById("sellingPrice").value =
+            sellingPrice.toFixed(2);
+        }
+      }
+
+      function calculateFromMargin() {
+        calculateFromCost();
+      }
+
+      async function loadTodos() {
+        try {
+          const response = await fetch("/api/todos");
+          const todos = await response.json();
+          const todoList = document.getElementById("todoList");
+          todoList.innerHTML = "";
+          todos.forEach((todo) => {
+            const todoItem = document.createElement("div");
+            todoItem.className = `todo-item ${
+              todo.completed ? "completed" : ""
+            }`;
+            todoItem.innerHTML = `
+              <input type="checkbox" ${
+                todo.completed ? "checked" : ""
+              } onchange="toggleTodo(${todo.id})">
+              <span style="flex: 1">${todo.text}</span>
+              <button class="btn btn-sm btn-danger" onclick="deleteTodo(${
+                todo.id
+              })"><i class="bi bi-trash"></i></button>
+            `;
+            todoList.appendChild(todoItem);
+          });
+        } catch (error) {
+          console.error("Error loading todos:", error);
+        }
+      }
+
+      async function addTodo() {
+        const input = document.getElementById("newTodoInput");
+        const text = input.value.trim();
+        if (text) {
+          try {
+            const response = await fetch("/api/todos", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: text }),
+            });
+            if (response.ok) {
+              loadTodos();
+              input.value = "";
+            }
+          } catch (error) {
+            console.error("Error adding todo:", error);
+          }
+        }
+      }
+
+      async function toggleTodo(id) {
+        try {
+          await fetch(`/api/todos/${id}/toggle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          loadTodos();
+        } catch (error) {
+          console.error("Error toggling todo:", error);
+        }
+      }
+
+      async function deleteTodo(id) {
+        if (confirm("Delete this task?")) {
+          try {
+            await fetch(`/api/todos/${id}`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            });
+            loadTodos();
+          } catch (error) {
+            console.error("Error deleting todo:", error);
+          }
+        }
+      }
+
+      function convertLength() {
+        const fromValue =
+          parseFloat(document.getElementById("lengthFrom").value) || 0;
+        const fromUnit = document.getElementById("lengthFromUnit").value;
+        const toUnit = document.getElementById("lengthToUnit").value;
+
+        if (fromValue === 0) {
+          document.getElementById("lengthTo").value = "";
+          return;
+        }
+
+        let mmValue;
+        switch (fromUnit) {
+          case "mm":
+            mmValue = fromValue;
+            break;
+          case "cm":
+            mmValue = fromValue * 10;
+            break;
+          case "m":
+            mmValue = fromValue * 1000;
+            break;
+          case "in":
+            mmValue = fromValue * 25.4;
+            break;
+          case "ft":
+            mmValue = fromValue * 304.8;
+            break;
+        }
+
+        let result;
+        switch (toUnit) {
+          case "mm":
+            result = mmValue;
+            break;
+          case "cm":
+            result = mmValue / 10;
+            break;
+          case "m":
+            result = mmValue / 1000;
+            break;
+          case "in":
+            result = mmValue / 25.4;
+            break;
+          case "ft":
+            result = mmValue / 304.8;
+            break;
+        }
+
+        document.getElementById("lengthTo").value = parseFloat(
+          result.toFixed(4)
+        );
+      }
+
+      function convertVolume() {
+        const fromValue =
+          parseFloat(document.getElementById("volumeFrom").value) || 0;
+        const fromUnit = document.getElementById("volumeFromUnit").value;
+        const toUnit = document.getElementById("volumeToUnit").value;
+
+        if (fromValue === 0) {
+          document.getElementById("volumeTo").value = "";
+          return;
+        }
+
+        let mlValue;
+        switch (fromUnit) {
+          case "ml":
+            mlValue = fromValue;
+            break;
+          case "l":
+            mlValue = fromValue * 1000;
+            break;
+          case "floz":
+            mlValue = fromValue * 29.5735;
+            break;
+          case "cup":
+            mlValue = fromValue * 236.588;
+            break;
+          case "pint":
+            mlValue = fromValue * 473.176;
+            break;
+          case "gal":
+            mlValue = fromValue * 3785.41;
+            break;
+        }
+
+        let result;
+        switch (toUnit) {
+          case "ml":
+            result = mlValue;
+            break;
+          case "l":
+            result = mlValue / 1000;
+            break;
+          case "floz":
+            result = mlValue / 29.5735;
+            break;
+          case "cup":
+            result = mlValue / 236.588;
+            break;
+          case "pint":
+            result = mlValue / 473.176;
+            break;
+          case "gal":
+            result = mlValue / 3785.41;
+            break;
+        }
+
+        document.getElementById("volumeTo").value = parseFloat(
+          result.toFixed(4)
+        );
+      }
+
+      function convertWeight() {
+        const fromValue =
+          parseFloat(document.getElementById("weightFrom").value) || 0;
+        const fromUnit = document.getElementById("weightFromUnit").value;
+        const toUnit = document.getElementById("weightToUnit").value;
+
+        if (fromValue === 0) {
+          document.getElementById("weightTo").value = "";
+          return;
+        }
+
+        let gValue;
+        switch (fromUnit) {
+          case "g":
+            gValue = fromValue;
+            break;
+          case "kg":
+            gValue = fromValue * 1000;
+            break;
+          case "oz":
+            gValue = fromValue * 28.3495;
+            break;
+          case "lb":
+            gValue = fromValue * 453.592;
+            break;
+        }
+
+        let result;
+        switch (toUnit) {
+          case "g":
+            result = gValue;
+            break;
+          case "kg":
+            result = gValue / 1000;
+            break;
+          case "oz":
+            result = gValue / 28.3495;
+            break;
+          case "lb":
+            result = gValue / 453.592;
+            break;
+        }
+
+        document.getElementById("weightTo").value = parseFloat(
+          result.toFixed(4)
+        );
+      }
+
+      function clearAllConverters() {
+        document.getElementById("lengthFrom").value = "";
+        document.getElementById("lengthTo").value = "";
+        document.getElementById("volumeFrom").value = "";
+        document.getElementById("volumeTo").value = "";
+        document.getElementById("weightFrom").value = "";
+        document.getElementById("weightTo").value = "";
+      }
+
+      function toggleSidebar() {
+        const sidebar = document.getElementById("navSidebar");
+        const overlay = document.getElementById("navSidebarOverlay");
+        const mainContent = document.getElementById("mainContent");
+        if (window.innerWidth <= 768) {
+          sidebar.classList.toggle("show");
+          overlay.classList.toggle("show");
+        } else {
+          sidebar.classList.toggle("collapsed");
+          mainContent.classList.toggle("expanded");
+        }
+      }
+
+      function closeSidebar() {
+        document.getElementById("navSidebar").classList.remove("show");
+        document.getElementById("navSidebarOverlay").classList.remove("show");
+      }
+
+      window.addEventListener("resize", function () {
+        if (window.innerWidth > 768) {
+          document.getElementById("navSidebar").classList.remove("show");
+          document.getElementById("navSidebarOverlay").classList.remove("show");
+        }
+      });
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll(
+          ".nav-sidebar-nav .nav-link, .nav-section .nav-link"
+        );
+        navLinks.forEach((link) => {
+          if (link.getAttribute("href") === currentPath) {
+            link.classList.add("active");
+          }
+        });
+      });
+
+      document.addEventListener("click", function (event) {
+        const sidebar = document.getElementById("navSidebar");
+        const sidebarToggle = document.querySelector(".sidebar-toggle");
+        if (
+          window.innerWidth <= 768 &&
+          !sidebar.contains(event.target) &&
+          !sidebarToggle.contains(event.target) &&
+          sidebar.classList.contains("show")
+        ) {
+          closeSidebar();
+        }
+      });
+    </script>
+
     {% block scripts %}{% endblock %}
   </body>
 </html>
