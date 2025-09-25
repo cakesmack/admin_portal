@@ -49,94 +49,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Call Sheets Section -->
-      <div class="card">
-        <div class="card-header callsheet-card">
-          <h5 class="mb-0">
-            <i class="bi bi-telephone-fill"></i> Call Sheet Management
-          </h5>
-        </div>
-        <div class="card-body">
-          <p>
-            Manage your daily call sheets, track customer contacts, and record
-            orders.
-          </p>
-          <div class="d-grid gap-2 d-md-block">
-            <a
-              href="{{ url_for('main.callsheets') }}"
-              class="btn btn-lg action-button"
-            >
-              <i class="bi bi-journal-check"></i> Open Call Sheets
-            </a>
-            <button
-              class="btn btn-outline-secondary"
-              onclick="viewTodaysCallsheet()"
-            >
-              <i class="bi bi-calendar-day"></i> Today's Schedule
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Forms Section -->
-      <div class="card">
-        <div class="card-header forms-card">
-          <h5 class="mb-0">
-            <i class="bi bi-file-text-fill"></i> Forms & Documentation
-          </h5>
-        </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <div class="d-grid">
-                <a
-                  href="{{ url_for('main.returns') }}"
-                  class="btn action-button"
-                >
-                  <i class="bi bi-arrow-return-left"></i> Credit / Uplift Form
-                </a>
-                <small class="text-muted mt-1">Process customer returns</small>
-              </div>
-            </div>
-            <div class="col-md-6 mb-3">
-              <div class="d-grid">
-                <a
-                  href="{{ url_for('main.branded_stock') }}"
-                  class="btn action-button"
-                >
-                  <i class="bi bi-box-seam"></i> Customers Own Stock
-                </a>
-                <small class="text-muted mt-1">Track Customers Own Stock</small>
-              </div>
-            </div>
-            <div class="col-md-6 mb-3">
-              <div class="d-grid">
-                <a
-                  href="{{ url_for('main.invoice_correction') }}"
-                  class="btn action-button"
-                >
-                  <i class="bi bi-receipt"></i> Invoiced Goods, Delivery Only
-                </a>
-                <small class="text-muted mt-1"
-                  >Record invoice discrepancies</small
-                >
-              </div>
-            </div>
-            <div class="col-md-6 mb-3">
-              <div class="d-grid">
-                <a
-                  href="{{ url_for('main.special_order') }}"
-                  class="btn action-button"
-                >
-                  <i class="bi bi-star"></i> Special Orders
-                </a>
-                <small class="text-muted mt-1">Request special items</small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Sidebar -->
@@ -211,38 +123,6 @@
               onkeypress="if(event.key==='Enter') addTodo()"
             />
             <button class="btn btn-success" onclick="addTodo()">Add</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Links -->
-      <div class="card">
-        <div class="card-header bg-info text-white">
-          <h6 class="mb-0"><i class="bi bi-link-45deg"></i> Quick Links</h6>
-        </div>
-        <div class="card-body">
-          <div class="d-grid gap-2">
-            <a
-              href="{{ url_for('main.callsheets') }}"
-              class="btn btn-outline-primary btn-sm"
-            >
-              <i class="bi bi-telephone"></i> Call Sheets
-            </a>
-            <a href="/customers/import" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-upload"></i> Import Customers
-            </a>
-            <a
-              href="{{ url_for('main.forms') }}"
-              class="btn btn-outline-primary btn-sm"
-            >
-              <i class="bi bi-folder"></i> View All Forms
-            </a>
-            <button
-              class="btn btn-outline-secondary btn-sm"
-              onclick="window.print()"
-            >
-              <i class="bi bi-printer"></i> Print Page
-            </button>
           </div>
         </div>
       </div>
@@ -608,26 +488,6 @@
     if (interval > 1) return Math.floor(interval) + " minutes ago";
 
     return "Just now";
-  }
-
-  function viewTodaysCallsheet() {
-    const today = new Date().toLocaleLowerCase();
-    const days = [
-      "sunday",
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-    ];
-    const currentDay = days[new Date().getDay()];
-
-    if (currentDay === "saturday" || currentDay === "sunday") {
-      alert("No callsheets scheduled for weekends");
-    } else {
-      window.location.href = "/callsheets#" + currentDay;
-    }
   }
 </script>
 {% endblock %}
