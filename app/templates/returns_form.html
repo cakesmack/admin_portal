@@ -4,112 +4,180 @@
 
 <div class="card mt-4">
   <div class="card-body">
-    <form method="POST" action="{{ url_for('main.returns') }}">
+    <form method="POST" action="{{ url_for('main.returns') }}" id="returnsForm">
       {{ form.hidden_tag() }}
+
+      <!-- Hidden field for additional products -->
+      <input
+        type="hidden"
+        name="additional_products"
+        id="additional_products"
+        value=""
+      />
+
       <div class="row mb-3">
-        <div class="col-md-6">
-          {{ form.customer_account.label(class="form-label") }} {{
-          form.customer_account(class="form-control") }}
-          <div class="form-text">Enter customer account number</div>
-          {{ form.customer_name.label(class="form-label") }} {{
-          form.customer_name(class="form-control") }}
+        <div class="col-md-4">
+          <div class="search-container position-relative">
+            {{ form.customer_account.label(class="form-label") }} {{
+            form.customer_account(class="form-control", placeholder="Start
+            typing account number...") }}
+          </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
+          <div class="search-container position-relative">
+            {{ form.customer_name.label(class="form-label") }} {{
+            form.customer_name(class="form-control", placeholder="Start typing
+            customer name...") }}
+          </div>
+        </div>
+        <div class="col-md-4">
           {{ form.customer_address.label(class="form-label") }} {{
-          form.customer_address(class="form-control") }}
+          form.customer_address(class="form-control", placeholder="Customer
+          address") }}
         </div>
       </div>
-      <br />
-      <div class="row mb-3">
-        <div class="col-md-6">
-          {{ form.product_code.label(class="form-label") }} {{
-          form.product_code(class="form-control") }}
+
+      <!-- Products Section -->
+      <div class="row mb-4">
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Product Details</h5>
         </div>
-        <div class="col-md-6">
+      </div>
+
+      <!-- Main Product (original form fields) -->
+      <div class="row mb-3" id="main-product">
+        <div class="col-md-4">
+          <div class="search-container position-relative">
+            {{ form.product_code.label(class="form-label") }} {{
+            form.product_code(class="form-control", placeholder="Start typing
+            product code...") }}
+          </div>
+        </div>
+        <div class="col-md-5">
           {{ form.product_name.label(class="form-label") }} {{
-          form.product_name(class="form-control") }}
+          form.product_name(class="form-control", placeholder="Product
+          description") }}
+        </div>
+        <div class="col-md-3">
+          {{ form.quantity.label(class="form-label") }} {{
+          form.quantity(class="form-control", type="number", min="1",
+          placeholder="Quantity") }}
+        </div>
+      </div>
+
+      <!-- Additional Products Container -->
+      <div id="additional-products-container"></div>
+
+      <div class="row mb-4">
+        <div class="col-12">
+          <button
+            type="button"
+            class="btn btn-success btn-sm"
+            onclick="addProduct()"
+          >
+            <i class="bi bi-plus-circle"></i> Add Another Product
+          </button>
+        </div>
+      </div>
+
+      <!-- Return Details -->
+      <div class="row mb-4">
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Return Details</h5>
         </div>
       </div>
 
       <div class="row mb-3">
-        <div class="col-md-4">
-          {{ form.price.label(class="form-label") }} {{
-          form.price(class="form-control", type="number", min="1") }}
-        </div>
-        <div class="col-md-4">
-          {{ form.quantity.label(class="form-label") }} {{
-          form.quantity(class="form-control", type="number", min="1") }}
-        </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
           {{ form.reason.label(class="form-label") }} {{
           form.reason(class="form-select") }}
         </div>
+        <div class="col-md-6">
+          {{ form.notes.label(class="form-label") }} {{
+          form.notes(class="form-control", rows="3", placeholder="Any additional
+          notes...") }}
+        </div>
       </div>
 
-      <div class="mb-3">
-        {{ form.notes.label(class="form-label") }} {{
-        form.notes(class="form-control", rows="3") }}
+      <div class="d-grid">
+        {{ form.submit(class="btn btn-primary btn-lg") }}
       </div>
-
-      <div class="d-grid">{{ form.submit(class="btn btn-primary") }}</div>
     </form>
   </div>
 </div>
+
 {% block scripts %}
 <script>
   let searchTimeout;
-  let currentResults = [];
+  let additionalProducts = [];
 
   document.addEventListener("DOMContentLoaded", function () {
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
+    // Setup search for customer fields
+    setupCustomerSearch();
 
-    // Add search functionality to BOTH fields
-    if (accountInput) {
-      setupSearchField(accountInput, "account");
-    }
+    // Setup search for main product field
+    setupProductSearch(document.querySelector('input[name="product_code"]'));
 
-    if (nameInput) {
-      setupSearchField(nameInput, "name");
-    }
-
-    // Close dropdown when clicking outside
+    // Close dropdowns when clicking outside
     document.addEventListener("click", function (e) {
       if (!e.target.closest(".search-container")) {
         hideAllDropdowns();
       }
     });
+
+    // Update hidden field before form submission
+    document
+      .getElementById("returnsForm")
+      .addEventListener("submit", function () {
+        document.getElementById("additional_products").value =
+          JSON.stringify(additionalProducts);
+      });
   });
 
-  function setupSearchField(input, fieldType) {
-    // Wrap the input in a container for positioning
-    if (!input.parentElement.classList.contains("search-container")) {
-      const container = document.createElement("div");
-      container.className = "search-container position-relative";
-      input.parentNode.insertBefore(container, input);
-      container.appendChild(input);
+  function setupCustomerSearch() {
+    const accountInput = document.querySelector(
+      'input[name="customer_account"]'
+    );
+    const nameInput = document.querySelector('input[name="customer_name"]');
+
+    if (accountInput) {
+      setupSearchField(accountInput, "customer", "account");
     }
 
+    if (nameInput) {
+      setupSearchField(nameInput, "customer", "name");
+    }
+  }
+
+  function setupProductSearch(input) {
+    if (input) {
+      setupSearchField(input, "product", "code");
+    }
+  }
+
+  function setupSearchField(input, type, field) {
     input.addEventListener("input", function () {
       clearTimeout(searchTimeout);
       const searchValue = this.value.trim();
 
       if (searchValue.length < 2) {
         hideDropdown(input);
-        clearOtherFields(fieldType);
+        if (type === "customer") {
+          clearOtherCustomerFields(field);
+        }
         return;
       }
 
-      // Debounce search
       searchTimeout = setTimeout(() => {
-        searchCustomers(searchValue, input, fieldType);
+        if (type === "customer") {
+          searchCustomers(searchValue, input, field);
+        } else {
+          searchProducts(searchValue, input);
+        }
       }, 300);
     });
 
     input.addEventListener("blur", function () {
-      // Delay hiding dropdown to allow clicking on results
       setTimeout(() => {
         if (!document.querySelector(".dropdown-results:hover")) {
           hideDropdown(input);
@@ -125,16 +193,28 @@
       );
       const customers = await response.json();
 
-      currentResults = customers;
-      showDropdown(customers, inputElement, fieldType);
+      showCustomerDropdown(customers, inputElement, fieldType);
     } catch (error) {
       console.error("Error searching customers:", error);
       hideDropdown(inputElement);
     }
   }
 
-  function showDropdown(customers, inputElement, fieldType) {
-    // Remove existing dropdown
+  async function searchProducts(searchValue, inputElement) {
+    try {
+      const response = await fetch(
+        `/api/products?q=${encodeURIComponent(searchValue)}`
+      );
+      const products = await response.json();
+
+      showProductDropdown(products, inputElement);
+    } catch (error) {
+      console.error("Error searching products:", error);
+      hideDropdown(inputElement);
+    }
+  }
+
+  function showCustomerDropdown(customers, inputElement, fieldType) {
     hideDropdown(inputElement);
 
     if (customers.length === 0) {
@@ -142,7 +222,52 @@
       return;
     }
 
-    // Create dropdown
+    const dropdown = createDropdown();
+
+    customers.forEach((customer) => {
+      const item = createDropdownItem(
+        `${customer.account_number} - ${customer.name}`,
+        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
+      );
+
+      item.addEventListener("click", function () {
+        selectCustomer(customer);
+        hideAllDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function showProductDropdown(products, inputElement) {
+    hideDropdown(inputElement);
+
+    if (products.length === 0) {
+      inputElement.style.borderColor = "#dc3545";
+      return;
+    }
+
+    const dropdown = createDropdown();
+
+    products.forEach((product) => {
+      const item = createDropdownItem(`${product.code}`, `${product.name}`);
+
+      item.addEventListener("click", function () {
+        selectProduct(product, inputElement);
+        hideAllDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function createDropdown() {
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
     dropdown.style.cssText = `
@@ -158,61 +283,48 @@
         z-index: 1000;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     `;
+    return dropdown;
+  }
 
-    customers.forEach((customer, index) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item-custom";
-      item.style.cssText = `
-            padding: 12px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            transition: background-color 0.2s;
-            color: var(--text-light);
-        `;
+  function createDropdownItem(title, subtitle) {
+    const item = document.createElement("div");
+    item.className = "dropdown-item-custom";
+    item.style.cssText = `
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.2s;
+        color: var(--text-light);
+    `;
 
-      item.innerHTML = `
-            <div style="font-weight: 600;">${customer.account_number} - ${
-        customer.name
-      }</div>
-            <small style="color: var(--text-muted);">
-                ${
-                  customer.contact_name
-                    ? "Contact: " + customer.contact_name
-                    : ""
-                }
-                ${customer.phone ? " | Phone: " + customer.phone : ""}
-            </small>
-        `;
+    item.innerHTML = `
+        <div style="font-weight: 600;">${title}</div>
+        ${
+          subtitle
+            ? `<small style="color: var(--text-muted);">${subtitle}</small>`
+            : ""
+        }
+    `;
 
-      // Hover effect
-      item.addEventListener("mouseenter", function () {
-        this.style.backgroundColor = "var(--primary-blue)";
-      });
-
-      item.addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "transparent";
-      });
-
-      // Click to select
-      item.addEventListener("click", function () {
-        selectCustomer(customer);
-        hideAllDropdowns();
-      });
-
-      dropdown.appendChild(item);
+    item.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "var(--primary-blue)";
     });
 
-    // Add to container
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
+    item.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "transparent";
+    });
+
+    return item;
   }
 
   function selectCustomer(customer) {
-    // Fill both fields
     const accountInput = document.querySelector(
       'input[name="customer_account"]'
     );
     const nameInput = document.querySelector('input[name="customer_name"]');
+    const addressInput = document.querySelector(
+      'input[name="customer_address"]'
+    );
 
     if (accountInput) {
       accountInput.value = customer.account_number;
@@ -224,8 +336,56 @@
       nameInput.style.borderColor = "#28a745";
     }
 
-    // Show customer info
-    showCustomerInfo(customer);
+    if (addressInput && customer.address) {
+      addressInput.value = customer.address;
+    }
+  }
+
+  function selectProduct(product, inputElement) {
+    const isMainProduct = inputElement.name === "product_code";
+
+    if (isMainProduct) {
+      // Main product fields
+      inputElement.value = product.code;
+      inputElement.style.borderColor = "#28a745";
+
+      const nameInput = document.querySelector('input[name="product_name"]');
+      if (nameInput) {
+        nameInput.value = product.name;
+      }
+    } else {
+      // Additional product
+      const productRow = inputElement.closest(".additional-product-row");
+      const codeInput = productRow.querySelector(".additional-product-code");
+      const nameInput = productRow.querySelector(".additional-product-name");
+
+      if (codeInput) {
+        codeInput.value = product.code;
+        codeInput.style.borderColor = "#28a745";
+      }
+
+      if (nameInput) {
+        nameInput.value = product.name;
+      }
+    }
+  }
+
+  function clearOtherCustomerFields(fieldType) {
+    if (fieldType === "account") {
+      const nameInput = document.querySelector('input[name="customer_name"]');
+      if (nameInput) {
+        nameInput.value = "";
+        nameInput.style.borderColor = "";
+      }
+    } else {
+      const accountInput = document.querySelector(
+        'input[name="customer_account"]'
+      );
+      if (accountInput) {
+        accountInput.value = "";
+        accountInput.style.borderColor = "";
+      }
+    }
   }
 
   function hideDropdown(inputElement) {
@@ -242,64 +402,84 @@
     });
   }
 
-  function clearOtherFields(fieldType) {
-    if (fieldType === "account") {
-      const nameInput = document.querySelector('input[name="customer_name"]');
-      if (nameInput) {
-        nameInput.value = "";
-        nameInput.style.borderColor = "";
-      }
-    } else {
-      const accountInput = document.querySelector(
-        'input[name="customer_account"]'
-      );
-      if (accountInput) {
-        accountInput.value = "";
-        accountInput.style.borderColor = "";
-      }
-    }
-    hideCustomerInfo();
-  }
+  let productCounter = 0;
 
-  function showCustomerInfo(customer) {
-    hideCustomerInfo();
+  function addProduct() {
+    const container = document.getElementById("additional-products-container");
+    const productId = `additional-product-${productCounter}`;
 
-    const infoDiv = document.createElement("div");
-    infoDiv.id = "customer-info";
-    infoDiv.className = "alert alert-success mt-3";
-    infoDiv.innerHTML = `
-        <strong>✓ Customer Selected:</strong><br>
-        <div class="row">
-            <div class="col-md-6">
-                <small>
-                    <strong>Account:</strong> ${customer.account_number}<br>
-                    <strong>Name:</strong> ${customer.name}
-                </small>
+    const newRow = document.createElement("div");
+    newRow.className = "additional-product-row row mb-3 p-3 border rounded";
+    newRow.style.backgroundColor = "rgba(255, 255, 255, 0.02)";
+
+    newRow.innerHTML = `
+        <div class="col-md-4">
+            <div class="search-container position-relative">
+                <label class="form-label">Product Code</label>
+                <input class="form-control additional-product-code" 
+                       placeholder="Start typing product code..." type="text">
             </div>
-            <div class="col-md-6">
-                <small>
-                    <strong>Contact:</strong> ${
-                      customer.contact_name || "N/A"
-                    }<br>
-                    <strong>Phone:</strong> ${customer.phone || "N/A"}
-                </small>
-            </div>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label">Product Name</label>
+            <input class="form-control additional-product-name" 
+                   placeholder="Product description" type="text">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Quantity</label>
+            <input class="form-control additional-product-quantity" 
+                   type="number" min="1" placeholder="Qty">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeProduct(this)">
+                <i class="bi bi-trash"></i>
+            </button>
         </div>
     `;
 
-    // Insert after the second customer field
-    const nameField = document
-      .querySelector('input[name="customer_name"]')
-      .closest(".col-md-6");
-    nameField.insertAdjacentElement("afterend", infoDiv);
+    container.appendChild(newRow);
+
+    // Setup search for the new product code input
+    const newCodeInput = newRow.querySelector(".additional-product-code");
+    setupProductSearch(newCodeInput);
+
+    productCounter++;
   }
 
-  function hideCustomerInfo() {
-    const existingInfo = document.getElementById("customer-info");
-    if (existingInfo) {
-      existingInfo.remove();
-    }
+  function removeProduct(button) {
+    button.closest(".additional-product-row").remove();
+    updateAdditionalProducts();
   }
+
+  function updateAdditionalProducts() {
+    additionalProducts = [];
+
+    document.querySelectorAll(".additional-product-row").forEach((row) => {
+      const code = row.querySelector(".additional-product-code").value;
+      const name = row.querySelector(".additional-product-name").value;
+      const quantity = row.querySelector(".additional-product-quantity").value;
+
+      if (code && name && quantity) {
+        additionalProducts.push({
+          product_code: code,
+          product_name: name,
+          quantity: quantity,
+        });
+      }
+    });
+  }
+
+  // Update additional products before form submission
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("returnsForm");
+    if (form) {
+      form.addEventListener("submit", function () {
+        updateAdditionalProducts();
+        document.getElementById("additional_products").value =
+          JSON.stringify(additionalProducts);
+      });
+    }
+  });
 </script>
 
 <style>

@@ -1,13 +1,7 @@
 {% extends "base.html" %} {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h2>
-    {% if form_type == 'returns' %} Credit / Uplift Form {% elif form_type ==
-    'branded_stock' %} Customer's Own Stock Delivery {% elif form_type ==
-    'special_order' %} Special Order Request {% elif form_type == 'Invoiced
-    Goods, Delivery Only' %} Invoice Correction - Delivery Only {% else %} {{
-    form_type.replace('_', ' ').title() }} {% endif %} - #{{ form_id }}
-  </h2>
+  <h2>Credit / Uplift Form - #{{ form_id }}</h2>
   <div>
     <a
       href="{{ url_for('main.print_form', form_id=form_id) }}"
@@ -33,12 +27,7 @@
       <div class="col-md-6 text-md-end">
         <strong>Date Created:</strong> {{ date_created.strftime('%d/%m/%Y
         %H:%M') }}<br />
-        <strong>Form Type:</strong>
-        {% if form_type == 'returns' %} Credit / Uplift {% elif form_type ==
-        'branded_stock' %} Customer's Own Stock {% elif form_type ==
-        'special_order' %} Special Order {% elif form_type == 'Invoiced Goods,
-        Delivery Only' %} Invoice Correction {% else %} {{
-        form_type.replace('_', ' ').title() }} {% endif %}
+        <strong>Form Type:</strong> Credit / Uplift Form
       </div>
     </div>
   </div>
@@ -51,24 +40,28 @@
   </div>
   <div class="card-body">
     <div class="row">
-      <div class="col-md-6">
+      <div class="col-md-3">
         <p>
           <strong>Account Number:</strong> {{ form_data.get('customer_account',
           'N/A') }}
         </p>
+      </div>
+      <div class="col-md-3">
         <p>
           <strong>Customer Name:</strong> {{ form_data.get('customer_name',
           'N/A') }}
         </p>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-3">
         <p>
-          <strong>Contact:</strong> {{ form_data.get('contact', 'Not specified')
-          }}
+          <strong>Contact Name:</strong> {{ form_data.get('contact_name', 'Not
+          specified') }}
         </p>
+      </div>
+      <div class="col-md-3">
         <p>
-          <strong>Address:</strong> {{ form_data.get('address', 'Not specified')
-          }}
+          <strong>Address:</strong> {{ form_data.get('customer_address', 'Not
+          specified') }}
         </p>
       </div>
     </div>
@@ -87,129 +80,67 @@
           <tr>
             <th>Stock Code</th>
             <th>Quantity</th>
-            {% if form_type == 'special_order' %}
-            <th>Cost Price</th>
-            <th>Sell Price</th>
-            {% endif %}
             <th>Description</th>
           </tr>
         </thead>
         <tbody>
+          {% if form_data.get('products') %} {% for product in
+          form_data.get('products') %}
+          <tr>
+            <td>{{ product.get('product_code', 'N/A') }}</td>
+            <td>
+              <span class="badge bg-primary"
+                >{{ product.get('quantity', 'N/A') }}</span
+              >
+            </td>
+            <td>{{ product.get('product_name', 'N/A') }}</td>
+          </tr>
+          {% endfor %} {% else %}
+          <!-- Legacy single product support -->
           <tr>
             <td>{{ form_data.get('product_code', 'N/A') }}</td>
             <td>
-              {% if form_type == 'branded_stock' %} {{
-              form_data.get('quantity_delivered', 'N/A') }} {% elif form_type ==
-              'Invoiced Goods, Delivery Only' or form_type ==
-              'invoice_correction' %} {% set ordered =
-              form_data.get('ordered_quantity', 0)|int %} {% set delivered =
-              form_data.get('delivered_quantity', 0)|int %}
-              <span class="badge bg-warning text-dark"
-                >{{ ordered - delivered }} to deliver</span
+              <span class="badge bg-primary"
+                >{{ form_data.get('quantity', 'N/A') }}</span
               >
-              {% else %} {{ form_data.get('quantity', 'N/A') }} {% endif %}
             </td>
-            {% if form_type == 'special_order' %}
-            <td>£{{ form_data.get('cost_price', '0') }}</td>
-            <td>£{{ form_data.get('sell_price', '0') }}</td>
-            {% endif %}
-            <td>
-              {% if form_type == 'special_order' %} {{
-              form_data.get('product_description', 'N/A') }} {% else %} {{
-              form_data.get('product_name', 'N/A') }} {% endif %}
-            </td>
+            <td>{{ form_data.get('product_name', 'N/A') }}</td>
           </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- Additional Information Cards -->
-{% if form_type == 'returns' %}
+<!-- Return Details Card -->
 <div class="card mb-3">
   <div class="card-header bg-warning text-dark">
     <h5 class="mb-0"><i class="bi bi-arrow-return-left"></i> Return Details</h5>
   </div>
   <div class="card-body">
-    <p>
-      <strong>Reason for Return:</strong> {{ form_data.get('reason',
-      'N/A').replace('_', ' ').title() }}
-    </p>
-    <div class="alert alert-info">
+    <div class="row">
+      <div class="col-md-6">
+        <p>
+          <strong>Reason for Return:</strong>
+          {{ form_data.get('reason', 'N/A').replace('_', ' ').title() }}
+        </p>
+      </div>
+      <div class="col-md-6">
+        {% if form_data.get('notes') %}
+        <p><strong>Additional Notes:</strong></p>
+        <div class="alert alert-light">{{ form_data.get('notes') }}</div>
+        {% else %}
+        <p><strong>Additional Notes:</strong> None</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="alert alert-info mt-3">
       <strong>Note:</strong> Return type (Credit or Uplift Only) will be
       selected when the form is printed.
     </div>
   </div>
 </div>
-{% endif %} {% if form_type == 'branded_stock' %}
-<div class="card mb-3">
-  <div class="card-header bg-success text-white">
-    <h5 class="mb-0"><i class="bi bi-box-seam"></i> Stock Information</h5>
-  </div>
-  <div class="card-body">
-    <p>
-      <strong>Current Stock Level:</strong> {{ form_data.get('current_stock',
-      'N/A') }}
-    </p>
-  </div>
-</div>
-{% endif %} {% if form_type == 'special_order' %}
-<div class="card mb-3">
-  <div class="card-header bg-secondary text-white">
-    <h5 class="mb-0"><i class="bi bi-truck"></i> Supplier Information</h5>
-  </div>
-  <div class="card-body">
-    <p><strong>Supplier:</strong> {{ form_data.get('supplier', 'N/A') }}</p>
-    {% set cost = form_data.get('cost_price', 0)|float %} {% set sell =
-    form_data.get('sell_price', 0)|float %} {% if cost > 0 and sell > 0 %} {%
-    set margin = ((sell - cost) / sell * 100)|round(1) %}
-    <p><strong>Margin:</strong> {{ margin }}%</p>
-    <p><strong>Profit per Unit:</strong> £{{ (sell - cost)|round(2) }}</p>
-    {% endif %}
-  </div>
-</div>
-{% endif %} {% if form_type == 'Invoiced Goods, Delivery Only' or form_type ==
-'invoice_correction' %}
-<div class="card mb-3">
-  <div class="card-header bg-danger text-white">
-    <h5 class="mb-0">
-      <i class="bi bi-receipt"></i> Invoice Correction Details
-    </h5>
-  </div>
-  <div class="card-body">
-    <p>
-      <strong>Invoice Number:</strong> {{ form_data.get('invoice_number', 'N/A')
-      }}
-    </p>
-    <p>
-      <strong>Quantity Ordered:</strong> {{ form_data.get('ordered_quantity',
-      'N/A') }}
-    </p>
-    <p>
-      <strong>Quantity Delivered:</strong> {{
-      form_data.get('delivered_quantity', 'N/A') }}
-    </p>
-    {% set ordered = form_data.get('ordered_quantity', 0)|int %} {% set
-    delivered = form_data.get('delivered_quantity', 0)|int %}
-    <p>
-      <strong>Outstanding to Deliver:</strong>
-      <span class="badge bg-warning text-dark fs-6"
-        >{{ ordered - delivered }} units</span
-      >
-    </p>
-  </div>
-</div>
-{% endif %} {% if form_data.get('notes') %}
-<div class="card mb-3">
-  <div class="card-header">
-    <h5 class="mb-0"><i class="bi bi-chat-text"></i> Additional Notes</h5>
-  </div>
-  <div class="card-body">
-    <p>{{ form_data.get('notes') }}</p>
-  </div>
-</div>
-{% endif %}
 
 <!-- Actions Card -->
 <div class="card">
@@ -224,19 +155,13 @@
     <a href="{{ url_for('main.forms') }}" class="btn btn-lg btn-secondary">
       <i class="bi bi-list"></i> View All Forms
     </a>
-    {% if form_type == 'returns' %}
     <button
       class="btn btn-lg btn-warning"
       onclick="alert('Return type (Credit/Uplift) will be selected when printing the form')"
     >
       <i class="bi bi-info-circle"></i> Return Type Info
     </button>
-    {% endif %}
   </div>
 </div>
 
-{% endblock %} {% block scripts %}
-<script>
-  // Add any additional scripts if needed
-</script>
 {% endblock %}

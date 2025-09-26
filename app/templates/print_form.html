@@ -86,7 +86,6 @@
       .products-table tr:nth-child(even) {
         background-color: #f9f9f9;
       }
-      /* Empty rows for manual filling */
       .products-table .empty-row td {
         height: 25px;
         background: white;
@@ -111,7 +110,6 @@
         width: 15px;
         height: 15px;
       }
-
       .signature-area {
         margin-top: 40px;
         page-break-inside: avoid;
@@ -174,12 +172,7 @@
     <div class="header">
       <div class="company-name">HIGHLAND INDUSTRIAL SUPPLIES</div>
       <div>Hygiene & Catering Division</div>
-      <div class="form-title">
-        {% if form_type == 'returns' %} CREDIT / UPLIFT FORM {% elif form_type
-        == 'branded_stock' %} CUSTOMER'S OWN STOCK DELIVERY {% elif form_type ==
-        'special_order' %} SPECIAL ORDER REQUEST {% else %} {{
-        form_type.replace('_', ' ').upper() }} {% endif %}
-      </div>
+      <div class="form-title">CREDIT / UPLIFT FORM</div>
     </div>
 
     <div class="form-info">
@@ -204,35 +197,31 @@
         </div>
         <div class="detail-row">
           <span class="label">Address:</span>
-          <span>{{ form_data.get('address', '________________') }}</span>
+          <span
+            >{{ form_data.get('customer_address', '________________') }}</span
+          >
         </div>
         <div class="detail-row">
           <span class="label">Contact:</span>
-          <span>{{ form_data.get('contact', '________________') }}</span>
+          <span>{{ form_data.get('contact_name', ' ________________')}}</span>
         </div>
       </div>
 
       <!-- Additional Information -->
       <div class="additional-info">
         <h4>Additional Information</h4>
-        {% if form_data.get('notes') %}
-        <p><strong>Notes:</strong> {{ form_data.get('notes') }}</p>
-        {% endif %} {% if form_type == 'returns' and form_data.get('reason') %}
-        <p><strong>Return reason:</strong> {{ form_data.get('reason') }}</p>
-        {% endif %} {% if form_type == 'special_order' and
-        form_data.get('supplier') %}
-        <p><strong>Supplier:</strong> {{ form_data.get('supplier') }}</p>
-        <p><strong>Cost:</strong> £{{ form_data.get('cost_price', '0') }}</p>
-        {% endif %} {% if form_type == 'Invoiced Goods, Delivery Only' %}
+        {% if form_data.get('reason') %}
         <p>
-          <strong>Invoice:</strong> #{{ form_data.get('invoice_number', '') }}
+          <strong>Return reason:</strong> {{
+          form_data.get('reason').replace('_', ' ').title() }}
         </p>
+        {% endif %} {% if form_data.get('notes') %}
+        <p><strong>Notes:</strong> {{ form_data.get('notes') }}</p>
         {% endif %}
       </div>
     </div>
 
     <!-- Special Options for Returns Form -->
-    {% if form_type == 'returns' %}
     <div class="form-options">
       <div class="checkbox-group">
         <span style="font-weight: bold; margin-right: 20px">Return Type:</span>
@@ -246,7 +235,6 @@
         </div>
       </div>
     </div>
-    {% endif %}
 
     <!-- Products Table -->
     <h4 style="color: #084385; font-size: 14px; margin-bottom: 10px">
@@ -262,56 +250,27 @@
         </tr>
       </thead>
       <tbody>
-        {% if form_type == 'returns' %}
+        {% if form_data.get('products') %} {% for product in
+        form_data.get('products') %}
+        <tr>
+          <td>{{ product.get('product_code', '') }}</td>
+          <td>{{ product.get('quantity', '') }}</td>
+          <td></td>
+          <td>{{ product.get('product_name', '') }}</td>
+        </tr>
+        {% endfor %} {% else %}
+        <!-- Legacy single product support -->
         <tr>
           <td>{{ form_data.get('product_code', '') }}</td>
           <td>{{ form_data.get('quantity', '') }}</td>
           <td></td>
           <td>{{ form_data.get('product_name', '') }}</td>
-        </tr>
-        {% elif form_type == 'branded_stock' %}
-        <tr>
-          <td>{{ form_data.get('product_code', '') }}</td>
-          <td>{{ form_data.get('quantity_delivered', '') }}</td>
-          <td></td>
-          <td>{{ form_data.get('product_name', '') }}</td>
-        </tr>
-        {% elif form_type == 'invoice_correction' or form_type == 'Invoiced
-        Goods, Delivery Only' %}
-        <tr>
-          <td>{{ form_data.get('product_code', '') }}</td>
-          <td>
-            {% set ordered = form_data.get('ordered_quantity', 0)|int %} {% set
-            delivered = form_data.get('delivered_quantity', 0)|int %} {{ ordered
-            - delivered }}
-          </td>
-          <td></td>
-          <td>
-            To be delivered (Invoice #{{ form_data.get('invoice_number', '') }})
-          </td>
-        </tr>
-        {% elif form_type == 'special_order' %}
-        <tr>
-          <td>{{ form_data.get('product_code', '') }}</td>
-          <td>{{ form_data.get('quantity', '') }}</td>
-          <td>{{ form_data.get('sell_price', '') }}</td>
-          <td>{{ form_data.get('product_description', '') }}</td>
-        </tr>
-        {% else %}
-        <!-- Default single product row -->
-        <tr>
-          <td>{{ form_data.get('product_code', '') }}</td>
-          <td>{{ form_data.get('quantity', '') }}</td>
-          <td></td>
-          <td>
-            {{ form_data.get('product_name',
-            form_data.get('product_description', '')) }}
-          </td>
         </tr>
         {% endif %}
 
         <!-- Add empty rows for manual entries -->
-        {% for i in range(5) %}
+        {% for i in range(8 - (form_data.get('products', [form_data])|length))
+        %}
         <tr class="empty-row">
           <td>&nbsp;</td>
           <td>&nbsp;</td>
@@ -361,6 +320,13 @@
       // Show current date and time
       document.getElementById("print-date").textContent =
         new Date().toLocaleString("en-GB");
+
+      // Auto-print when page loads
+      window.onload = function () {
+        setTimeout(function () {
+          window.print();
+        }, 500);
+      };
     </script>
   </body>
 </html>

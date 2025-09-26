@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField, IntegerField, PasswordField, TelField
+from wtforms import StringField, SubmitField, SelectField, BooleanField, TextAreaField, IntegerField, PasswordField, TelField, FormField, FieldList
 from wtforms.validators import DataRequired, Email, Length, Optional, EqualTo, optional
 from wtforms.widgets import TextArea
 
@@ -45,14 +45,23 @@ class LoginForm(FlaskForm):
     password = StringField('Password', validators=[DataRequired()])
     submit = SubmitField('Login')
 
+
+class ProductReturnForm(FlaskForm):
+    """Subform for individual product returns"""
+    product_code = StringField('Product Code', validators=[DataRequired()])
+    product_name = StringField('Product Name', validators=[DataRequired()])
+    quantity = StringField('Quantity', validators=[DataRequired()])
+
 class ReturnsForm(FlaskForm):
     customer_account = StringField('Customer Account Number', validators=[DataRequired()])
     customer_name = StringField('Customer Name')
     customer_address = StringField('Customer Address')
+    
+    # Keep the original single product fields for now, but we'll handle multiple via JavaScript
     product_code = StringField('Product Code', validators=[DataRequired()])
     product_name = StringField('Product Name')
-    price = StringField('Price')
     quantity = StringField('Quantity', validators=[DataRequired()])
+    
     reason = SelectField('Reason for Return', choices=[
         ('damaged', 'Damaged Product'),
         ('wrong', 'Wrong Product Sent'),

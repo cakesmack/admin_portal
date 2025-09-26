@@ -778,17 +778,80 @@ def view_archived_callsheets(month, year):
         archived_at=archive.archived_at
     )
 
+
+@main.route('/api/products/search')
+@login_required
+def search_products():
+    """Search products by code or description"""
+    query = request.args.get('q', '').strip()
+    
+    if len(query) < 2:
+        return jsonify([])
+    
+    # Search in both product code and name fields
+    products = Product.query.filter(
+        db.or_(
+            Product.code.ilike(f'%{query}%'),
+            Product.name.ilike(f'%{query}%'),
+            Product.description.ilike(f'%{query}%')
+        )
+    ).limit(20).all()
+    
+    results = []
+    for product in products:
+        results.append({
+            'id': product.id,
+            'code': product.code,
+            'name': product.name,
+            'description': product.description,
+            'display': f'{product.code} - {product.name}'
+        })
+    
+    return jsonify(results)
+
 @main.route('/returns', methods=['GET', 'POST'])
 @login_required
 def returns():
     form = ReturnsForm()
     if form.validate_on_submit():
+        # Update customer address if provided
+        if form.customer_account.data and form.customer_address.data:
+            customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
+            if customer and form.customer_address.data != customer.address:
+                customer.address = form.customer_address.data
+                db.session.commit()
+        
+        # Get products from the form - check if there are multiple products submitted via JavaScript
+        products_data = []
+        
+        # Check for additional products submitted via JavaScript (we'll add this)
+        additional_products = request.form.getlist('additional_products')
+        if additional_products:
+            import json
+            try:
+                products_data = json.loads(additional_products[0])
+            except:
+                products_data = []
+        
+        # Add the main product
+        if form.product_code.data:
+            products_data.insert(0, {
+                'product_code': form.product_code.data,
+                'product_name': form.product_name.data,
+                'quantity': form.quantity.data
+            })
+        customer_contact = None
+        if form.customer_account.data:
+            customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
+        if customer:
+            customer_contact = customer.contact_name
+
         form_data = {
             'customer_account': form.customer_account.data,
             'customer_name': form.customer_name.data,
-            'product_code': form.product_code.data,
-            'product_name': form.product_name.data,
-            'quantity': form.quantity.data,
+            'customer_address': form.customer_address.data,
+            'contact_name': customer_contact,
+            'products': products_data,  # This will work with your existing print form
             'reason': form.reason.data,
             'notes': form.notes.data
         }
@@ -802,7 +865,14 @@ def returns():
         db.session.commit()
         
         flash('Return form has been created successfully!', 'success')
-        return redirect(url_for('main.dashboard'))
+        
+        # Return JavaScript to open print form and redirect
+        return f'''
+        <script>
+            window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
+            window.location.href = '{url_for('main.dashboard')}';
+        </script>
+        '''
     
     return render_template('returns_form.html', title='Returns Form', form=form)
 
@@ -1159,7 +1229,8 @@ def search_customers():
             'name': customer.name,
             'display': f'{customer.account_number} - {customer.name}',
             'contact_name': customer.contact_name,
-            'phone': customer.phone
+            'phone': customer.phone,
+            'address': customer.address
         })
     
     return jsonify(results)
