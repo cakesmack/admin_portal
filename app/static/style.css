@@ -667,3 +667,156 @@ td .small {
 pre {
   color: #000;
 }
+
+/* Add this to your main CSS file or in a <style> block */
+
+.dashboard-container {
+  padding: 0;
+}
+
+.card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: none;
+}
+
+.card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.updates-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.updates-card .btn-light {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: none;
+}
+
+/* Update item styles */
+.update-item {
+  transition: all 0.2s ease;
+  background-color: var(--dark-card);
+}
+
+.update-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.update-content {
+  line-height: 1.6;
+}
+
+.update-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.update-content p {
+  margin-bottom: 0.75rem;
+}
+
+.update-content p:last-child {
+  margin-bottom: 0;
+}
+
+.update-content strong {
+  font-weight: 600;
+}
+
+.update-content a {
+  color: #007bff;
+  text-decoration: underline;
+}
+
+.update-content a:hover {
+  color: #0056b3;
+}
+
+/* Activity item styles */
+.activity-item {
+  transition: background-color 0.2s ease;
+}
+
+.activity-item:hover {
+  background-color: #394047;
+  border-radius: 4px;
+  padding: 8px;
+  margin: -8px -8px 2px -8px;
+}
+
+.activity-item:last-child {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Stats cards */
+.card-body h3 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 0;
+}
+
+/* Quill editor customization */
+.ql-editor {
+  min-height: 150px;
+  font-size: 14px;
+}
+
+.ql-toolbar.ql-snow {
+  border-top: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  background-color: #f8f9fa;
+}
+
+.ql-container.ql-snow {
+  border-bottom: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+}
+
+.ql-editor.ql-blank::before {
+  color: #999;
+  font-style: italic;
+}
+
+/* Priority badges */
+.badge.bg-urgent {
+  background-color: #dc3545 !important;
+}
+
+.badge.bg-important {
+  background-color: #ffc107 !important;
+  color: #000 !important;
+}
+
+.badge.bg-normal {
+  background-color: #6c757d !important;
+}
+
+/* Chart container */
+#activityChart {
+  max-height: 60px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-container .row .col-md-8,
+  .dashboard-container .row .col-md-4 {
+    margin-bottom: 1rem;
+  }
+
+  .modal-lg {
+    max-width: 90vw;
+  }
+
+  .ql-editor {
+    min-height: 120px;
+  }
+}

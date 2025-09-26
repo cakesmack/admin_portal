@@ -1,14 +1,23 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
 from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule
 from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import calendar
 from functools import wraps
+import os
+from werkzeug.utils import secure_filename
+from PIL import Image
+import uuid
 
 main = Blueprint('main', __name__)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2MB
+
+
 
 # Sample data for demonstration
 SAMPLE_CUSTOMERS = [
@@ -343,27 +352,6 @@ def get_company_updates():
         'can_delete': update.user_id == current_user.id
     } for update in updates])
 
-@main.route('/api/company-updates', methods=['POST'])
-@login_required
-def create_company_update():
-    data = request.json
-    
-    event_date = None
-    if data.get('is_event') and data.get('event_date'):
-        event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
-    
-    update = CompanyUpdate(
-        title=data['title'],
-        message=data['message'],
-        priority=data.get('priority', 'normal'),
-        sticky=data.get('sticky', False),
-        is_event=data.get('is_event', False),
-        event_date=event_date,
-        user_id=current_user.id
-    )
-    db.session.add(update)
-    db.session.commit()
-    return jsonify({'success': True, 'id': update.id})
 
 @main.route('/api/company-updates/<int:update_id>', methods=['DELETE'])
 @login_required
@@ -1330,9 +1318,6 @@ def import_customers():
     
     return render_template('import_customers.html', title='Import Customers')
 
-
-# Add these routes to your routes.py
-
 @main.route('/customer-stock')
 @login_required
 def customer_stock():
@@ -1474,10 +1459,27 @@ def search_customer_stock():
     stock_items = stock_query.limit(20).all()
     return jsonify([item.to_dict() for item in stock_items])
 
-# Add these routes to your app/routes.py
-
-from datetime import date, timedelta, datetime
-import calendar
+def sanitize_and_resize_images(html_content):
+    """Sanitize HTML content and resize images inline"""
+    from bs4 import BeautifulSoup
+    
+    # First sanitize
+    allowed_tags = [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'img', 'ol', 'ul', 'li'
+    ]
+    allowed_attributes = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height', 'style']
+    }
+    allowed_protocols = ['http', 'https', 'mailto']
+    
+    sanitized = bleach.clean(
+        html_content,
+        tags=allowed_tags,
+        attributes=allowed_attributes,
+        protocols=allowed_protocols,
+        strip=True
+    )
 
 @main.route('/standing-orders')
 @login_required
@@ -1835,3 +1837,234 @@ def generate_schedules_for_order(order_id, months_ahead=1):
         current_date += timedelta(days=1)
     
     return count
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def ensure_upload_dir():
+    """Create upload directory if it doesn't exist"""
+    now = datetime.now()
+    upload_dir = os.path.join('static', 'uploads', 'company_updates', str(now.year), f"{now.month:02d}")
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+    return upload_dir
+
+def resize_image(image_path, max_width=800, max_height=600):
+    """Resize image while maintaining aspect ratio"""
+    try:
+        with Image.open(image_path) as img:
+            # Convert to RGB if necessary (for JPEG saving)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGB')
+            
+            # Calculate new dimensions
+            img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+            
+            # Save optimized image
+            img.save(image_path, 'JPEG', quality=85, optimize=True)
+    except Exception as e:
+        print(f"Error resizing image: {e}")
+
+@main.route('/api/upload-image', methods=['POST'])
+@login_required
+def upload_image():
+    """Handle image uploads for company updates"""
+    if 'image' not in request.files:
+        return jsonify({'success': False, 'message': 'No image file provided'}), 400
+    
+    file = request.files['image']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
+    
+    if not allowed_file(file.filename):
+        return jsonify({'success': False, 'message': 'Invalid file type. Please upload PNG, JPG, JPEG, GIF, or WebP files.'}), 400
+    
+    # Check file size
+    if len(file.read()) > MAX_IMAGE_SIZE:
+        return jsonify({'success': False, 'message': 'File too large. Maximum size is 2MB.'}), 400
+    
+    file.seek(0)  # Reset file pointer after reading
+    
+    try:
+        # Generate unique filename
+        original_filename = secure_filename(file.filename)
+        name, ext = os.path.splitext(original_filename)
+        unique_filename = f"{uuid.uuid4().hex[:8]}_{name}{ext}"
+        
+        # Create upload directory
+        upload_dir = ensure_upload_dir()
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        file.save(file_path)
+        
+        # Resize image
+        resize_image(file_path)
+        
+        # Return URL for frontend
+        relative_path = file_path.replace('static/', '/')
+        image_url = url_for('static', filename=file_path.replace('static/', ''))
+        
+        return jsonify({
+            'success': True,
+            'image_url': image_url,
+            'message': 'Image uploaded successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Upload failed: {str(e)}'}), 500
+
+# Enhanced company updates route
+@main.route('/api/company-updates', methods=['POST'])
+@login_required
+def create_company_update():
+    data = request.json
+    
+    event_date = None
+    if data.get('is_event') and data.get('event_date'):
+        event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
+    
+    # Sanitize the HTML content and resize images
+    sanitized_message = sanitize_and_resize_images(data['message'])
+    
+    # Enhanced update with rich content and category
+    update = CompanyUpdate(
+        title=data['title'],
+        message=sanitized_message,
+        category=data.get('category', 'general'),  # New category field
+        priority=data.get('priority', 'normal'),
+        sticky=data.get('sticky', False),
+        is_event=data.get('is_event', False),
+        event_date=event_date,
+        user_id=current_user.id
+    )
+    db.session.add(update)
+    db.session.commit()
+    return jsonify({'success': True, 'id': update.id})
+
+# Dashboard stats API
+@main.route('/api/dashboard-stats')
+@login_required
+def get_dashboard_stats():
+    """Get dashboard statistics"""
+    
+    # Calculate this week's date range
+    today = datetime.now().date()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    week_end = week_start + timedelta(days=6)  # Sunday
+    
+    # Get stats
+    updates_this_week = CompanyUpdate.query.filter(
+        CompanyUpdate.created_at >= datetime.combine(week_start, datetime.min.time()),
+        CompanyUpdate.created_at <= datetime.combine(week_end, datetime.max.time())
+    ).count()
+    
+    pending_forms = Form.query.filter_by(is_completed=False, is_archived=False).count()
+    
+    # Weekly activity data for chart (last 7 days)
+    weekly_data = []
+    for i in range(7):
+        day = today - timedelta(days=6-i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = datetime.combine(day, datetime.max.time())
+        
+        # Count forms and updates for this day
+        forms_count = Form.query.filter(
+            Form.date_created >= day_start,
+            Form.date_created <= day_end
+        ).count()
+        
+        updates_count = CompanyUpdate.query.filter(
+            CompanyUpdate.created_at >= day_start,
+            CompanyUpdate.created_at <= day_end
+        ).count()
+        
+        weekly_data.append({
+            'day': day.strftime('%a'),  # Mon, Tue, etc.
+            'date': day.strftime('%m/%d'),
+            'forms': forms_count,
+            'updates': updates_count,
+            'total': forms_count + updates_count
+        })
+    
+    return jsonify({
+        'updates_this_week': updates_this_week,
+        'pending_forms': pending_forms,
+        'weekly_activity': weekly_data
+    })
+
+# Enhanced recent activity API
+@main.route('/api/recent-activity')
+@login_required
+def get_recent_activity():
+    """Get recent activity across the system"""
+    activities = []
+    
+    # Recent forms (created and completed)
+    recent_forms = Form.query.order_by(Form.date_created.desc()).limit(5).all()
+    for form in recent_forms:
+        activities.append({
+            'type': 'form_created',
+            'description': f'Created {form.type.replace("_", " ").title()} form',
+            'user': form.author.username,
+            'timestamp': form.date_created,
+            'link': url_for('main.view_form', form_id=form.id),
+            'icon': 'bi-file-text'
+        })
+    
+    # Recently completed forms
+    completed_forms = Form.query.filter(
+        Form.is_completed == True,
+        Form.completed_date.isnot(None)
+    ).order_by(Form.completed_date.desc()).limit(3).all()
+    
+    for form in completed_forms:
+        if form.completer:
+            activities.append({
+                'type': 'form_completed',
+                'description': f'Completed {form.type.replace("_", " ").title()} form',
+                'user': form.completer.username,
+                'timestamp': form.completed_date,
+                'link': url_for('main.view_form', form_id=form.id),
+                'icon': 'bi-check-circle'
+            })
+    
+    # Recent company updates
+    recent_updates = CompanyUpdate.query.order_by(CompanyUpdate.created_at.desc()).limit(4).all()
+    for update in recent_updates:
+        activities.append({
+            'type': 'company_update',
+            'description': f'Posted update: {update.title}',
+            'user': update.author.username,
+            'timestamp': update.created_at,
+            'link': None,
+            'icon': 'bi-megaphone'
+        })
+    
+    # Recent callsheet activity
+    recent_callsheet_entries = CallsheetEntry.query.filter(
+        CallsheetEntry.call_status != 'not_called'
+    ).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
+    
+    for entry in recent_callsheet_entries:
+        activities.append({
+            'type': 'callsheet_update',
+            'description': f'Updated callsheet for {entry.customer.name}',
+            'user': entry.entered_by.username,
+            'timestamp': entry.updated_at,
+            'link': url_for('main.callsheets'),
+            'icon': 'bi-telephone'
+        })
+    
+    # Sort all activities by timestamp and limit to 10
+    activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    activities = activities[:10]
+    
+    # Convert timestamps to ISO format for JavaScript
+    for activity in activities:
+        activity['timestamp'] = activity['timestamp'].isoformat()
+    
+    return jsonify(activities)

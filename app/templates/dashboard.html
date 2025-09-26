@@ -1,5 +1,8 @@
 {% extends "base.html" %} {% block content %}
 
+<!-- Include Quill.js CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
+
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Dashboard - Welcome, {{ current_user.username }}</h2>
@@ -7,9 +10,36 @@
   </div>
 
   <div class="dashboard-container">
+    <!-- Stats Row -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <h3 class="text-primary" id="updatesThisWeek">-</h3>
+            <small class="text-muted">Updates This Week</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <h3 class="text-warning" id="pendingForms">-</h3>
+            <small class="text-muted">Pending Forms</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title">Weekly Activity</h6>
+            <canvas id="activityChart" height="60"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content Area -->
     <div class="dashboard-content">
-      <!-- Company Updates Section -->
       <div class="row mb-3">
         <div class="col-md-8">
           <div class="card">
@@ -26,32 +56,24 @@
                 </button>
               </div>
             </div>
-            <div class="card-body" style="max-height: 100vh; overflow-y: auto">
+            <div class="card-body">
               <div id="updatesList">
                 <!-- Updates will be loaded here -->
               </div>
             </div>
           </div>
         </div>
-        <!-- Recent Forms Section -->
+        <!-- Recent Activity Section -->
         <div class="col-md-4">
           <div class="card">
-            <div class="card-header bg-info text-white">
+            <div class="card-header bg-success text-white">
               <h5 class="mb-0">
-                <i class="bi bi-file-text-fill"></i> Recent Forms
+                <i class="bi bi-activity"></i> Recent Activity
               </h5>
             </div>
-            <div class="card-body" style="max-height: 100vh; overflow-y: auto">
-              <div id="recentFormsList">
-                <!-- Recent forms will be loaded here -->
-              </div>
-              <div class="text-center mt-3">
-                <a
-                  href="{{ url_for('main.forms') }}"
-                  class="btn btn-outline-primary"
-                >
-                  <i class="bi bi-folder-open"></i> View All Forms
-                </a>
+            <div class="card-body" style="max-height: 70vh; overflow-y: auto">
+              <div id="recentActivityList">
+                <!-- Recent activity will be loaded here -->
               </div>
             </div>
           </div>
@@ -61,9 +83,9 @@
   </div>
 </div>
 
-<!-- Add Update Modal -->
+<!-- Enhanced Add Update Modal -->
 <div class="modal fade" id="addUpdateModal" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Add Company Update</h5>
@@ -78,24 +100,41 @@
           <label class="form-label">Title</label>
           <input type="text" class="form-control" id="updateTitle" />
         </div>
+
         <div class="mb-3">
           <label class="form-label">Message</label>
-          <textarea class="form-control" id="updateMessage" rows="3"></textarea>
+          <!-- Rich Text Editor Container -->
+          <div id="quillEditor" style="height: 200px"></div>
+          <input type="hidden" id="updateMessage" />
         </div>
-        <div class="mb-3">
-          <label class="form-label">Priority</label>
-          <select class="form-select" id="updatePriority">
-            <option value="normal">Normal</option>
-            <option value="important">Important</option>
-            <option value="urgent">Urgent</option>
-          </select>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label">Priority</label>
+              <select class="form-select" id="updatePriority">
+                <option value="normal">Normal</option>
+                <option value="important">Important</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <div class="form-check mt-4">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="updateSticky"
+                />
+                <label class="form-check-label" for="updateSticky">
+                  Pin to top
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="updateSticky" />
-          <label class="form-check-label" for="updateSticky">
-            Pin this update to top
-          </label>
-        </div>
+
         <div class="form-check mb-3">
           <input class="form-check-input" type="checkbox" id="isEvent" />
           <label class="form-check-label" for="isEvent">
@@ -120,16 +159,28 @@
 </div>
 
 {% endblock %} {% block scripts %}
+<!-- Include Quill.js -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
   let addUpdateModal;
+  let quill;
+  let activityChart;
 
   document.addEventListener("DOMContentLoaded", function () {
     addUpdateModal = new bootstrap.Modal(
       document.getElementById("addUpdateModal")
     );
-    loadTodos();
+
+    // Initialize Quill editor
+    initializeQuillEditor();
+
+    // Load dashboard data
+    loadDashboardStats();
     loadUpdates();
-    loadRecentForms();
+    loadRecentActivity();
 
     // Event checkbox handler
     document.getElementById("isEvent").addEventListener("change", function () {
@@ -138,128 +189,155 @@
     });
   });
 
-  // Margin Calculator Functions
-  function calculateFromCost() {
-    const cost = parseFloat(document.getElementById("costPrice").value) || 0;
-    const margin =
-      parseFloat(document.getElementById("desiredMargin").value) || 0;
+  function initializeQuillEditor() {
+    const toolbarOptions = [["bold", "italic"], ["link"], ["image"]];
 
-    if (cost > 0 && margin > 0) {
-      // Formula: Selling Price = Cost Price / (1 - Margin/100)
-      const sellingPrice = cost / (1 - margin / 100);
-      document.getElementById("sellingPrice").value = sellingPrice.toFixed(2);
-    }
+    quill = new Quill("#quillEditor", {
+      theme: "snow",
+      modules: {
+        toolbar: {
+          container: toolbarOptions,
+          handlers: {
+            image: imageHandler,
+          },
+        },
+      },
+    });
   }
 
-  function calculateFromMargin() {
-    const cost = parseFloat(document.getElementById("costPrice").value) || 0;
-    const margin =
-      parseFloat(document.getElementById("desiredMargin").value) || 0;
+  // Custom image handler
+  function imageHandler() {
+    const input = document.createElement("input");
+    input.setAttribute("type", "file");
+    input.setAttribute("accept", "image/*");
+    input.click();
 
-    if (cost > 0 && margin > 0 && margin < 100) {
-      const sellingPrice = cost / (1 - margin / 100);
-      document.getElementById("sellingPrice").value = sellingPrice.toFixed(2);
-    }
-  }
-
-  // Todo List Functions
-  async function loadTodos() {
-    try {
-      const response = await fetch("/api/todos");
-      const todos = await response.json();
-
-      const todoList = document.getElementById("todoList");
-      todoList.innerHTML = "";
-
-      todos.forEach((todo) => {
-        const todoItem = document.createElement("div");
-        todoItem.className = `todo-item ${todo.completed ? "completed" : ""}`;
-        todoItem.innerHTML = `
-          <input type="checkbox" ${todo.completed ? "checked" : ""} 
-                 onchange="toggleTodo(${todo.id})">
-          <span style="flex: 1">${todo.text}</span>
-          <button class="btn btn-sm btn-danger" onclick="deleteTodo(${
-            todo.id
-          })">
-              <i class="bi bi-trash"></i>
-          </button>
-        `;
-        todoList.appendChild(todoItem);
-      });
-    } catch (error) {
-      console.error("Error loading todos:", error);
-    }
-  }
-
-  async function addTodo() {
-    const input = document.getElementById("newTodoInput");
-    const text = input.value.trim();
-
-    if (text) {
-      try {
-        const response = await fetch("/api/todos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: text }),
-        });
-
-        if (response.ok) {
-          loadTodos();
-          input.value = "";
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (file) {
+        // Check file size (2MB limit)
+        if (file.size > 2 * 1024 * 1024) {
+          alert("File too large. Maximum size is 2MB.");
+          return;
         }
-      } catch (error) {
-        console.error("Error adding todo:", error);
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+          const response = await fetch("/api/upload-image", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            // Insert image into editor
+            const range = quill.getSelection();
+            quill.insertEmbed(range.index, "image", result.image_url);
+          } else {
+            alert(result.message);
+          }
+        } catch (error) {
+          console.error("Upload error:", error);
+          alert("Upload failed");
+        }
       }
-    }
+    };
   }
 
-  async function toggleTodo(id) {
+  // Dashboard Stats Functions
+  async function loadDashboardStats() {
     try {
-      await fetch(`/api/todos/${id}/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      loadTodos();
+      const response = await fetch("/api/dashboard-stats");
+      const stats = await response.json();
+
+      // Update stat cards
+      document.getElementById("updatesThisWeek").textContent =
+        stats.updates_this_week;
+      document.getElementById("pendingForms").textContent = stats.pending_forms;
+
+      // Create activity chart
+      createActivityChart(stats.weekly_activity);
     } catch (error) {
-      console.error("Error toggling todo:", error);
+      console.error("Error loading dashboard stats:", error);
     }
   }
 
-  async function deleteTodo(id) {
-    if (confirm("Delete this task?")) {
-      try {
-        await fetch(`/api/todos/${id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
-        loadTodos();
-      } catch (error) {
-        console.error("Error deleting todo:", error);
-      }
+  function createActivityChart(data) {
+    const ctx = document.getElementById("activityChart").getContext("2d");
+
+    // Destroy existing chart if it exists
+    if (activityChart) {
+      activityChart.destroy();
     }
+
+    activityChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.map((d) => d.day),
+        datasets: [
+          {
+            label: "Activity",
+            data: data.map((d) => d.total),
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0, 123, 255, 0.1)",
+            tension: 0.3,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
+          },
+        },
+      },
+    });
   }
 
   // Company Updates Functions
   function showAddUpdateModal() {
+    // Clear previous content
+    quill.setContents([]);
+    document.getElementById("updateTitle").value = "";
+    document.getElementById("updatePriority").value = "normal";
+    document.getElementById("updateSticky").checked = false;
+    document.getElementById("isEvent").checked = false;
+    document.getElementById("eventDate").value = "";
+    document.getElementById("eventDateContainer").style.display = "none";
+
     addUpdateModal.show();
   }
 
   async function saveUpdate() {
     const title = document.getElementById("updateTitle").value;
-    const message = document.getElementById("updateMessage").value;
+    const message = quill.root.innerHTML; // Get rich HTML content
     const priority = document.getElementById("updatePriority").value;
     const sticky = document.getElementById("updateSticky").checked;
     const isEvent = document.getElementById("isEvent").checked;
     const eventDate = document.getElementById("eventDate").value;
 
-    if (title && message) {
+    if (title && quill.getText().trim()) {
+      // Check if there's actual content
       try {
         const response = await fetch("/api/company-updates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: title,
-            message: message,
+            message: message, // Now contains HTML
             priority: priority,
             sticky: sticky,
             is_event: isEvent,
@@ -269,20 +347,15 @@
 
         if (response.ok) {
           loadUpdates();
+          loadDashboardStats(); // Refresh stats
+          loadRecentActivity(); // Refresh activity
           addUpdateModal.hide();
-
-          // Clear form
-          document.getElementById("updateTitle").value = "";
-          document.getElementById("updateMessage").value = "";
-          document.getElementById("updatePriority").value = "normal";
-          document.getElementById("updateSticky").checked = false;
-          document.getElementById("isEvent").checked = false;
-          document.getElementById("eventDate").value = "";
-          document.getElementById("eventDateContainer").style.display = "none";
         }
       } catch (error) {
         console.error("Error saving update:", error);
       }
+    } else {
+      alert("Please enter a title and message");
     }
   }
 
@@ -294,9 +367,15 @@
       const updatesList = document.getElementById("updatesList");
       updatesList.innerHTML = "";
 
+      if (updates.length === 0) {
+        updatesList.innerHTML =
+          '<p class="text-muted text-center">No updates yet. Be the first to post!</p>';
+        return;
+      }
+
       updates.forEach((update) => {
         const updateItem = document.createElement("div");
-        updateItem.className = "update-item";
+        updateItem.className = "update-item border rounded p-3 mb-3";
 
         const badge =
           update.priority === "urgent"
@@ -310,36 +389,40 @@
         let eventInfo = "";
         if (update.is_event && update.event_date) {
           const eventDate = new Date(update.event_date);
-          eventInfo = `<div class="text-info small"><i class="bi bi-calendar-event"></i> ${eventDate.toLocaleString()}</div>`;
+          eventInfo = `<div class="text-info small mb-2"><i class="bi bi-calendar-event"></i> ${eventDate.toLocaleString()}</div>`;
         }
 
         updateItem.innerHTML = `
-          <div class="d-flex justify-content-between">
-              <strong>${update.title}</strong>
-              <div>
+          <div class="d-flex justify-content-between align-items-start mb-2">
+              <h6 class="mb-0">${update.title}</h6>
+              <div class="d-flex align-items-center">
                   ${
                     update.sticky
-                      ? '<i class="bi bi-pin-angle-fill text-primary me-2"></i>'
+                      ? '<i class="bi bi-pin-angle-fill text-primary me-2" title="Pinned"></i>'
                       : ""
                   }
                   ${
                     update.is_event
-                      ? '<i class="bi bi-calendar-event text-info me-2"></i>'
+                      ? '<i class="bi bi-calendar-event text-info me-2" title="Event"></i>'
                       : ""
                   }
                   <span class="badge bg-${badge}">${update.priority}</span>
-                  <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteUpdate(${
-                    update.id
-                  })">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                  ${
+                    update.can_delete
+                      ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteUpdate(${update.id})" title="Delete">
+                        <i class="bi bi-trash"></i>
+                      </button>`
+                      : ""
+                  }
               </div>
           </div>
-          <p class="mb-1">${update.message}</p>
           ${eventInfo}
-          <div class="update-meta">Posted by ${
-            update.author_name
-          } • ${timeAgo}</div>
+          <div class="update-content">${update.message}</div>
+          <div class="update-meta mt-2 pt-2 border-top">
+            <small class="text-muted">Posted by ${
+              update.author_name
+            } • ${timeAgo}</small>
+          </div>
         `;
 
         updatesList.appendChild(updateItem);
@@ -357,46 +440,57 @@
           headers: { "Content-Type": "application/json" },
         });
         loadUpdates();
+        loadDashboardStats(); // Refresh stats
+        loadRecentActivity(); // Refresh activity
       } catch (error) {
         console.error("Error deleting update:", error);
       }
     }
   }
 
-  // Recent Forms Functions
-  async function loadRecentForms() {
+  // Recent Activity Functions
+  async function loadRecentActivity() {
     try {
-      const response = await fetch("/api/recent-forms");
-      const forms = await response.json();
+      const response = await fetch("/api/recent-activity");
+      const activities = await response.json();
 
-      const formsList = document.getElementById("recentFormsList");
-      formsList.innerHTML = "";
+      const activityList = document.getElementById("recentActivityList");
+      activityList.innerHTML = "";
 
-      if (forms.length === 0) {
-        formsList.innerHTML = '<p class="text-muted">No forms created yet.</p>';
+      if (activities.length === 0) {
+        activityList.innerHTML =
+          '<p class="text-muted text-center">No recent activity</p>';
         return;
       }
 
-      forms.forEach((form) => {
-        const formItem = document.createElement("div");
-        formItem.className = "border-bottom pb-2 mb-2";
+      activities.forEach((activity) => {
+        const activityItem = document.createElement("div");
+        activityItem.className = "activity-item border-bottom pb-2 mb-2";
 
-        const timeAgo = getTimeAgo(new Date(form.date_created));
+        const timeAgo = getTimeAgo(new Date(activity.timestamp));
+        const linkHtml = activity.link
+          ? `<a href="${activity.link}" class="text-decoration-none">`
+          : "<span>";
+        const linkCloseHtml = activity.link ? "</a>" : "</span>";
 
-        formItem.innerHTML = `
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <strong>${form.type}</strong><br>
-              <p>${form.customer_name}<p>
-              <small class="text-muted">by ${form.author} • ${timeAgo}</small>
+        activityItem.innerHTML = `
+          <div class="d-flex align-items-start">
+            <i class="${activity.icon} text-primary me-2 mt-1"></i>
+            <div class="flex-fill">
+              ${linkHtml}
+                <div class="small">${activity.description}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">
+                  by ${activity.user} • ${timeAgo}
+                </div>
+              ${linkCloseHtml}
             </div>
-            <a href="/form/${form.id}" class="btn btn-sm btn-outline-primary">View</a>
           </div>
         `;
-        formsList.appendChild(formItem);
+
+        activityList.appendChild(activityItem);
       });
     } catch (error) {
-      console.error("Error loading recent forms:", error);
+      console.error("Error loading recent activity:", error);
     }
   }
 
@@ -421,4 +515,49 @@
     return "Just now";
   }
 </script>
+
+<style>
+  .update-item {
+    transition: all 0.2s ease;
+  }
+
+  .update-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .update-content {
+    line-height: 1.5;
+  }
+
+  .update-content p {
+    margin-bottom: 0.5rem;
+  }
+
+  .update-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .activity-item:last-child {
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Quill editor customization */
+  .ql-editor {
+    min-height: 150px;
+  }
+
+  .ql-toolbar.ql-snow {
+    border-top: 1px solid #ccc;
+    border-left: 1px solid #ccc;
+    border-right: 1px solid #ccc;
+  }
+
+  .ql-container.ql-snow {
+    border-bottom: 1px solid #ccc;
+    border-left: 1px solid #ccc;
+    border-right: 1px solid #ccc;
+  }
+</style>
 {% endblock %}
