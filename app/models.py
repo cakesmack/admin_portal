@@ -92,6 +92,9 @@ class CompanyUpdate(db.Model):
     sticky = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    category = db.Column(db.String(50), default='general')
+
+
 
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)

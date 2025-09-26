@@ -1,4 +1,4 @@
-{% extends "base.html" %} {% block content %}
+// Dashboard Stats Functions{% extends "base.html" %} {% block content %}
 
 <!-- Include Quill.js CSS -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
@@ -102,6 +102,13 @@
         </div>
 
         <div class="mb-3">
+          <label class="form-label">Category</label>
+          <select class="form-select" id="updateCategory">
+            <!-- Categories will be loaded here -->
+          </select>
+        </div>
+
+        <div class="mb-3">
           <label class="form-label">Message</label>
           <!-- Rich Text Editor Container -->
           <div id="quillEditor" style="height: 200px"></div>
@@ -168,6 +175,7 @@
   let addUpdateModal;
   let quill;
   let activityChart;
+  let categories = {};
 
   document.addEventListener("DOMContentLoaded", function () {
     addUpdateModal = new bootstrap.Modal(
@@ -178,6 +186,7 @@
     initializeQuillEditor();
 
     // Load dashboard data
+    loadCategories();
     loadDashboardStats();
     loadUpdates();
     loadRecentActivity();
@@ -246,7 +255,26 @@
     };
   }
 
-  // Dashboard Stats Functions
+  // Load Categories
+  async function loadCategories() {
+    try {
+      const response = await fetch("/api/categories");
+      categories = await response.json();
+
+      // Populate category dropdown
+      const categorySelect = document.getElementById("updateCategory");
+      categorySelect.innerHTML = "";
+
+      Object.keys(categories).forEach((key) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = categories[key].name;
+        categorySelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    }
+  }
   async function loadDashboardStats() {
     try {
       const response = await fetch("/api/dashboard-stats");
@@ -312,6 +340,7 @@
     // Clear previous content
     quill.setContents([]);
     document.getElementById("updateTitle").value = "";
+    document.getElementById("updateCategory").value = "general";
     document.getElementById("updatePriority").value = "normal";
     document.getElementById("updateSticky").checked = false;
     document.getElementById("isEvent").checked = false;
@@ -323,39 +352,71 @@
 
   async function saveUpdate() {
     const title = document.getElementById("updateTitle").value;
-    const message = quill.root.innerHTML; // Get rich HTML content
+    const category = document.getElementById("updateCategory").value;
     const priority = document.getElementById("updatePriority").value;
     const sticky = document.getElementById("updateSticky").checked;
     const isEvent = document.getElementById("isEvent").checked;
     const eventDate = document.getElementById("eventDate").value;
 
-    if (title && quill.getText().trim()) {
-      // Check if there's actual content
+    // Get message content from Quill editor
+    let message = "";
+    if (quill) {
+      message = quill.root.innerHTML;
+      // Check if the editor actually has content (not just empty tags)
+      const textContent = quill.getText().trim();
+      if (!textContent) {
+        message = "";
+      }
+    }
+
+    console.log("Debug - Title:", title);
+    console.log("Debug - Message HTML:", message);
+    console.log("Debug - Message Text:", quill ? quill.getText() : "No quill");
+
+    if (title && message && quill && quill.getText().trim()) {
       try {
+        const payload = {
+          title: title,
+          message: message,
+          category: category,
+          priority: priority,
+          sticky: sticky,
+          is_event: isEvent,
+          event_date: eventDate || null,
+        };
+
+        console.log("Sending payload:", payload);
+
         const response = await fetch("/api/company-updates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title,
-            message: message, // Now contains HTML
-            priority: priority,
-            sticky: sticky,
-            is_event: isEvent,
-            event_date: eventDate || null,
-          }),
+          body: JSON.stringify(payload),
         });
 
         if (response.ok) {
           loadUpdates();
-          loadDashboardStats(); // Refresh stats
-          loadRecentActivity(); // Refresh activity
+          loadDashboardStats();
+          loadRecentActivity();
           addUpdateModal.hide();
+        } else {
+          const errorData = await response.text();
+          console.error("Server error:", errorData);
+          alert("Error saving update: " + errorData);
         }
       } catch (error) {
         console.error("Error saving update:", error);
+        alert("Error saving update: " + error.message);
       }
     } else {
       alert("Please enter a title and message");
+      console.log(
+        "Validation failed - Title:",
+        !!title,
+        "Message:",
+        !!message,
+        "Quill text:",
+        quill ? quill.getText().trim() : "No quill"
+      );
     }
   }
 
@@ -375,7 +436,12 @@
 
       updates.forEach((update) => {
         const updateItem = document.createElement("div");
-        updateItem.className = "update-item border rounded p-3 mb-3";
+        const categoryColor = categories[update.category]?.color || "#6c757d";
+
+        // Remove the 'border' class and apply all styling via JavaScript
+        updateItem.className = "update-item rounded p-3 mb-3";
+        updateItem.style.border = `1px solid ${categoryColor}`;
+        updateItem.style.borderLeft = `4px solid ${categoryColor}`;
 
         const badge =
           update.priority === "urgent"
@@ -392,9 +458,15 @@
           eventInfo = `<div class="text-info small mb-2"><i class="bi bi-calendar-event"></i> ${eventDate.toLocaleString()}</div>`;
         }
 
+        // Category badge
+        const categoryName = categories[update.category]?.name || "General";
+
         updateItem.innerHTML = `
           <div class="d-flex justify-content-between align-items-start mb-2">
-              <h6 class="mb-0">${update.title}</h6>
+              <div class="d-flex align-items-center">
+                <h6 class="mb-0 me-2">${update.title}</h6>
+                <span class="badge rounded-pill" style="background-color: ${categoryColor}; color: white; font-size: 0.7rem;">${categoryName}</span>
+              </div>
               <div class="d-flex align-items-center">
                   ${
                     update.sticky
@@ -418,7 +490,7 @@
           </div>
           ${eventInfo}
           <div class="update-content">${update.message}</div>
-          <div class="update-meta mt-2 pt-2 border-top">
+          <div class="update-meta mt-2 pt-2" style="border-top: 2px solid ${categoryColor};">
             <small class="text-muted">Posted by ${
               update.author_name
             } • ${timeAgo}</small>

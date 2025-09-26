@@ -11,6 +11,8 @@ import os
 from werkzeug.utils import secure_filename
 from PIL import Image
 import uuid
+from bs4 import BeautifulSoup
+import bleach
 
 main = Blueprint('main', __name__)
 
@@ -32,6 +34,46 @@ SAMPLE_PRODUCTS = [
     {'code': 'CAT001', 'name': 'Disposable Plates'},
     {'code': 'CAT002', 'name': 'Plastic Cutlery Pack'},
 ]
+
+
+def sanitize_html_content(html_content):
+    """Sanitize HTML content to prevent XSS attacks - DEBUG VERSION"""
+    print(f"  sanitize_html_content called with: '{html_content}' (type: {type(html_content)})")
+    
+    if html_content is None:
+        print("  ERROR: html_content is None!")
+        return None
+        
+    if not isinstance(html_content, str):
+        print(f"  ERROR: html_content is not string, it's {type(html_content)}")
+        return str(html_content)  # Try to convert
+    
+    allowed_tags = [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'img', 'ol', 'ul', 'li'
+    ]
+    allowed_attributes = {
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height', 'style']
+    }
+    allowed_protocols = ['http', 'https', 'mailto']
+    
+    try:
+        print("  About to call bleach.clean...")
+        result = bleach.clean(
+            html_content,
+            tags=allowed_tags,
+            attributes=allowed_attributes,
+            protocols=allowed_protocols,
+            strip=True
+        )
+        print(f"  bleach.clean result: '{result}' (type: {type(result)})")
+        return result
+        
+    except Exception as e:
+        print(f"  ERROR in bleach.clean: {e}")
+        import traceback
+        traceback.print_exc()
+        return html_content  # Return original if sanitization fails
 
 @main.route('/')
 def index():
@@ -343,6 +385,7 @@ def get_company_updates():
         'id': update.id,
         'title': update.title,
         'message': update.message,
+        'category': getattr(update, 'category', 'general'),  # Include category
         'priority': update.priority,
         'sticky': update.sticky,
         'is_event': update.is_event,
@@ -351,6 +394,27 @@ def get_company_updates():
         'author_name': update.author.username,
         'can_delete': update.user_id == current_user.id
     } for update in updates])
+
+# Add this function to get category colors
+def get_category_config():
+    """Get category configuration with colors"""
+    return {
+        'general': {'color': '#6c757d', 'name': 'General'},
+        'safety': {'color': '#dc3545', 'name': 'Safety'},
+        'training': {'color': '#28a745', 'name': 'Training'},
+        'product': {'color': '#007bff', 'name': 'Product Updates'},
+        'events': {'color': '#6f42c1', 'name': 'Events'},
+        'policy': {'color': '#fd7e14', 'name': 'Policy Changes'},
+        'maintenance': {'color': '#20c997', 'name': 'Maintenance'},
+        'announcement': {'color': '#e83e8c', 'name': 'Announcements'}
+    }
+
+# Add route to get categories
+@main.route('/api/categories')
+@login_required
+def get_categories():
+    """Get available categories for company updates"""
+    return jsonify(get_category_config())
 
 
 @main.route('/api/company-updates/<int:update_id>', methods=['DELETE'])
@@ -1459,27 +1523,7 @@ def search_customer_stock():
     stock_items = stock_query.limit(20).all()
     return jsonify([item.to_dict() for item in stock_items])
 
-def sanitize_and_resize_images(html_content):
-    """Sanitize HTML content and resize images inline"""
-    from bs4 import BeautifulSoup
-    
-    # First sanitize
-    allowed_tags = [
-        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'img', 'ol', 'ul', 'li'
-    ]
-    allowed_attributes = {
-        'a': ['href', 'title'],
-        'img': ['src', 'alt', 'title', 'width', 'height', 'style']
-    }
-    allowed_protocols = ['http', 'https', 'mailto']
-    
-    sanitized = bleach.clean(
-        html_content,
-        tags=allowed_tags,
-        attributes=allowed_attributes,
-        protocols=allowed_protocols,
-        strip=True
-    )
+
 
 @main.route('/standing-orders')
 @login_required
@@ -1923,27 +1967,81 @@ def upload_image():
 def create_company_update():
     data = request.json
     
+    print("=== SUPER DEBUG: Company Update ===")
+    print(f"Raw data type: {type(data)}")
+    print(f"Raw data: {data}")
+    print(f"Data keys: {list(data.keys()) if data else 'None'}")
+    
+    title = data.get('title')
+    message_raw = data.get('message')
+    category = data.get('category', 'general')
+    
+    print(f"Title: '{title}' (type: {type(title)})")
+    print(f"Message raw: '{message_raw}' (type: {type(message_raw)})")
+    print(f"Category: '{category}' (type: {type(category)})")
+    
+    if not message_raw:
+        print("ERROR: message_raw is falsy")
+        return jsonify({'success': False, 'message': 'No message received'}), 400
+    
+    # Test the sanitize function step by step
+    print("Testing sanitize function...")
+    try:
+        print("About to call sanitize_html_content...")
+        sanitized = sanitize_html_content(message_raw)
+        print(f"Sanitized result: '{sanitized}' (type: {type(sanitized)})")
+        
+        if sanitized is None:
+            print("ERROR: sanitize_html_content returned None")
+            return jsonify({'success': False, 'message': 'Sanitization returned None'}), 400
+            
+        if not sanitized.strip():
+            print("ERROR: sanitized message is empty after strip")
+            return jsonify({'success': False, 'message': 'Sanitized message is empty'}), 400
+            
+    except Exception as e:
+        print(f"ERROR in sanitize_html_content: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Sanitization error: {str(e)}'}), 400
+    
+    # If we get here, sanitization worked
+    print(f"Final sanitized message: '{sanitized}'")
+    
     event_date = None
     if data.get('is_event') and data.get('event_date'):
         event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
     
-    # Sanitize the HTML content and resize images
-    sanitized_message = sanitize_and_resize_images(data['message'])
-    
-    # Enhanced update with rich content and category
-    update = CompanyUpdate(
-        title=data['title'],
-        message=sanitized_message,
-        category=data.get('category', 'general'),  # New category field
-        priority=data.get('priority', 'normal'),
-        sticky=data.get('sticky', False),
-        is_event=data.get('is_event', False),
-        event_date=event_date,
-        user_id=current_user.id
-    )
-    db.session.add(update)
-    db.session.commit()
-    return jsonify({'success': True, 'id': update.id})
+    try:
+        print("Creating CompanyUpdate object...")
+        update = CompanyUpdate(
+            title=title,
+            message=sanitized,
+            category=category,
+            priority=data.get('priority', 'normal'),
+            sticky=data.get('sticky', False),
+            is_event=data.get('is_event', False),
+            event_date=event_date,
+            user_id=current_user.id
+        )
+        
+        print(f"Update object created. Message field: '{update.message}'")
+        
+        db.session.add(update)
+        print("About to commit...")
+        db.session.commit()
+        print("Commit successful!")
+        print("=== END SUPER DEBUG ===")
+        
+        return jsonify({'success': True, 'id': update.id})
+        
+    except Exception as e:
+        print(f"ERROR in database operation: {e}")
+        import traceback
+        traceback.print_exc()
+        print("=== END SUPER DEBUG ===")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Dashboard stats API
 @main.route('/api/dashboard-stats')
