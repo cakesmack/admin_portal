@@ -964,3 +964,362 @@ pre {
     min-height: 120px;
   }
 }
+/* ================================================
+   CONSOLIDATED CSS FROM ALL TEMPLATES
+   ================================================ */
+
+/* === DASHBOARD STYLES === */
+.update-item {
+  transition: all 0.2s ease;
+}
+
+.update-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.update-content {
+  line-height: 1.5;
+}
+
+.update-content p {
+  margin-bottom: 0.5rem;
+}
+
+.update-content p:last-child {
+  margin-bottom: 0;
+}
+
+.activity-item:last-child {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Quill editor customization */
+.ql-editor {
+  min-height: 150px;
+}
+
+.ql-toolbar.ql-snow {
+  border-top: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+}
+
+.ql-container.ql-snow {
+  border-bottom: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+}
+
+/* Activity timeline styles */
+.activity-item {
+  position: relative;
+  padding-left: 0;
+}
+
+.activity-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 35px;
+  height: calc(100% - 10px);
+  width: 2px;
+  background: var(--border-color);
+}
+
+.activity-icon {
+  width: 20px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.activity-content {
+  min-height: 40px;
+  padding-left: 10px;
+}
+
+/* === CALLSHEETS STYLES === */
+.nav-pills .nav-link {
+  background-color: #f8f9fa;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.nav-pills .nav-link.active {
+  background-color: #0d6efd;
+}
+
+.nav-pills .nav-link i {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.nav-pills .nav-link i:hover {
+  opacity: 1;
+}
+
+.status-select {
+  min-width: 120px;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+.select2-container--bootstrap-5 .select2-selection {
+  min-height: 38px;
+}
+
+/* === CUSTOMER STOCK STYLES === */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.cursor-pointer:hover {
+  background-color: var(--dark-card-hover);
+}
+
+#quickSearchResults .border:hover {
+  border-color: var(--primary-blue) !important;
+}
+
+/* === FORMS SHARED STYLES === */
+.search-container {
+  position: relative;
+}
+
+.dropdown-results {
+  border: 2px solid var(--border-color) !important;
+  background: var(--dark-card) !important;
+}
+
+.dropdown-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-results::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+.dropdown-results::-webkit-scrollbar-thumb {
+  background: var(--primary-blue);
+  border-radius: 3px;
+}
+
+/* === STOCK CARD STYLES === */
+.stock-item-card {
+  border: 2px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.stock-item-card:hover {
+  border-color: var(--primary-blue) !important;
+}
+
+/* === STANDING ORDER SCHEDULE STYLES === */
+@media print {
+  .btn,
+  .btn-group {
+    display: none !important;
+  }
+  .card {
+    border: 1px solid #000 !important;
+  }
+  input[type="checkbox"] {
+    display: none !important;
+  }
+}
+
+/* === STANDING ORDER DETAIL STYLES === */
+@media print {
+  .btn,
+  .card-header .badge {
+    display: none !important;
+  }
+}
+
+/* === PRINT FORM STYLES === */
+@media print {
+  .no-print {
+    display: none;
+  }
+  body {
+    padding: 10px;
+  }
+  .btn {
+    display: none;
+  }
+}
+
+.btn {
+  padding: 8px 16px;
+  margin: 0 5px;
+  border: 1px solid #007bff;
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}
+
+/* Print form specific styles */
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #000;
+  padding-bottom: 10px;
+}
+
+.company-name {
+  font-size: 24px;
+  font-weight: bold;
+  color: #084385;
+}
+
+.form-title {
+  font-size: 20px;
+  margin: 10px 0;
+}
+
+.form-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.info-container {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.customer-details,
+.additional-info {
+  flex: 1;
+  background-color: #f8f9fa;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.customer-details h4,
+.additional-info h4 {
+  margin-top: 0;
+  color: #084385;
+  font-size: 14px;
+}
+
+.customer-details .detail-row {
+  display: flex;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.customer-details .label {
+  font-weight: bold;
+  width: 120px;
+}
+
+.additional-info p {
+  font-size: 13px;
+  margin: 5px 0;
+}
+
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+.products-table th {
+  background-color: #084385;
+  color: white;
+  padding: 6px;
+  text-align: left;
+  border: 1px solid #084385;
+  font-size: 13px;
+}
+
+.products-table td {
+  border: 1px solid #ddd;
+  padding: 5px;
+  min-height: 25px;
+  font-size: 12px;
+}
+
+.products-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.products-table .empty-row td {
+  height: 25px;
+  background: white;
+}
+
+.form-options {
+  border: 1px solid #084385;
+  padding: 8px 15px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+}
+
+.signature-area {
+  margin-top: 40px;
+  page-break-inside: avoid;
+}
+
+.signature-container {
+  display: flex;
+  justify-content: space-around;
+  gap: 40px;
+  margin-bottom: 30px;
+}
+
+.signature-box {
+  flex: 1;
+  text-align: center;
+}
+
+.signature-line {
+  border-top: 2px solid #000;
+  margin: 40px auto 10px;
+  width: 200px;
+}
+
+.footer {
+  margin-top: 30px;
+  border-top: 1px solid #000;
+  padding-top: 10px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.form-number {
+  font-size: 18px;
+  font-weight: bold;
+  color: #084385;
+}
