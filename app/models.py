@@ -56,39 +56,125 @@ class User(db.Model, UserMixin):
         temp_password = ''.join(secrets.choice(chars) for _ in range(12))
         return temp_password
     
+    # Replace the get_recent_activity method in your User model (app/models.py)
+
     def get_recent_activity(self, limit=10):
-        """Get recent activity for this user"""
         activities = []
         
-        # Recent forms
-        recent_forms = self.forms.order_by(Form.date_created.desc()).limit(5).all()
-        for form in recent_forms:
-            activities.append({
-                'type': 'form_created',
-                'description': f'Created {form.type.replace("_", " ").title()} form',
-                'date': form.date_created,
-                'link': f'/form/{form.id}'
-            })
+        try:
+            # Recent forms created by this user
+            recent_forms = Form.query.filter_by(user_id=self.id).order_by(Form.date_created.desc()).limit(5).all()
+            for form in recent_forms:
+                activities.append({
+                    'type': 'form_created',
+                    'description': f'Created {form.type.replace("_", " ").title()} form',
+                    'date': form.date_created,
+                    'link': f'/form/{form.id}'
+                })
+        except Exception as e:
+            print(f"Error loading forms for user {self.id}: {e}")
         
-        # Recent company updates
-        recent_updates = self.company_updates.order_by(CompanyUpdate.created_at.desc()).limit(5).all()
-        for update in recent_updates:
-            activities.append({
-                'type': 'company_update',
-                'description': f'Posted update: {update.title}',
-                'date': update.created_at,
-                'link': f'/dashboard'
-            })
+        try:
+            # Recent company updates by this user
+            recent_updates = CompanyUpdate.query.filter_by(user_id=self.id).order_by(CompanyUpdate.created_at.desc()).limit(3).all()
+            for update in recent_updates:
+                activities.append({
+                    'type': 'company_update',
+                    'description': f'Posted company update: {update.title}',
+                    'date': update.created_at,
+                    'link': None
+                })
+        except Exception as e:
+            print(f"Error loading company updates for user {self.id}: {e}")
         
-        # Recent callsheet entries
-        recent_entries = self.callsheet_entries.order_by(CallsheetEntry.updated_at.desc()).limit(5).all()
-        for entry in recent_entries:
-            activities.append({
-                'type': 'callsheet_entry',
-                'description': f'Updated callsheet for {entry.customer.name}',
-                'date': entry.updated_at,
-                'link': f'/callsheets'
-            })
+        try:
+            # Recent callsheet activity by this user
+            # Note: Fixed the relationship issue by using proper query
+            recent_callsheet_entries = CallsheetEntry.query.filter_by(user_id=self.id).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
+            for entry in recent_callsheet_entries:
+                activities.append({
+                    'type': 'callsheet_update',
+                    'description': f'Updated callsheet entry for {entry.customer.name}',
+                    'date': entry.updated_at,
+                    'link': '/callsheets'
+                })
+        except Exception as e:
+            print(f"Error loading callsheet entries for user {self.id}: {e}")
+        
+        try:
+            # Recent forms completed by this user
+            recent_completed_forms = Form.query.filter_by(completed_by=self.id).filter(
+                Form.completed_date.isnot(None)
+            ).order_by(Form.completed_date.desc()).limit(3).all()
+            
+            for form in recent_completed_forms:
+                activities.append({
+                    'type': 'form_completed',
+                    'description': f'Completed {form.type.replace("_", " ").title()} form',
+                    'date': form.completed_date,
+                    'link': f'/form/{form.id}'
+                })
+        except Exception as e:
+            print(f"Error loading completed forms for user {self.id}: {e}")
+        
+        # Try to load standing order activities if the models exist
+        try:
+            # Recent standing order creation
+            if 'StandingOrder' in globals():
+                recent_standing_orders = StandingOrder.query.filter_by(created_by=self.id).order_by(StandingOrder.created_at.desc()).limit(3).all()
+                for order in recent_standing_orders:
+                    activities.append({
+                        'type': 'standing_order_created',
+                        'description': f'Created standing order for {order.customer.name}',
+                        'date': order.created_at,
+                        'link': f'/standing-orders/{order.id}'
+                    })
+        except Exception as e:
+            print(f"Error loading standing orders for user {self.id}: {e}")
+        
+        try:
+            # Recent standing order actions if the models exist
+            if 'StandingOrderLog' in globals():
+                recent_so_logs = StandingOrderLog.query.filter_by(performed_by=self.id).filter(
+                    StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
+                ).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
+                
+                for log in recent_so_logs:
+                    action_descriptions = {
+                        'paused': f'Paused standing order for {log.standing_order.customer.name}',
+                        'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
+                        'ended': f'Ended standing order for {log.standing_order.customer.name}'
+                    }
+                    
+                    activities.append({
+                        'type': f'standing_order_{log.action_type}',
+                        'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
+                        'date': log.performed_at,
+                        'link': f'/standing-orders/{log.standing_order_id}'
+                    })
+        except Exception as e:
+            print(f"Error loading standing order logs for user {self.id}: {e}")
+        
+        try:
+            # Recent stock transactions if the models exist
+            if 'StockTransaction' in globals():
+                recent_stock_transactions = StockTransaction.query.filter_by(created_by=self.id).order_by(StockTransaction.transaction_date.desc()).limit(3).all()
+                for transaction in recent_stock_transactions:
+                    transaction_types = {
+                        'stock_in': 'Added stock for',
+                        'stock_out': 'Processed stock order for', 
+                        'adjustment': 'Adjusted stock for'
+                    }
+                    
+                    description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
+                    activities.append({
+                        'type': f'stock_{transaction.transaction_type}',
+                        'description': f'{description} {transaction.stock_item.customer.name}',
+                        'date': transaction.transaction_date,
+                        'link': '/customer-stock'
+                    })
+        except Exception as e:
+            print(f"Error loading stock transactions for user {self.id}: {e}")
         
         # Sort by date and return limited results
         activities.sort(key=lambda x: x['date'], reverse=True)

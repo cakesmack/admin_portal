@@ -2187,247 +2187,200 @@ def create_company_update():
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# Dashboard stats API
-@main.route('/api/dashboard-stats')
-@login_required
-def get_dashboard_stats():
-    """Get dashboard statistics"""
-    
-    # Calculate this week's date range
-    today = datetime.now().date()
-    week_start = today - timedelta(days=today.weekday())  # Monday
-    week_end = week_start + timedelta(days=6)  # Sunday
-    
-    # Get stats
-    updates_this_week = CompanyUpdate.query.filter(
-        CompanyUpdate.created_at >= datetime.combine(week_start, datetime.min.time()),
-        CompanyUpdate.created_at <= datetime.combine(week_end, datetime.max.time())
-    ).count()
-    
-    pending_forms = Form.query.filter_by(is_completed=False, is_archived=False).count()
-    
-    # Weekly activity data for chart (last 7 days)
-    weekly_data = []
-    for i in range(7):
-        day = today - timedelta(days=6-i)
-        day_start = datetime.combine(day, datetime.min.time())
-        day_end = datetime.combine(day, datetime.max.time())
-        
-        # Count forms and updates for this day
-        forms_count = Form.query.filter(
-            Form.date_created >= day_start,
-            Form.date_created <= day_end
-        ).count()
-        
-        updates_count = CompanyUpdate.query.filter(
-            CompanyUpdate.created_at >= day_start,
-            CompanyUpdate.created_at <= day_end
-        ).count()
-        
-        weekly_data.append({
-            'day': day.strftime('%a'),  # Mon, Tue, etc.
-            'date': day.strftime('%m/%d'),
-            'forms': forms_count,
-            'updates': updates_count,
-            'total': forms_count + updates_count
-        })
-    
-    return jsonify({
-        'updates_this_week': updates_this_week,
-        'pending_forms': pending_forms,
-        'weekly_activity': weekly_data
-    })
 
-# Enhanced recent activity API
-# Enhanced recent activity API
 @main.route('/api/recent-activity')
 @login_required
 def get_recent_activity():
-    """Get recent activity across the system"""
+    """Get recent activity across the system from all users"""
     activities = []
     
-    # Recent forms (created and completed)
-    recent_forms = Form.query.order_by(Form.date_created.desc()).limit(5).all()
-    for form in recent_forms:
-        activities.append({
-            'type': 'form_created',
-            'description': f'Created {form.type.replace("_", " ").title()} form',
-            'user': form.author.username,
-            'timestamp': form.date_created,
-            'link': url_for('main.view_form', form_id=form.id),
-            'icon': 'bi-file-text'
-        })
-    
-    # Recently completed forms
-    completed_forms = Form.query.filter(
-        Form.is_completed == True,
-        Form.completed_date.isnot(None)
-    ).order_by(Form.completed_date.desc()).limit(3).all()
-    
-    for form in completed_forms:
-        if form.completer:
+    try:
+        # Recent forms (created by any user)
+        recent_forms = Form.query.join(User, Form.user_id == User.id).order_by(Form.date_created.desc()).limit(5).all()
+        for form in recent_forms:
             activities.append({
-                'type': 'form_completed',
-                'description': f'Completed {form.type.replace("_", " ").title()} form',
-                'user': form.completer.username,
-                'timestamp': form.completed_date,
+                'type': 'form_created',
+                'description': f'Created {form.type.replace("_", " ").title()} form',
+                'user': form.author.username,
+                'timestamp': form.date_created,
                 'link': url_for('main.view_form', form_id=form.id),
-                'icon': 'bi-check-circle'
+                'icon': 'bi-file-text'
             })
+    except Exception as e:
+        print(f"Error loading recent forms: {e}")
     
-    # Recent standing order creation
-    recent_standing_orders = StandingOrder.query.order_by(StandingOrder.created_at.desc()).limit(3).all()
-    for order in recent_standing_orders:
-        activities.append({
-            'type': 'standing_order_created',
-            'description': f'Created standing order for {order.customer.name}',
-            'user': order.created_by_user.username,
-            'timestamp': order.created_at,
-            'link': url_for('main.view_standing_order', order_id=order.id),
-            'icon': 'bi-arrow-repeat'
-        })
-    
-    # Recent standing order actions (pause, resume, end)
-    recent_so_logs = StandingOrderLog.query.filter(
-        StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
-    ).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
-    
-    for log in recent_so_logs:
-        action_descriptions = {
-            'paused': f'Paused standing order for {log.standing_order.customer.name}',
-            'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
-            'ended': f'Ended standing order for {log.standing_order.customer.name}'
-        }
+    try:
+        # Recently completed forms (by any user)
+        completed_forms = Form.query.filter(
+            Form.is_completed == True,
+            Form.completed_date.isnot(None)
+        ).join(User, Form.completed_by == User.id).order_by(Form.completed_date.desc()).limit(3).all()
         
-        activities.append({
-            'type': f'standing_order_{log.action_type}',
-            'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
-            'user': log.user.username,
-            'timestamp': log.performed_at,
-            'link': url_for('main.view_standing_order', order_id=log.standing_order_id),
-            'icon': 'bi-arrow-repeat'
-        })
+        for form in completed_forms:
+            if form.completer:
+                activities.append({
+                    'type': 'form_completed',
+                    'description': f'Completed {form.type.replace("_", " ").title()} form',
+                    'user': form.completer.username,
+                    'timestamp': form.completed_date,
+                    'link': url_for('main.view_form', form_id=form.id),
+                    'icon': 'bi-check-circle'
+                })
+    except Exception as e:
+        print(f"Error loading completed forms: {e}")
     
-    # Recent company updates
-    recent_updates = CompanyUpdate.query.order_by(CompanyUpdate.created_at.desc()).limit(4).all()
-    for update in recent_updates:
-        activities.append({
-            'type': 'company_update',
-            'description': f'Posted update: {update.title}',
-            'user': update.author.username,
-            'timestamp': update.created_at,
-            'link': None,
-            'icon': 'bi-megaphone'
-        })
+    try:
+        # Recent company updates (by any user)
+        recent_updates = CompanyUpdate.query.join(User, CompanyUpdate.user_id == User.id).order_by(CompanyUpdate.created_at.desc()).limit(4).all()
+        for update in recent_updates:
+            activities.append({
+                'type': 'company_update',
+                'description': f'Posted update: {update.title}',
+                'user': update.author.username,
+                'timestamp': update.created_at,
+                'link': None,
+                'icon': 'bi-megaphone'
+            })
+    except Exception as e:
+        print(f"Error loading company updates: {e}")
     
-    # Recent callsheet activity
-    recent_callsheet_entries = CallsheetEntry.query.filter(
-        CallsheetEntry.call_status != 'not_called'
-    ).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
+    try:
+        # Recent callsheet creation (by any user)
+        recent_callsheets = Callsheet.query.join(User, Callsheet.created_by == User.id).order_by(Callsheet.created_at.desc()).limit(3).all()
+        for callsheet in recent_callsheets:
+            activities.append({
+                'type': 'callsheet_created',
+                'description': f'Created callsheet "{callsheet.name}" for {callsheet.day_of_week}',
+                'user': callsheet.created_by_user.username,
+                'timestamp': callsheet.created_at,
+                'link': url_for('main.callsheets'),
+                'icon': 'bi-calendar-plus'
+            })
+    except Exception as e:
+        print(f"Error loading recent callsheets: {e}")
     
-    for entry in recent_callsheet_entries:
-        activities.append({
-            'type': 'callsheet_update',
-            'description': f'Updated callsheet for {entry.customer.name}',
-            'user': entry.entered_by.username,
-            'timestamp': entry.updated_at,
-            'link': url_for('main.callsheets'),
-            'icon': 'bi-telephone'
-        })
-    
-    # Recent customer stock transactions
-    recent_stock_transactions = StockTransaction.query.order_by(StockTransaction.transaction_date.desc()).limit(3).all()
-    for transaction in recent_stock_transactions:
-        transaction_types = {
-            'stock_in': 'Added stock for',
-            'stock_out': 'Processed stock order for', 
-            'adjustment': 'Adjusted stock for'
-        }
+    try:
+        # Recent customers added to callsheets (by any user)
+        recent_callsheet_additions = CallsheetEntry.query.join(
+            User, CallsheetEntry.user_id == User.id
+        ).join(
+            Customer, CallsheetEntry.customer_id == Customer.id
+        ).join(
+            Callsheet, CallsheetEntry.callsheet_id == Callsheet.id
+        ).order_by(CallsheetEntry.id.desc()).limit(5).all()  # Use id.desc() to get most recently added
         
-        description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
-        activities.append({
-            'type': f'stock_{transaction.transaction_type}',
-            'description': f'{description} {transaction.stock_item.customer.name}',
-            'user': transaction.user.username,
-            'timestamp': transaction.transaction_date,
-            'link': url_for('main.customer_stock'),
-            'icon': 'bi-box-seam'
-        })
+        for entry in recent_callsheet_additions:
+            # Only show if this was recently created (within last few days)
+            if (datetime.now() - entry.callsheet.created_at).days <= 7:
+                activities.append({
+                    'type': 'callsheet_customer_added',
+                    'description': f'Added {entry.customer.name} to callsheet "{entry.callsheet.name}"',
+                    'user': User.query.get(entry.user_id).username,
+                    'timestamp': entry.callsheet.created_at,  # Use callsheet creation time as proxy
+                    'link': url_for('main.callsheets'),
+                    'icon': 'bi-person-plus'
+                })
+    except Exception as e:
+        print(f"Error loading callsheet customer additions: {e}")
     
-    # Sort all activities by timestamp and limit to 10
+    try:
+        # Recent callsheet call activity (status changes)
+        recent_callsheet_calls = CallsheetEntry.query.filter(
+            CallsheetEntry.call_status != 'not_called',
+            CallsheetEntry.updated_at.isnot(None)
+        ).join(User, CallsheetEntry.user_id == User.id).join(Customer, CallsheetEntry.customer_id == Customer.id).order_by(CallsheetEntry.updated_at.desc()).limit(5).all()
+        
+        for entry in recent_callsheet_calls:
+            # Get the status description
+            status_descriptions = {
+                'no_answer': 'called (no answer)',
+                'declined': 'called (declined)', 
+                'ordered': 'took order from',
+                'callback': 'scheduled callback with'
+            }
+            
+            status_desc = status_descriptions.get(entry.call_status, f'updated callsheet for')
+            
+            activities.append({
+                'type': 'callsheet_call',
+                'description': f'{status_desc.title()} {entry.customer.name}',
+                'user': User.query.get(entry.user_id).username,
+                'timestamp': entry.updated_at,
+                'link': url_for('main.callsheets'),
+                'icon': 'bi-telephone'
+            })
+    except Exception as e:
+        print(f"Error loading callsheet call activity: {e}")
+    
+    try:
+        # Recent standing order creation (if the model exists)
+        recent_standing_orders = StandingOrder.query.join(User, StandingOrder.created_by == User.id).order_by(StandingOrder.created_at.desc()).limit(3).all()
+        for order in recent_standing_orders:
+            activities.append({
+                'type': 'standing_order_created',
+                'description': f'Created standing order for {order.customer.name}',
+                'user': order.created_by_user.username,
+                'timestamp': order.created_at,
+                'link': url_for('main.view_standing_order', order_id=order.id),
+                'icon': 'bi-arrow-repeat'
+            })
+    except Exception as e:
+        print(f"Error loading standing orders (may not exist): {e}")
+    
+    try:
+        # Recent standing order actions (pause, resume, end) - if the model exists
+        recent_so_logs = StandingOrderLog.query.filter(
+            StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
+        ).join(User, StandingOrderLog.performed_by == User.id).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
+        
+        for log in recent_so_logs:
+            action_descriptions = {
+                'paused': f'Paused standing order for {log.standing_order.customer.name}',
+                'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
+                'ended': f'Ended standing order for {log.standing_order.customer.name}'
+            }
+            
+            activities.append({
+                'type': f'standing_order_{log.action_type}',
+                'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
+                'user': log.user.username,
+                'timestamp': log.performed_at,
+                'link': url_for('main.view_standing_order', order_id=log.standing_order_id),
+                'icon': 'bi-arrow-repeat'
+            })
+    except Exception as e:
+        print(f"Error loading standing order logs (may not exist): {e}")
+    
+    try:
+        # Recent customer stock transactions (if the model exists)
+        recent_stock_transactions = StockTransaction.query.join(User, StockTransaction.created_by == User.id).order_by(StockTransaction.transaction_date.desc()).limit(3).all()
+        for transaction in recent_stock_transactions:
+            transaction_types = {
+                'stock_in': 'Added stock for',
+                'stock_out': 'Processed stock order for', 
+                'adjustment': 'Adjusted stock for'
+            }
+            
+            description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
+            activities.append({
+                'type': f'stock_{transaction.transaction_type}',
+                'description': f'{description} {transaction.stock_item.customer.name}',
+                'user': transaction.user.username,
+                'timestamp': transaction.transaction_date,
+                'link': url_for('main.customer_stock'),
+                'icon': 'bi-box-seam'
+            })
+    except Exception as e:
+        print(f"Error loading stock transactions (may not exist): {e}")
+    
+    # User logins removed - not needed in activity feed
+    # Sort all activities by timestamp and limit to 15 (since we're pulling from multiple sources)
     activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    activities = activities[:10]
+    activities = activities[:15]
     
     # Convert timestamps to ISO format for JavaScript
     for activity in activities:
-        activity['timestamp'] = activity['timestamp'].isoformat()
-    
-        return jsonify(activities)
-    """Get recent activity across the system"""
-    activities = []
-    
-    # Recent forms (created and completed)
-    recent_forms = Form.query.order_by(Form.date_created.desc()).limit(5).all()
-    for form in recent_forms:
-        activities.append({
-            'type': 'form_created',
-            'description': f'Created {form.type.replace("_", " ").title()} form',
-            'user': form.author.username,
-            'timestamp': form.date_created,
-            'link': url_for('main.view_form', form_id=form.id),
-            'icon': 'bi-file-text'
-        })
-    
-    # Recently completed forms
-    completed_forms = Form.query.filter(
-        Form.is_completed == True,
-        Form.completed_date.isnot(None)
-    ).order_by(Form.completed_date.desc()).limit(3).all()
-    
-    for form in completed_forms:
-        if form.completer:
-            activities.append({
-                'type': 'form_completed',
-                'description': f'Completed {form.type.replace("_", " ").title()} form',
-                'user': form.completer.username,
-                'timestamp': form.completed_date,
-                'link': url_for('main.view_form', form_id=form.id),
-                'icon': 'bi-check-circle'
-            })
-    
-    # Recent company updates
-    recent_updates = CompanyUpdate.query.order_by(CompanyUpdate.created_at.desc()).limit(4).all()
-    for update in recent_updates:
-        activities.append({
-            'type': 'company_update',
-            'description': f'Posted update: {update.title}',
-            'user': update.author.username,
-            'timestamp': update.created_at,
-            'link': None,
-            'icon': 'bi-megaphone'
-        })
-    
-    # Recent callsheet activity
-    recent_callsheet_entries = CallsheetEntry.query.filter(
-        CallsheetEntry.call_status != 'not_called'
-    ).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
-    
-    for entry in recent_callsheet_entries:
-        activities.append({
-            'type': 'callsheet_update',
-            'description': f'Updated callsheet for {entry.customer.name}',
-            'user': entry.entered_by.username,
-            'timestamp': entry.updated_at,
-            'link': url_for('main.callsheets'),
-            'icon': 'bi-telephone'
-        })
-    
-    # Sort all activities by timestamp and limit to 10
-    activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    activities = activities[:10]
-    
-    # Convert timestamps to ISO format for JavaScript
-    for activity in activities:
-        activity['timestamp'] = activity['timestamp'].isoformat()
+        if hasattr(activity['timestamp'], 'isoformat'):
+            activity['timestamp'] = activity['timestamp'].isoformat()
     
     return jsonify(activities)
