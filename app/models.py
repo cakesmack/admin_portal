@@ -1,5 +1,6 @@
 from app import db, login_manager
 from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 @login_manager.user_loader
@@ -11,7 +12,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(20), unique=True, nullable=False)  # Keep for system use
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)  # Primary identifier
     full_name = db.Column(db.String(100), nullable=False)
-    password = db.Column(db.String(60), nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)  # Changed from 'password' to 'password_hash'
     role = db.Column(db.String(20), nullable=False)
     
     # New fields for user management
@@ -30,19 +31,37 @@ class User(db.Model, UserMixin):
     todo_items = db.relationship('TodoItem', backref='user', lazy=True, cascade='all, delete-orphan')
     company_updates = db.relationship('CompanyUpdate', backref='author', lazy=True, cascade='all, delete-orphan')
     
+    def set_password(self, password):
+        """Set password hash from plain password"""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check if provided password matches hash"""
+        if not self.password_hash:
+            # Handle case where password_hash is None or empty
+            print(f"Warning: User {self.username} has no password hash")
+            return False
+        
+        try:
+            return check_password_hash(self.password_hash, password)
+        except (ValueError, AttributeError) as e:
+            print(f"Error checking password for user {self.username}: {e}")
+            return False
+    
     def generate_temp_password(self):
         """Generate a secure temporary password"""
         import secrets
         import string
-        chars = string.ascii_letters + string.digits + "!@#$%"
-        return ''.join(secrets.choice(chars) for _ in range(12))
+        chars = string.ascii_letters + string.digits + "!@#$%^&*"
+        temp_password = ''.join(secrets.choice(chars) for _ in range(12))
+        return temp_password
     
     def get_recent_activity(self, limit=10):
-        """Get user's recent activity across all areas"""
+        """Get recent activity for this user"""
         activities = []
         
         # Recent forms
-        recent_forms = Form.query.filter_by(user_id=self.id).order_by(Form.date_created.desc()).limit(5).all()
+        recent_forms = self.forms.order_by(Form.date_created.desc()).limit(5).all()
         for form in recent_forms:
             activities.append({
                 'type': 'form_created',
@@ -52,82 +71,23 @@ class User(db.Model, UserMixin):
             })
         
         # Recent company updates
-        recent_updates = CompanyUpdate.query.filter_by(user_id=self.id).order_by(CompanyUpdate.created_at.desc()).limit(3).all()
+        recent_updates = self.company_updates.order_by(CompanyUpdate.created_at.desc()).limit(5).all()
         for update in recent_updates:
             activities.append({
                 'type': 'company_update',
-                'description': f'Posted company update: {update.title}',
+                'description': f'Posted update: {update.title}',
                 'date': update.created_at,
-                'link': None
+                'link': f'/dashboard'
             })
         
-        # Recent callsheet activity
-        recent_callsheet_entries = CallsheetEntry.query.filter_by(user_id=self.id).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
-        for entry in recent_callsheet_entries:
+        # Recent callsheet entries
+        recent_entries = self.callsheet_entries.order_by(CallsheetEntry.updated_at.desc()).limit(5).all()
+        for entry in recent_entries:
             activities.append({
-                'type': 'callsheet_update',
-                'description': f'Updated callsheet entry for {entry.customer.name}',
+                'type': 'callsheet_entry',
+                'description': f'Updated callsheet for {entry.customer.name}',
                 'date': entry.updated_at,
-                'link': None
-            })
-        
-        # Recent standing order creation
-        recent_standing_orders = StandingOrder.query.filter_by(created_by=self.id).order_by(StandingOrder.created_at.desc()).limit(3).all()
-        for order in recent_standing_orders:
-            activities.append({
-                'type': 'standing_order_created',
-                'description': f'Created standing order for {order.customer.name}',
-                'date': order.created_at,
-                'link': f'/standing-orders/{order.id}'
-            })
-        
-        # Recent standing order actions (pause, resume, end)
-        recent_so_logs = StandingOrderLog.query.filter_by(performed_by=self.id).filter(
-            StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
-        ).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
-        
-        for log in recent_so_logs:
-            action_descriptions = {
-                'paused': f'Paused standing order for {log.standing_order.customer.name}',
-                'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
-                'ended': f'Ended standing order for {log.standing_order.customer.name}'
-            }
-            
-            activities.append({
-                'type': f'standing_order_{log.action_type}',
-                'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
-                'date': log.performed_at,
-                'link': f'/standing-orders/{log.standing_order_id}'
-            })
-        
-        # Recent stock transactions
-        recent_stock_transactions = StockTransaction.query.filter_by(created_by=self.id).order_by(StockTransaction.transaction_date.desc()).limit(3).all()
-        for transaction in recent_stock_transactions:
-            transaction_types = {
-                'stock_in': 'Added stock for',
-                'stock_out': 'Processed stock order for', 
-                'adjustment': 'Adjusted stock for'
-            }
-            
-            description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
-            activities.append({
-                'type': f'stock_{transaction.transaction_type}',
-                'description': f'{description} {transaction.stock_item.customer.name}',
-                'date': transaction.transaction_date,
-                'link': '/customer-stock'
-            })
-        
-        # Recent form completions by this user
-        recent_completed_forms = Form.query.filter_by(completed_by=self.id).filter(
-            Form.completed_date.isnot(None)
-        ).order_by(Form.completed_date.desc()).limit(3).all()
-        
-        for form in recent_completed_forms:
-            activities.append({
-                'type': 'form_completed',
-                'description': f'Completed {form.type.replace("_", " ").title()} form',
-                'date': form.completed_date,
-                'link': f'/form/{form.id}'
+                'link': f'/callsheets'
             })
         
         # Sort by date and return limited results

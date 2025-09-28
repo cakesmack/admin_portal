@@ -79,6 +79,7 @@ def sanitize_html_content(html_content):
 def index():
     return redirect(url_for('main.login'))
 
+
 @main.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -90,7 +91,8 @@ def login():
         user = User.query.filter_by(email=form.username.data).first() or \
                User.query.filter_by(username=form.username.data).first()
         
-        if user and user.password == form.password.data and user.is_active:
+        # Updated to use password hashing
+        if user and user.check_password(form.password.data) and user.is_active:
             login_user(user)
             user.last_login = datetime.now()
             db.session.commit()
@@ -107,7 +109,6 @@ def login():
             flash('Login unsuccessful. Please check your credentials.', 'danger')
     
     return render_template('login.html', title='Login', form=form)
-
 
 def admin_required(f):
     @wraps(f)
@@ -144,14 +145,11 @@ def create_user():
             username = f"{base_username}{counter}"
             counter += 1
         
-        # Generate temporary password
-        temp_password = User().generate_temp_password()
-        
+        # Create new user with hashed password
         user = User(
             username=username,
             email=form.email.data,
             full_name=form.full_name.data,
-            password=temp_password,
             role=form.role.data,
             job_title=form.job_title.data or None,
             direct_phone=form.direct_phone.data or None,
@@ -159,11 +157,20 @@ def create_user():
             must_change_password=True
         )
         
-        db.session.add(user)
-        db.session.commit()
+        # Generate temporary password and hash it
+        temp_password = user.generate_temp_password()
+        user.set_password(temp_password)
         
-        flash(f'User created successfully! Temporary password: {temp_password}', 'success')
-        return redirect(url_for('main.users'))
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            flash(f'User created successfully! Temporary password: {temp_password}', 'success')
+            return redirect(url_for('main.users'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating user: {str(e)}', 'danger')
+            return render_template('user_form.html', form=form, title='Create New User')
     
     return render_template('user_form.html', form=form, title='Create New User')
 
@@ -212,13 +219,18 @@ def force_password_change():
     
     form = ForcePasswordChangeForm()
     if form.validate_on_submit():
-        current_user.password = form.new_password.data
+        # Use the new password hashing method
+        current_user.set_password(form.new_password.data)
         current_user.must_change_password = False
         current_user.last_login = datetime.now()
-        db.session.commit()
         
-        flash('Password updated successfully!', 'success')
-        return redirect(url_for('main.dashboard'))
+        try:
+            db.session.commit()
+            flash('Password updated successfully!', 'success')
+            return redirect(url_for('main.dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating password: {str(e)}', 'danger')
     
     return render_template('force_password_change.html', form=form)
 
@@ -227,15 +239,21 @@ def force_password_change():
 def change_password():
     form = ChangePasswordForm()
     if form.validate_on_submit():
-        if current_user.password != form.current_password.data:
+        # Check current password using hash verification
+        if not current_user.check_password(form.current_password.data):
             flash('Current password is incorrect.', 'danger')
             return render_template('change_password.html', form=form)
         
-        current_user.password = form.new_password.data
-        db.session.commit()
+        # Set new password with hashing
+        current_user.set_password(form.new_password.data)
         
-        flash('Password changed successfully!', 'success')
-        return redirect(url_for('main.user_profile', user_id=current_user.id))
+        try:
+            db.session.commit()
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('main.user_profile', user_id=current_user.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error changing password: {str(e)}', 'danger')
     
     return render_template('change_password.html', form=form)
 
@@ -246,9 +264,9 @@ def reset_user_password(user_id):
     user = User.query.get_or_404(user_id)
     
     try:
-        # Generate new temporary password
+        # Generate new temporary password and hash it
         temp_password = user.generate_temp_password()
-        user.password = temp_password
+        user.set_password(temp_password)
         user.must_change_password = True
         
         db.session.commit()
@@ -258,6 +276,7 @@ def reset_user_password(user_id):
             'message': f'Password reset! New temporary password: {temp_password}'
         })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/logout')
@@ -385,15 +404,44 @@ def get_company_updates():
         'id': update.id,
         'title': update.title,
         'message': update.message,
-        'category': getattr(update, 'category', 'general'),  # Include category
+        'category': getattr(update, 'category', 'general'),
         'priority': update.priority,
         'sticky': update.sticky,
         'is_event': update.is_event,
         'event_date': update.event_date.isoformat() if update.event_date else None,
         'created_at': update.created_at.isoformat(),
-        'author_name': update.author.username,
+        'author_name': update.author.username,  # Fixed: use username instead of author
         'can_delete': update.user_id == current_user.id
     } for update in updates])
+
+@main.route('/api/company-updates/<int:update_id>', methods=['GET'])
+@login_required
+def get_company_update(update_id):
+    """Get a specific company update for editing"""
+    try:
+        update = CompanyUpdate.query.get_or_404(update_id)
+        
+        # Only allow the author to view for editing (or admins)
+        if update.user_id != current_user.id and current_user.role != 'admin':
+            return jsonify({'error': 'Permission denied'}), 403
+        
+        return jsonify({
+            'id': update.id,
+            'title': update.title,
+            'message': update.message,
+            'category': getattr(update, 'category', 'general'),
+            'priority': update.priority,
+            'sticky': update.sticky,
+            'is_event': update.is_event,
+            'event_date': update.event_date.isoformat() if update.event_date else None,
+            'created_at': update.created_at.isoformat(),
+            'author_name': update.author.username,
+            'can_delete': True
+        })
+    except Exception as e:
+        print(f"Error fetching update {update_id}: {e}")
+        return jsonify({'error': 'Failed to fetch update'}), 500
+
 
 # Add this function to get category colors
 def get_category_config():
@@ -416,6 +464,53 @@ def get_categories():
     """Get available categories for company updates"""
     return jsonify(get_category_config())
 
+
+@main.route('/api/company-updates/<int:update_id>', methods=['PUT'])
+@login_required
+def update_company_update(update_id):
+    """Update an existing company update"""
+    update = CompanyUpdate.query.get_or_404(update_id)
+    
+    # Only allow the author to edit
+    if update.user_id != current_user.id:
+        return jsonify({'error': 'Permission denied'}), 403
+    
+    data = request.json
+    
+    try:
+        # Validate required fields
+        if not data.get('title') or not data.get('message'):
+            return jsonify({'success': False, 'message': 'Title and message are required'}), 400
+        
+        # Sanitize the message content
+        message = sanitize_html_content(data['message'])
+        if not message:
+            return jsonify({'success': False, 'message': 'Message content is required'}), 400
+        
+        # Update the fields
+        update.title = data['title'].strip()
+        update.message = message
+        update.category = data.get('category', 'general')
+        update.priority = data.get('priority', 'normal')
+        update.sticky = bool(data.get('sticky', False))
+        update.is_event = bool(data.get('is_event', False))
+        
+        # Handle event date
+        if update.is_event and data.get('event_date'):
+            try:
+                update.event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
+            except ValueError:
+                update.event_date = None
+        else:
+            update.event_date = None
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'id': update.id})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/api/company-updates/<int:update_id>', methods=['DELETE'])
 @login_required
@@ -2050,86 +2145,46 @@ def upload_image():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Upload failed: {str(e)}'}), 500
 
-# Enhanced company updates route
 @main.route('/api/company-updates', methods=['POST'])
 @login_required
 def create_company_update():
     data = request.json
     
-    print("=== SUPER DEBUG: Company Update ===")
-    print(f"Raw data type: {type(data)}")
-    print(f"Raw data: {data}")
-    print(f"Data keys: {list(data.keys()) if data else 'None'}")
-    
-    title = data.get('title')
-    message_raw = data.get('message')
-    category = data.get('category', 'general')
-    
-    print(f"Title: '{title}' (type: {type(title)})")
-    print(f"Message raw: '{message_raw}' (type: {type(message_raw)})")
-    print(f"Category: '{category}' (type: {type(category)})")
-    
-    if not message_raw:
-        print("ERROR: message_raw is falsy")
-        return jsonify({'success': False, 'message': 'No message received'}), 400
-    
-    # Test the sanitize function step by step
-    print("Testing sanitize function...")
     try:
-        print("About to call sanitize_html_content...")
-        sanitized = sanitize_html_content(message_raw)
-        print(f"Sanitized result: '{sanitized}' (type: {type(sanitized)})")
+        # Validate required fields
+        if not data.get('title') or not data.get('message'):
+            return jsonify({'success': False, 'message': 'Title and message are required'}), 400
         
-        if sanitized is None:
-            print("ERROR: sanitize_html_content returned None")
-            return jsonify({'success': False, 'message': 'Sanitization returned None'}), 400
-            
-        if not sanitized.strip():
-            print("ERROR: sanitized message is empty after strip")
-            return jsonify({'success': False, 'message': 'Sanitized message is empty'}), 400
-            
-    except Exception as e:
-        print(f"ERROR in sanitize_html_content: {e}")
-        print(f"Exception type: {type(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'message': f'Sanitization error: {str(e)}'}), 400
-    
-    # If we get here, sanitization worked
-    print(f"Final sanitized message: '{sanitized}'")
-    
-    event_date = None
-    if data.get('is_event') and data.get('event_date'):
-        event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
-    
-    try:
-        print("Creating CompanyUpdate object...")
+        # Sanitize the message content
+        message = sanitize_html_content(data['message'])
+        if not message:
+            return jsonify({'success': False, 'message': 'Message content is required'}), 400
+        
+        # Create new update
         update = CompanyUpdate(
-            title=title,
-            message=sanitized,
-            category=category,
+            title=data['title'].strip(),
+            message=message,
+            category=data.get('category', 'general'),  # Include category
             priority=data.get('priority', 'normal'),
-            sticky=data.get('sticky', False),
-            is_event=data.get('is_event', False),
-            event_date=event_date,
+            sticky=bool(data.get('sticky', False)),
+            is_event=bool(data.get('is_event', False)),
             user_id=current_user.id
         )
         
-        print(f"Update object created. Message field: '{update.message}'")
+        # Handle event date
+        if update.is_event and data.get('event_date'):
+            try:
+                update.event_date = datetime.fromisoformat(data['event_date'].replace('Z', '+00:00'))
+            except ValueError:
+                update.event_date = None
         
         db.session.add(update)
-        print("About to commit...")
         db.session.commit()
-        print("Commit successful!")
-        print("=== END SUPER DEBUG ===")
         
         return jsonify({'success': True, 'id': update.id})
         
     except Exception as e:
-        print(f"ERROR in database operation: {e}")
-        import traceback
-        traceback.print_exc()
-        print("=== END SUPER DEBUG ===")
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # Dashboard stats API

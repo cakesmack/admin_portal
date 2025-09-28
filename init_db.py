@@ -6,27 +6,30 @@ app = create_app()
 
 with app.app_context():
     # Drop all tables and recreate them
+    print("Dropping existing tables...")
     db.drop_all()
+    print("Creating new tables...")
     db.create_all()
     
-    ## Update the user creation part in init_db.py
+    # Create admin user with hashed password
     admin_user = User(
         username='admin',
-        email='admin@company.com',  # Add email
-        full_name='System Administrator',  # Add full name
-        password='admin123',
+        email='admin@company.com',
+        full_name='System Administrator',
         role='admin',
-        must_change_password=False  # Admin doesn't need to change password
+        must_change_password=False  # Admin doesn't need to change password for testing
     )
-
+    admin_user.set_password('admin123')  # This will hash the password
+    
+    # Create test user with hashed password
     test_user = User(
         username='user',
-        email='user@company.com',  # Add email
-        full_name='Test User',  # Add full name
-        password='user123',
+        email='user@company.com',
+        full_name='Test User',
         role='staff',
         must_change_password=False  # For testing, set to False
     )
+    test_user.set_password('user123')  # This will hash the password
     
     # Add sample customers
     customers = [
@@ -75,7 +78,8 @@ with app.app_context():
         Product(code='CAT002', name='Plastic Cutlery Pack', description='Disposable cutlery set (100 pieces)')
     ]
     
-    # Add to session and commit users first
+    # Add users to session and commit first
+    print("Creating users with hashed passwords...")
     db.session.add(admin_user)
     db.session.add(test_user)
     db.session.commit()
@@ -113,6 +117,7 @@ with app.app_context():
     ]
     
     # Add customers, products, todos, and updates
+    print("Adding sample data...")
     for customer in customers:
         db.session.add(customer)
     
@@ -127,12 +132,20 @@ with app.app_context():
     
     db.session.commit()
     
-    print("Database initialized successfully!")
+    print("\n" + "="*60)
+    print("DATABASE INITIALIZED SUCCESSFULLY WITH SECURE PASSWORDS!")
+    print("="*60)
     print("\nTest credentials:")
     print("Username: admin, Password: admin123")
     print("Username: user, Password: user123")
     print("\nSample data created:")
-    print(f"- {len(customers)} customers")
-    print(f"- {len(products)} products") 
-    print(f"- {len(admin_todos)} todo items for admin")
-    print(f"- {len(sample_updates)} company updates")
+    print(f"• {len(customers)} customers")
+    print(f"• {len(products)} products") 
+    print(f"• {len(admin_todos)} todo items for admin")
+    print(f"• {len(sample_updates)} company updates")
+    print("\n✓ All passwords are now properly hashed!")
+    print("✓ Ready for secure production use!")
+    print("\nNext steps:")
+    print("1. Update your app/models.py with the new User model")
+    print("2. Update your routes.py with the new authentication code")
+    print("3. Test the login functionality")

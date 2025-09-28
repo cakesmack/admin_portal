@@ -1,5 +1,4 @@
-// Dashboard Stats Functions{% extends "base.html" %} {% block content %}
-
+{% extends "base.html" %} {% block content %}
 <!-- Include Quill.js CSS -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet" />
 
@@ -11,6 +10,7 @@
 
   <!-- Main Content Area -->
   <div class="dashboard-content">
+    <!-- Main Content Row -->
     <div class="row mb-3">
       <div class="col-md-8">
         <div class="card">
@@ -28,12 +28,23 @@
             </div>
           </div>
           <div class="card-body">
+            <div
+              id="updatesLoading"
+              class="text-center py-3"
+              style="display: none"
+            >
+              <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <span class="ms-2">Loading updates...</span>
+            </div>
             <div id="updatesList">
               <!-- Updates will be loaded here -->
             </div>
           </div>
         </div>
       </div>
+
       <!-- Recent Activity Section -->
       <div class="col-md-4">
         <div class="card">
@@ -41,37 +52,18 @@
             <h5 class="mb-0"><i class="bi bi-activity"></i> Recent Activity</h5>
           </div>
           <div class="card-body" style="max-height: 70vh; overflow-y: auto">
+            <div
+              id="activityLoading"
+              class="text-center py-3"
+              style="display: none"
+            >
+              <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <span class="ms-2">Loading activity...</span>
+            </div>
             <div id="recentActivityList">
               <!-- Recent activity will be loaded here -->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="dashboard-container">
-      <!-- Stats Row -->
-      <div class="row mb-4">
-        <div class="col-md-3">
-          <div class="card text-center">
-            <div class="card-body">
-              <h3 class="text-primary" id="updatesThisWeek">-</h3>
-              <small class="text-muted">Updates This Week</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card text-center">
-            <div class="card-body">
-              <h3 class="text-warning" id="pendingForms">-</h3>
-              <small class="text-muted">Pending Forms</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="card">
-            <div class="card-body">
-              <h6 class="card-title">Weekly Activity</h6>
-              <canvas id="activityChart" height="60"></canvas>
             </div>
           </div>
         </div>
@@ -80,12 +72,12 @@
   </div>
 </div>
 
-<!-- Enhanced Add Update Modal -->
+<!-- Add/Edit Update Modal -->
 <div class="modal fade" id="addUpdateModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Add Company Update</h5>
+        <h5 class="modal-title" id="modalTitle">Add Company Update</h5>
         <button
           type="button"
           class="btn-close"
@@ -93,6 +85,8 @@
         ></button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="updateId" />
+
         <div class="mb-3">
           <label class="form-label">Title</label>
           <input type="text" class="form-control" id="updateTitle" />
@@ -154,8 +148,13 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           Cancel
         </button>
-        <button type="button" class="btn btn-primary" onclick="saveUpdate()">
-          Post Update
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick="saveUpdate()"
+          id="saveUpdateBtn"
+        >
+          <span id="saveButtonText">Post Update</span>
         </button>
       </div>
     </div>
@@ -165,16 +164,15 @@
 {% endblock %} {% block scripts %}
 <!-- Include Quill.js -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
-<!-- Include Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
   let addUpdateModal;
   let quill;
-  let activityChart;
   let categories = {};
+  let currentEditId = null;
 
   document.addEventListener("DOMContentLoaded", function () {
+    // Initialize modal
     addUpdateModal = new bootstrap.Modal(
       document.getElementById("addUpdateModal")
     );
@@ -184,7 +182,6 @@
 
     // Load dashboard data
     loadCategories();
-    loadDashboardStats();
     loadUpdates();
     loadRecentActivity();
 
@@ -196,22 +193,35 @@
   });
 
   function initializeQuillEditor() {
-    const toolbarOptions = [["bold", "italic"], ["link"], ["image"]];
+    try {
+      const toolbarOptions = [
+        ["bold", "italic", "underline"],
+        ["link"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["image"],
+        ["clean"],
+      ];
 
-    quill = new Quill("#quillEditor", {
-      theme: "snow",
-      modules: {
-        toolbar: {
-          container: toolbarOptions,
-          handlers: {
-            image: imageHandler,
+      quill = new Quill("#quillEditor", {
+        theme: "snow",
+        modules: {
+          toolbar: {
+            container: toolbarOptions,
+            handlers: {
+              image: imageHandler,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      console.error("Failed to initialize Quill editor:", error);
+      // Fallback to textarea if Quill fails
+      document.getElementById("quillEditor").innerHTML =
+        '<textarea class="form-control" rows="6" placeholder="Enter your message here..."></textarea>';
+    }
   }
 
-  // Custom image handler
+  // Custom image handler for Quill
   function imageHandler() {
     const input = document.createElement("input");
     input.setAttribute("type", "file");
@@ -256,6 +266,10 @@
   async function loadCategories() {
     try {
       const response = await fetch("/api/categories");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       categories = await response.json();
 
       // Populate category dropdown
@@ -270,318 +284,445 @@
       });
     } catch (error) {
       console.error("Error loading categories:", error);
+      // Set default categories if API fails
+      categories = {
+        general: { color: "#6c757d", name: "General" },
+        announcement: { color: "#007bff", name: "Announcement" },
+      };
     }
-  }
-  async function loadDashboardStats() {
-    try {
-      const response = await fetch("/api/dashboard-stats");
-      const stats = await response.json();
-
-      // Update stat cards
-      document.getElementById("updatesThisWeek").textContent =
-        stats.updates_this_week;
-      document.getElementById("pendingForms").textContent = stats.pending_forms;
-
-      // Create activity chart
-      createActivityChart(stats.weekly_activity);
-    } catch (error) {
-      console.error("Error loading dashboard stats:", error);
-    }
-  }
-
-  function createActivityChart(data) {
-    const ctx = document.getElementById("activityChart").getContext("2d");
-
-    // Destroy existing chart if it exists
-    if (activityChart) {
-      activityChart.destroy();
-    }
-
-    activityChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: data.map((d) => d.day),
-        datasets: [
-          {
-            label: "Activity",
-            data: data.map((d) => d.total),
-            borderColor: "#007bff",
-            backgroundColor: "rgba(0, 123, 255, 0.1)",
-            tension: 0.3,
-            fill: true,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false,
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              stepSize: 1,
-            },
-          },
-        },
-      },
-    });
   }
 
   // Company Updates Functions
   function showAddUpdateModal() {
-    // Clear previous content
-    quill.setContents([]);
-    document.getElementById("updateTitle").value = "";
-    document.getElementById("updateCategory").value = "general";
-    document.getElementById("updatePriority").value = "normal";
-    document.getElementById("updateSticky").checked = false;
-    document.getElementById("isEvent").checked = false;
-    document.getElementById("eventDate").value = "";
-    document.getElementById("eventDateContainer").style.display = "none";
+    try {
+      currentEditId = null;
+      document.getElementById("modalTitle").textContent = "Add Company Update";
+      document.getElementById("saveButtonText").textContent = "Post Update";
 
-    addUpdateModal.show();
+      // Clear previous content
+      if (quill) {
+        quill.setContents([]);
+      }
+      document.getElementById("updateId").value = "";
+      document.getElementById("updateTitle").value = "";
+      document.getElementById("updateCategory").value = "general";
+      document.getElementById("updatePriority").value = "normal";
+      document.getElementById("updateSticky").checked = false;
+      document.getElementById("isEvent").checked = false;
+      document.getElementById("eventDate").value = "";
+      document.getElementById("eventDateContainer").style.display = "none";
+
+      addUpdateModal.show();
+    } catch (error) {
+      console.error("Error showing modal:", error);
+      alert("Failed to open update modal");
+    }
+  }
+
+  function showEditUpdateModal(update) {
+    try {
+      currentEditId = update.id;
+      document.getElementById("modalTitle").textContent = "Edit Company Update";
+      document.getElementById("saveButtonText").textContent = "Update Post";
+
+      // Populate form with existing data
+      document.getElementById("updateId").value = update.id;
+      document.getElementById("updateTitle").value = update.title;
+      document.getElementById("updateCategory").value =
+        update.category || "general";
+      document.getElementById("updatePriority").value = update.priority;
+      document.getElementById("updateSticky").checked = update.sticky;
+      document.getElementById("isEvent").checked = update.is_event;
+
+      if (update.event_date) {
+        // Convert ISO date to datetime-local format
+        const eventDate = new Date(update.event_date);
+        const localDateTime = new Date(
+          eventDate.getTime() - eventDate.getTimezoneOffset() * 60000
+        )
+          .toISOString()
+          .slice(0, 16);
+        document.getElementById("eventDate").value = localDateTime;
+        document.getElementById("eventDateContainer").style.display = "block";
+      } else {
+        document.getElementById("eventDate").value = "";
+        document.getElementById("eventDateContainer").style.display = "none";
+      }
+
+      // Set message content
+      if (quill) {
+        quill.root.innerHTML = update.message;
+      }
+
+      addUpdateModal.show();
+    } catch (error) {
+      console.error("Error showing edit modal:", error);
+      alert("Failed to open edit modal");
+    }
   }
 
   async function saveUpdate() {
-    const title = document.getElementById("updateTitle").value;
-    const category = document.getElementById("updateCategory").value;
-    const priority = document.getElementById("updatePriority").value;
-    const sticky = document.getElementById("updateSticky").checked;
-    const isEvent = document.getElementById("isEvent").checked;
-    const eventDate = document.getElementById("eventDate").value;
+    const saveBtn = document.getElementById("saveUpdateBtn");
+    const originalText = saveBtn.querySelector("#saveButtonText").textContent;
 
-    // Get message content from Quill editor
-    let message = "";
-    if (quill) {
-      message = quill.root.innerHTML;
-      // Check if the editor actually has content (not just empty tags)
-      const textContent = quill.getText().trim();
-      if (!textContent) {
-        message = "";
-      }
-    }
+    try {
+      // Disable save button and show loading
+      saveBtn.disabled = true;
+      saveBtn.querySelector("#saveButtonText").textContent = "Saving...";
 
-    console.log("Debug - Title:", title);
-    console.log("Debug - Message HTML:", message);
-    console.log("Debug - Message Text:", quill ? quill.getText() : "No quill");
+      const title = document.getElementById("updateTitle").value.trim();
+      const category = document.getElementById("updateCategory").value;
+      const priority = document.getElementById("updatePriority").value;
+      const sticky = document.getElementById("updateSticky").checked;
+      const isEvent = document.getElementById("isEvent").checked;
+      const eventDate = document.getElementById("eventDate").value;
 
-    if (title && message && quill && quill.getText().trim()) {
-      try {
-        const payload = {
-          title: title,
-          message: message,
-          category: category,
-          priority: priority,
-          sticky: sticky,
-          is_event: isEvent,
-          event_date: eventDate || null,
-        };
-
-        console.log("Sending payload:", payload);
-
-        const response = await fetch("/api/company-updates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          loadUpdates();
-          loadDashboardStats();
-          loadRecentActivity();
-          addUpdateModal.hide();
-        } else {
-          const errorData = await response.text();
-          console.error("Server error:", errorData);
-          alert("Error saving update: " + errorData);
+      // Get message content
+      let message = "";
+      if (quill) {
+        message = quill.root.innerHTML;
+        const textContent = quill.getText().trim();
+        if (!textContent) {
+          message = "";
         }
-      } catch (error) {
-        console.error("Error saving update:", error);
-        alert("Error saving update: " + error.message);
+      } else {
+        // Fallback to textarea
+        const textarea = document.querySelector("#quillEditor textarea");
+        if (textarea) {
+          message = textarea.value.trim();
+        }
       }
-    } else {
-      alert("Please enter a title and message");
-      console.log(
-        "Validation failed - Title:",
-        !!title,
-        "Message:",
-        !!message,
-        "Quill text:",
-        quill ? quill.getText().trim() : "No quill"
+
+      // Validation
+      if (!title) {
+        throw new Error("Please enter a title");
+      }
+      if (!message) {
+        throw new Error("Please enter a message");
+      }
+
+      const payload = {
+        title: title,
+        message: message,
+        category: category,
+        priority: priority,
+        sticky: sticky,
+        is_event: isEvent,
+        event_date: eventDate || null,
+      };
+
+      // Determine if this is an edit or new post
+      const url = currentEditId
+        ? `/api/company-updates/${currentEditId}`
+        : "/api/company-updates";
+      const method = currentEditId ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      // Success
+      await loadUpdates();
+      await loadRecentActivity();
+      addUpdateModal.hide();
+      showSuccess(
+        currentEditId
+          ? "Update edited successfully!"
+          : "Update posted successfully!"
       );
+    } catch (error) {
+      console.error("Error saving update:", error);
+      showError("Failed to save update: " + error.message);
+    } finally {
+      // Re-enable save button
+      saveBtn.disabled = false;
+      saveBtn.querySelector("#saveButtonText").textContent = originalText;
     }
   }
 
   async function loadUpdates() {
-    try {
-      const response = await fetch("/api/company-updates");
-      const updates = await response.json();
+    const updatesList = document.getElementById("updatesList");
+    const loading = document.getElementById("updatesLoading");
 
-      const updatesList = document.getElementById("updatesList");
+    try {
+      loading.style.display = "block";
+      updatesList.style.display = "none";
+
+      const response = await fetch("/api/company-updates");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const updates = await response.json();
       updatesList.innerHTML = "";
 
       if (updates.length === 0) {
         updatesList.innerHTML =
-          '<p class="text-muted text-center">No updates yet. Be the first to post!</p>';
-        return;
+          '<p class="text-muted text-center py-4">No updates yet. Be the first to post!</p>';
+      } else {
+        updates.forEach((update) => {
+          const updateItem = createUpdateElement(update);
+          updatesList.appendChild(updateItem);
+        });
       }
-
-      updates.forEach((update) => {
-        const updateItem = document.createElement("div");
-        const categoryColor = categories[update.category]?.color || "#6c757d";
-
-        // Remove the 'border' class and apply all styling via JavaScript
-        updateItem.className = "update-item rounded p-3 mb-3";
-        updateItem.style.border = `1px solid ${categoryColor}`;
-        updateItem.style.borderLeft = `4px solid ${categoryColor}`;
-
-        const badge =
-          update.priority === "urgent"
-            ? "danger"
-            : update.priority === "important"
-            ? "warning"
-            : "secondary";
-
-        const timeAgo = getTimeAgo(new Date(update.created_at));
-
-        let eventInfo = "";
-        if (update.is_event && update.event_date) {
-          const eventDate = new Date(update.event_date);
-          eventInfo = `<div class="text-info small mb-2"><i class="bi bi-calendar-event"></i> ${eventDate.toLocaleString()}</div>`;
-        }
-
-        // Category badge
-        const categoryName = categories[update.category]?.name || "General";
-
-        updateItem.innerHTML = `
-          <div class="d-flex justify-content-between align-items-start mb-2">
-              <div class="d-flex align-items-center">
-                <h6 class="mb-0 me-2">${update.title}</h6>
-                <span class="badge rounded-pill" style="background-color: ${categoryColor}; color: white; font-size: 0.7rem;">${categoryName}</span>
-              </div>
-              <div class="d-flex align-items-center">
-                  ${
-                    update.sticky
-                      ? '<i class="bi bi-pin-angle-fill text-primary me-2" title="Pinned"></i>'
-                      : ""
-                  }
-                  ${
-                    update.is_event
-                      ? '<i class="bi bi-calendar-event text-info me-2" title="Event"></i>'
-                      : ""
-                  }
-                  <span class="badge bg-${badge}">${update.priority}</span>
-                  ${
-                    update.can_delete
-                      ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteUpdate(${update.id})" title="Delete">
-                        <i class="bi bi-trash"></i>
-                      </button>`
-                      : ""
-                  }
-              </div>
-          </div>
-          ${eventInfo}
-          <div class="update-content">${update.message}</div>
-          <div class="update-meta mt-2 pt-2" style="border-top: 2px solid ${categoryColor};">
-            <small class="text-muted">Posted by ${
-              update.author_name
-            } • ${timeAgo}</small>
-          </div>
-        `;
-
-        updatesList.appendChild(updateItem);
-      });
     } catch (error) {
       console.error("Error loading updates:", error);
+      updatesList.innerHTML =
+        '<div class="alert alert-danger">Failed to load updates. Please refresh the page.</div>';
+    } finally {
+      loading.style.display = "none";
+      updatesList.style.display = "block";
     }
   }
 
-  async function deleteUpdate(id) {
-    if (confirm("Delete this update?")) {
-      try {
-        await fetch(`/api/company-updates/${id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
-        loadUpdates();
-        loadDashboardStats(); // Refresh stats
-        loadRecentActivity(); // Refresh activity
-      } catch (error) {
-        console.error("Error deleting update:", error);
-      }
+  function createUpdateElement(update) {
+    const updateItem = document.createElement("div");
+    const categoryColor = categories[update.category]?.color || "#6c757d";
+    const categoryName = categories[update.category]?.name || "General";
+
+    updateItem.className = "update-item p-3 mb-3 rounded";
+    updateItem.style.border = `1px solid ${categoryColor}`;
+    updateItem.style.borderLeft = `4px solid ${categoryColor}`;
+
+    const badge =
+      update.priority === "urgent"
+        ? "danger"
+        : update.priority === "important"
+        ? "warning"
+        : "secondary";
+
+    const timeAgo = getTimeAgo(new Date(update.created_at));
+
+    let eventInfo = "";
+    if (update.is_event && update.event_date) {
+      const eventDate = new Date(update.event_date);
+      eventInfo = `<div class="text-info small mb-2">
+        <i class="bi bi-calendar-event"></i> ${eventDate.toLocaleString()}
+      </div>`;
     }
+
+    updateItem.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="d-flex align-items-center">
+          <h6 class="mb-0 me-2">${escapeHtml(update.title)}</h6>
+          <span class="badge rounded-pill" style="background-color: ${categoryColor}; color: white; font-size: 0.7rem;">
+            ${categoryName}
+          </span>
+          ${
+            update.sticky
+              ? '<i class="bi bi-pin-angle-fill text-primary ms-2" title="Pinned"></i>'
+              : ""
+          }
+          ${
+            update.is_event
+              ? '<i class="bi bi-calendar-event text-info ms-2" title="Event"></i>'
+              : ""
+          }
+        </div>
+        <div class="d-flex align-items-center">
+          <span class="badge bg-${badge} me-2">${update.priority}</span>
+          ${
+            update.can_delete
+              ? `
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="editUpdate(${update.id})" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteUpdate(${update.id})" title="Delete">
+              <i class="bi bi-trash"></i>
+            </button>
+          `
+              : ""
+          }
+        </div>
+      </div>
+      ${eventInfo}
+      <div class="update-content mb-2">${update.message}</div>
+      <div class="update-meta" style="border-top: 2px solid ${categoryColor}; padding-top: 8px;">
+        <small class="text-muted">
+          <i class="bi bi-person"></i> ${escapeHtml(update.author_name)} • 
+          <i class="bi bi-clock"></i> ${timeAgo}
+        </small>
+      </div>
+    `;
+
+    return updateItem;
   }
 
-  // Recent Activity Functions
-  async function loadRecentActivity() {
+  async function editUpdate(updateId) {
     try {
-      const response = await fetch("/api/recent-activity");
-      const activities = await response.json();
+      // Fetch the update details
+      const response = await fetch(`/api/company-updates/${updateId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-      const activityList = document.getElementById("recentActivityList");
+      const update = await response.json();
+      showEditUpdateModal(update);
+    } catch (error) {
+      console.error("Error fetching update for edit:", error);
+      showError("Failed to load update for editing");
+    }
+  }
+
+  async function deleteUpdate(updateId) {
+    if (!confirm("Are you sure you want to delete this update?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/company-updates/${updateId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      await loadUpdates();
+      await loadRecentActivity();
+      showSuccess("Update deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting update:", error);
+      showError("Failed to delete update");
+    }
+  }
+
+  async function loadRecentActivity() {
+    const activityList = document.getElementById("recentActivityList");
+    const loading = document.getElementById("activityLoading");
+
+    try {
+      loading.style.display = "block";
+      activityList.style.display = "none";
+
+      const response = await fetch("/api/recent-activity");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const activities = await response.json();
       activityList.innerHTML = "";
 
       if (activities.length === 0) {
         activityList.innerHTML =
-          '<p class="text-muted text-center">No recent activity</p>';
-        return;
+          '<p class="text-muted text-center py-3">No recent activity</p>';
+      } else {
+        activities.forEach((activity) => {
+          const activityItem = createActivityElement(activity);
+          activityList.appendChild(activityItem);
+        });
       }
-
-      activities.forEach((activity) => {
-        const activityItem = document.createElement("div");
-        activityItem.className = "activity-item border-bottom pb-2 mb-2";
-
-        const timeAgo = getTimeAgo(new Date(activity.timestamp));
-        const linkHtml = activity.link
-          ? `<a href="${activity.link}" class="text-decoration-none">`
-          : "<span>";
-        const linkCloseHtml = activity.link ? "</a>" : "</span>";
-
-        activityItem.innerHTML = `
-          <div class="d-flex align-items-start">
-            <i class="${activity.icon} text-primary me-2 mt-1"></i>
-            <div class="flex-fill">
-              ${linkHtml}
-                <div class="small">${activity.description}</div>
-                <div class="text-muted" style="font-size: 0.75rem;">
-                  by ${activity.user} • ${timeAgo}
-                </div>
-              ${linkCloseHtml}
-            </div>
-          </div>
-        `;
-
-        activityList.appendChild(activityItem);
-      });
     } catch (error) {
       console.error("Error loading recent activity:", error);
+      activityList.innerHTML =
+        '<div class="alert alert-danger small">Failed to load activity</div>';
+    } finally {
+      loading.style.display = "none";
+      activityList.style.display = "block";
     }
   }
 
-  function getTimeAgo(date) {
-    const seconds = Math.floor((new Date() - date) / 1000);
+  function createActivityElement(activity) {
+    const activityItem = document.createElement("div");
+    activityItem.className = "activity-item border-bottom pb-2 mb-2";
 
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + " years ago";
+    const timeAgo = getTimeAgo(new Date(activity.timestamp));
+    const icon = activity.icon || "bi-circle";
 
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + " months ago";
+    activityItem.innerHTML = `
+      <div class="d-flex align-items-start">
+        <i class="${icon} text-primary me-2 mt-1"></i>
+        <div class="flex-grow-1">
+          <div class="fw-medium small">${escapeHtml(activity.description)}</div>
+          <div class="text-muted" style="font-size: 0.75rem;">
+            ${escapeHtml(activity.user)} • ${timeAgo}
+          </div>
+        </div>
+      </div>
+    `;
 
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + " days ago";
+    if (activity.link) {
+      activityItem.style.cursor = "pointer";
+      activityItem.addEventListener("click", () => {
+        window.location.href = activity.link;
+      });
+    }
 
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + " hours ago";
-
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + " minutes ago";
-
-    return "Just now";
+    return activityItem;
   }
+
+  // Utility Functions
+  function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString();
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function showSuccess(message) {
+    // Simple success notification
+    const alert = document.createElement("div");
+    alert.className = "alert alert-success alert-dismissible position-fixed";
+    alert.style.cssText =
+      "top: 20px; right: 20px; z-index: 9999; min-width: 300px;";
+    alert.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      if (alert.parentNode) {
+        alert.parentNode.removeChild(alert);
+      }
+    }, 3000);
+  }
+
+  function showError(message) {
+    // Simple error notification
+    const alert = document.createElement("div");
+    alert.className = "alert alert-danger alert-dismissible position-fixed";
+    alert.style.cssText =
+      "top: 20px; right: 20px; z-index: 9999; min-width: 300px;";
+    alert.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alert);
+
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      if (alert.parentNode) {
+        alert.parentNode.removeChild(alert);
+      }
+    }, 5000);
+  }
+
+  // Auto-refresh activity every 5 minutes
+  setInterval(() => {
+    loadRecentActivity();
+  }, 300000); // 5 minutes
 </script>
 {% endblock %}
