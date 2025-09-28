@@ -189,33 +189,4 @@
   </div>
 </div>
 
-<!-- Add some custom CSS for the timeline -->
-<style>
-  .activity-item {
-    position: relative;
-    padding-left: 0;
-  }
-
-  .activity-item:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    left: 8px;
-    top: 35px;
-    height: calc(100% - 10px);
-    width: 2px;
-    background: var(--border-color);
-  }
-
-  .activity-icon {
-    width: 20px;
-    text-align: center;
-    position: relative;
-    z-index: 1;
-  }
-
-  .activity-content {
-    min-height: 40px;
-    padding-left: 10px;
-  }
-</style>
 {% endblock %}

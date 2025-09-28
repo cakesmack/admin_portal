@@ -5,76 +5,73 @@
 
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Dashboard - Welcome, {{ current_user.username }}</h2>
-    <span class="text-muted">{{ current_date }}</span>
+    <h2>Hygiene & Catering Admin Portal</h2>
+    <span>{{ current_date }}</span>
   </div>
 
-  <div class="dashboard-container">
-    <!-- Stats Row -->
-    <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="card text-center">
-          <div class="card-body">
-            <h3 class="text-primary" id="updatesThisWeek">-</h3>
-            <small class="text-muted">Updates This Week</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card text-center">
-          <div class="card-body">
-            <h3 class="text-warning" id="pendingForms">-</h3>
-            <small class="text-muted">Pending Forms</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
+  <!-- Main Content Area -->
+  <div class="dashboard-content">
+    <div class="row mb-3">
+      <div class="col-md-8">
         <div class="card">
+          <div class="card-header updates-card">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-megaphone-fill"></i> Company Updates & Events
+              </h5>
+              <button
+                class="btn btn-sm btn-light"
+                onclick="showAddUpdateModal()"
+              >
+                <i class="bi bi-plus"></i> Add Update
+              </button>
+            </div>
+          </div>
           <div class="card-body">
-            <h6 class="card-title">Weekly Activity</h6>
-            <canvas id="activityChart" height="60"></canvas>
+            <div id="updatesList">
+              <!-- Updates will be loaded here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Recent Activity Section -->
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-activity"></i> Recent Activity</h5>
+          </div>
+          <div class="card-body" style="max-height: 70vh; overflow-y: auto">
+            <div id="recentActivityList">
+              <!-- Recent activity will be loaded here -->
+            </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Main Content Area -->
-    <div class="dashboard-content">
-      <div class="row mb-3">
-        <div class="col-md-8">
-          <div class="card">
-            <div class="card-header updates-card">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                  <i class="bi bi-megaphone-fill"></i> Company Updates & Events
-                </h5>
-                <button
-                  class="btn btn-sm btn-light"
-                  onclick="showAddUpdateModal()"
-                >
-                  <i class="bi bi-plus"></i> Add Update
-                </button>
-              </div>
-            </div>
+    <div class="dashboard-container">
+      <!-- Stats Row -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="card text-center">
             <div class="card-body">
-              <div id="updatesList">
-                <!-- Updates will be loaded here -->
-              </div>
+              <h3 class="text-primary" id="updatesThisWeek">-</h3>
+              <small class="text-muted">Updates This Week</small>
             </div>
           </div>
         </div>
-        <!-- Recent Activity Section -->
-        <div class="col-md-4">
-          <div class="card">
-            <div class="card-header bg-success text-white">
-              <h5 class="mb-0">
-                <i class="bi bi-activity"></i> Recent Activity
-              </h5>
+        <div class="col-md-3">
+          <div class="card text-center">
+            <div class="card-body">
+              <h3 class="text-warning" id="pendingForms">-</h3>
+              <small class="text-muted">Pending Forms</small>
             </div>
-            <div class="card-body" style="max-height: 70vh; overflow-y: auto">
-              <div id="recentActivityList">
-                <!-- Recent activity will be loaded here -->
-              </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-body">
+              <h6 class="card-title">Weekly Activity</h6>
+              <canvas id="activityChart" height="60"></canvas>
             </div>
           </div>
         </div>
@@ -587,49 +584,4 @@
     return "Just now";
   }
 </script>
-
-<style>
-  .update-item {
-    transition: all 0.2s ease;
-  }
-
-  .update-item:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .update-content {
-    line-height: 1.5;
-  }
-
-  .update-content p {
-    margin-bottom: 0.5rem;
-  }
-
-  .update-content p:last-child {
-    margin-bottom: 0;
-  }
-
-  .activity-item:last-child {
-    border-bottom: none !important;
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
-  }
-
-  /* Quill editor customization */
-  .ql-editor {
-    min-height: 150px;
-  }
-
-  .ql-toolbar.ql-snow {
-    border-top: 1px solid #ccc;
-    border-left: 1px solid #ccc;
-    border-right: 1px solid #ccc;
-  }
-
-  .ql-container.ql-snow {
-    border-bottom: 1px solid #ccc;
-    border-left: 1px solid #ccc;
-    border-right: 1px solid #ccc;
-  }
-</style>
 {% endblock %}

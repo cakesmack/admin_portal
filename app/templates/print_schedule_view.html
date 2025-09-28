@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Standing Order Schedule - {{ view_type|title }} View</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        color: #000;
+        background: white;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+      }
+      .company-name {
+        font-size: 24px;
+        font-weight: bold;
+        color: #084385;
+      }
+      .form-title {
+        font-size: 20px;
+        margin: 10px 0;
+      }
+      .form-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .schedule-period {
+        font-size: 18px;
+        font-weight: bold;
+        color: #084385;
+      }
+      .stats-container {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+        justify-content: center;
+      }
+      .stat-box {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        text-align: center;
+        min-width: 100px;
+      }
+      .stat-box h4 {
+        margin: 0 0 5px 0;
+        color: #084385;
+        font-size: 24px;
+      }
+      .stat-box small {
+        color: #666;
+        font-size: 12px;
+      }
+      .schedule-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+        page-break-inside: avoid;
+      }
+      .schedule-table th {
+        padding: 8px;
+        text-align: left;
+        border: 1px solid #084385;
+        font-size: 12px;
+      }
+      .schedule-table td {
+        border: 1px solid #ddd;
+        padding: 6px;
+        font-size: 11px;
+        vertical-align: top;
+      }
+      .schedule-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+      .date-header {
+        background-color: #084385;
+        color: white;
+        padding: 10px;
+        margin: 20px 0 5px 0;
+        font-weight: bold;
+        font-size: 14px;
+        border-radius: 4px;
+        page-break-after: avoid;
+      }
+      .customer-name {
+        font-weight: bold;
+        font-size: 12px;
+      }
+      .account-number {
+        font-family: monospace;
+        color: #666;
+        font-size: 11px;
+      }
+      .product-list {
+        font-size: 10px;
+        color: #555;
+      }
+      .status-badge {
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: bold;
+      }
+      .status-created {
+        background-color: #28a745;
+        color: white;
+      }
+      .status-pending {
+        background-color: #ffc107;
+        color: black;
+      }
+      .status-skipped {
+        background-color: #6c757d;
+        color: white;
+      }
+      .special-instructions {
+        font-style: italic;
+        color: #007bff;
+        font-size: 10px;
+      }
+      .footer {
+        margin-top: 30px;
+        border-top: 1px solid #000;
+        padding-top: 10px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          padding: 10px;
+        }
+        .btn {
+          display: none;
+        }
+        .schedule-table {
+          page-break-inside: auto;
+        }
+        .schedule-table tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+      }
+      .btn {
+        padding: 8px 16px;
+        margin: 0 5px;
+        border: 1px solid #007bff;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="company-name">HIGHLAND INDUSTRIAL SUPPLIES</div>
+      <div>Hygiene & Catering Division</div>
+      <div class="form-title">STANDING ORDER SCHEDULE</div>
+    </div>
+
+    <div class="form-info">
+      <div>
+        <span class="schedule-period">
+          {% if view_type == 'day' %} {{ target_date.strftime('%A, %B %d, %Y')
+          }} {% elif view_type == 'week' %} Week of {{ start_date.strftime('%B
+          %d') }} - {{ end_date.strftime('%B %d, %Y') }} {% else %} {{
+          target_date.strftime('%B %Y') }} {% endif %}
+        </span>
+      </div>
+      <div><strong>Generated:</strong> <span id="print-date"></span></div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-container">
+      <div class="stat-box">
+        <h4>{{ total }}</h4>
+        <small>Total Orders</small>
+      </div>
+      <div class="stat-box">
+        <h4 style="color: #ffc107">{{ pending }}</h4>
+        <small>Pending</small>
+      </div>
+      <div class="stat-box">
+        <h4 style="color: #28a745">{{ completed }}</h4>
+        <small>Created</small>
+      </div>
+      <div class="stat-box">
+        <h4 style="color: #6c757d">{{ skipped }}</h4>
+        <small>Skipped</small>
+      </div>
+    </div>
+
+    <!-- Schedule Details -->
+    {% if schedules_by_date %} {% for date, schedules in
+    schedules_by_date.items()|sort %}
+    <div class="date-header">
+      {{ date.strftime('%A, %B %d, %Y') }} ({{ schedules|length }} orders)
+    </div>
+
+    <table class="schedule-table">
+      <thead>
+        <tr>
+          <th width="20%">Customer</th>
+          <th width="10%">Account</th>
+          <th width="35%">Products</th>
+          <th width="15%">Status</th>
+          <th width="15%">Reference</th>
+          <th width="5%">✓</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for schedule in schedules %}
+        <tr>
+          <td>
+            <div class="customer-name">
+              {{ schedule.standing_order.customer.name }}
+            </div>
+            {% if schedule.standing_order.customer.contact_name %}
+            <div style="font-size: 10px; color: #666">
+              {{ schedule.standing_order.customer.contact_name }}
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="account-number">
+              {{ schedule.standing_order.customer.account_number }}
+            </div>
+          </td>
+          <td>
+            <div class="product-list">
+              {% for item in schedule.standing_order.items %} • {{ item.quantity
+              }} {{ item.unit_type }} - {{ item.product_name }}<br />
+              {% endfor %}
+            </div>
+            {% if schedule.standing_order.special_instructions %}
+            <div class="special-instructions">
+              ℹ {{ schedule.standing_order.special_instructions }}
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if schedule.status == 'created' %}
+            <span class="status-badge status-created">Created</span>
+            {% if schedule.order_created_date %}
+            <div style="font-size: 9px; margin-top: 2px">
+              {{ schedule.order_created_date.strftime('%H:%M') }}
+            </div>
+            {% endif %} {% elif schedule.status == 'skipped' %}
+            <span class="status-badge status-skipped">Skipped</span>
+            {% else %}
+            <span class="status-badge status-pending">Pending</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if schedule.order_reference %}
+            <strong>{{ schedule.order_reference }}</strong>
+            {% endif %} {% if schedule.created_by_user %}
+            <div style="font-size: 9px; color: #666">
+              {{ schedule.created_by_user.username }}
+            </div>
+            {% endif %} {% if schedule.notes %}
+            <div style="font-size: 9px; font-style: italic; color: #666">
+              {{ schedule.notes }}
+            </div>
+            {% endif %}
+          </td>
+          <td style="text-align: center">
+            {% if schedule.status == 'pending' %} ☐ {% elif schedule.status ==
+            'created' %} ☑ {% else %} ☒ {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endfor %} {% else %}
+    <div style="text-align: center; padding: 40px; color: #666">
+      <h3>No standing orders scheduled for this period</h3>
+    </div>
+    {% endif %}
+
+    <!-- Summary Section -->
+    <div
+      style="
+        margin-top: 30px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      "
+    >
+      <h4 style="color: #084385; margin-top: 0">Schedule Summary</h4>
+      <div style="display: flex; gap: 30px">
+        <div>
+          <strong>Period:</strong>
+          {% if view_type == 'day' %} {{ target_date.strftime('%A, %B %d, %Y')
+          }} {% elif view_type == 'week' %} {{ start_date.strftime('%B %d') }} -
+          {{ end_date.strftime('%B %d, %Y') }} {% else %} {{
+          target_date.strftime('%B %Y') }} {% endif %}
+        </div>
+        <div>
+          <strong>Total Customers:</strong> {{
+          schedules_by_date.values()|map('length')|sum if schedules_by_date else
+          0 }}
+        </div>
+        <div>
+          <strong>Completion Rate:</strong>
+          {% if total > 0 %} {{ "%.1f"|format((completed / total * 100)) }}% {%
+          else %} 0% {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>
+        <strong>Highland Industrial Supplies</strong> - Hygiene and Catering
+        Division
+      </div>
+      <div>Tel: 01463 123456 | Email: orders@highland-supplies.co.uk</div>
+      <div style="margin-top: 10px; font-size: 10px">
+        Standing Order Schedule | View: {{ view_type|title }} | Printed on:
+        <span id="print-date-footer"></span>
+      </div>
+    </div>
+
+    <div class="no-print" style="margin-top: 20px; text-align: center">
+      <button onclick="window.print()" class="btn">Print Schedule</button>
+      <button onclick="window.close()" class="btn btn-secondary">Close</button>
+    </div>
+
+    <script>
+      // Show current date and time
+      const now = new Date().toLocaleString("en-GB");
+      document.getElementById("print-date").textContent = now;
+      document.getElementById("print-date-footer").textContent = now;
+
+      // Auto-print when page loads
+      window.onload = function () {
+        setTimeout(function () {
+          window.print();
+        }, 500);
+      };
+    </script>
+  </body>
+</html>

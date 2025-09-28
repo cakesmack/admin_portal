@@ -23,8 +23,8 @@
         <p><strong>Contact:</strong> {{ order.customer.contact_name }}</p>
         {% endif %} {% if order.customer.phone %}
         <p><strong>Phone:</strong> {{ order.customer.phone }}</p>
-        {% endif %} {% if order.customer.email %}
-        <p><strong>Email:</strong> {{ order.customer.email }}</p>
+        {% endif %} {% if order.customer.address %}
+        <p><strong>Address:</strong> {{ order.customer.address }}</p>
         {% endif %}
       </div>
     </div>
@@ -191,12 +191,24 @@
 </div>
 
 <!-- Action Buttons -->
+<!-- Update the Action Buttons section in standing_order_detail.html -->
 <div class="card mb-4">
   <div class="card-header">
     <h5 class="mb-0"><i class="bi bi-gear"></i> Actions</h5>
   </div>
   <div class="card-body">
     <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary" onclick="editOrder()">
+        <i class="bi bi-pencil"></i> Edit Order
+      </button>
+
+      <a
+        href="{{ url_for('main.print_standing_order', order_id=order.id) }}"
+        class="btn btn-info"
+        target="_blank"
+      >
+        <i class="bi bi-printer"></i> Print Order Details
+      </a>
       {% if order.status == 'active' %}
       <button class="btn btn-warning" onclick="pauseOrder()">
         <i class="bi bi-pause"></i> Pause Order
@@ -210,14 +222,6 @@
         <i class="bi bi-stop"></i> End Order
       </button>
       {% endif %}
-
-      <button class="btn btn-primary" onclick="editOrder()">
-        <i class="bi bi-pencil"></i> Edit Order
-      </button>
-
-      <button class="btn btn-info" onclick="window.print()">
-        <i class="bi bi-printer"></i> Print Details
-      </button>
     </div>
   </div>
 </div>
@@ -404,12 +408,4 @@
   }
 </script>
 
-<style>
-  @media print {
-    .btn,
-    .card-header .badge {
-      display: none !important;
-    }
-  }
-</style>
 {% endblock %}

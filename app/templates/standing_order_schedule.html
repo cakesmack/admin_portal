@@ -23,9 +23,13 @@
         Month
       </a>
     </div>
-    <button class="btn btn-info ms-2" onclick="window.print()">
-      <i class="bi bi-printer"></i> Print
-    </button>
+    <a
+      href="{{ url_for('main.print_schedule_view', view=view_type, date=target_date) }}"
+      class="btn btn-info ms-2"
+      target="_blank"
+    >
+      <i class="bi bi-printer"></i> Print Schedule
+    </a>
     <a
       href="{{ url_for('main.standing_orders') }}"
       class="btn btn-secondary ms-2"

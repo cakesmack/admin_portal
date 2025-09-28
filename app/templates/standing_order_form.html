@@ -12,31 +12,43 @@
     <form id="standingOrderForm">
       <!-- Customer Selection -->
       <div class="row mb-4">
-        <div class="col-md-6">
-          <label class="form-label">Customer *</label>
-          <select
-            class="form-select"
-            id="customerId"
-            required
-            onchange="updateCustomerInfo()"
-          >
-            <option value="">Select Customer</option>
-            {% for customer in customers %}
-            <option
-              value="{{ customer.id }}"
-              data-account="{{ customer.account_number }}"
-              data-name="{{ customer.name }}"
-            >
-              {{ customer.account_number }} - {{ customer.name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-6">
-          <div id="customerInfo" class="alert alert-info" style="display: none">
-            <strong>Selected Customer:</strong><br />
-            <span id="customerDetails"></span>
+        <div class="col-md-4">
+          <div class="search-container position-relative">
+            <label class="form-label">Customer Account *</label>
+            <input
+              type="text"
+              class="form-control"
+              id="customerAccount"
+              name="customer_account"
+              placeholder="Start typing account number..."
+              required
+            />
+            <input type="hidden" id="customerId" name="customer_id" />
           </div>
+        </div>
+        <div class="col-md-4">
+          <div class="search-container position-relative">
+            <label class="form-label">Customer Name *</label>
+            <input
+              type="text"
+              class="form-control"
+              id="customerName"
+              name="customer_name"
+              placeholder="Start typing customer name..."
+              required
+            />
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Customer Address</label>
+          <input
+            type="text"
+            class="form-control"
+            id="customerAddress"
+            name="customer_address"
+            placeholder="Customer address will auto-fill"
+            required
+          />
         </div>
       </div>
 
@@ -60,25 +72,23 @@
             <label class="btn btn-outline-primary">
               <input type="checkbox" name="deliveryDays" value="4" /> Friday
             </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="5" /> Saturday
-            </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="6" /> Sunday
-            </label>
           </div>
         </div>
+        <small class="text-muted"
+          >Standing order will start from the next occurrence of the selected
+          day(s)</small
+        >
       </div>
 
-      <!-- Dates -->
+      <!-- End Date Only -->
       <div class="row mb-4">
-        <div class="col-md-6">
-          <label class="form-label">Start Date *</label>
-          <input type="date" class="form-control" id="startDate" required />
-        </div>
         <div class="col-md-6">
           <label class="form-label">End Date (leave blank for ongoing)</label>
           <input type="date" class="form-control" id="endDate" />
+          <small class="text-muted"
+            >Only use if standing order has a specific end date (e.g., 1 month
+            trial)</small
+          >
         </div>
       </div>
 
@@ -108,35 +118,6 @@
         ></textarea>
       </div>
 
-      <!-- Notifications -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h6 class="mb-0">Email Notifications (Optional)</h6>
-        </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-8">
-              <label class="form-label">Notification Email</label>
-              <input
-                type="email"
-                class="form-control"
-                id="notificationEmail"
-                placeholder="email@example.com"
-              />
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Notify Days Before</label>
-              <select class="form-select" id="notifyDaysBefore">
-                <option value="0">Same day</option>
-                <option value="1" selected>1 day before</option>
-                <option value="2">2 days before</option>
-                <option value="3">3 days before</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Submit Buttons -->
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary">
@@ -157,13 +138,25 @@
 <template id="productRowTemplate">
   <div class="product-row border rounded p-3 mb-2">
     <div class="row">
-      <div class="col-md-3">
-        <label class="form-label">Product Code *</label>
-        <input type="text" class="form-control product-code" required />
-      </div>
       <div class="col-md-4">
+        <div class="search-container position-relative">
+          <label class="form-label">Product Code *</label>
+          <input
+            type="text"
+            class="form-control product-code"
+            placeholder="Start typing product code..."
+            required
+          />
+        </div>
+      </div>
+      <div class="col-md-5">
         <label class="form-label">Product Name *</label>
-        <input type="text" class="form-control product-name" required />
+        <input
+          type="text"
+          class="form-control product-name"
+          placeholder="Product description"
+          required
+        />
       </div>
       <div class="col-md-2">
         <label class="form-label">Quantity *</label>
@@ -171,17 +164,9 @@
           type="number"
           class="form-control product-quantity"
           min="1"
+          placeholder="Qty"
           required
         />
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Unit</label>
-        <select class="form-select product-unit">
-          <option value="units">Units</option>
-          <option value="cases">Cases</option>
-          <option value="boxes">Boxes</option>
-          <option value="packs">Packs</option>
-        </select>
       </div>
       <div class="col-md-1 d-flex align-items-end">
         <button
@@ -193,20 +178,382 @@
         </button>
       </div>
     </div>
-    <div class="row mt-2">
-      <div class="col-12">
-        <input
-          type="text"
-          class="form-control product-notes"
-          placeholder="Special notes for this item (optional)"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
 {% endblock %} {% block scripts %}
 <script>
+  let searchTimeout;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // Setup search for customer fields (exactly like returns form)
+    setupCustomerSearch();
+
+    // Setup product search for initial product row
+    setupInitialProductSearch();
+
+    // Close dropdowns when clicking outside
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".search-container")) {
+        hideAllDropdowns();
+      }
+    });
+  });
+
+  function setupInitialProductSearch() {
+    console.log("Setting up initial product search...");
+    // This will be called after the first product row is added
+    setTimeout(() => {
+      const firstProductCodeInput = document.querySelector(".product-code");
+      console.log("Found first product code input:", firstProductCodeInput);
+      if (firstProductCodeInput) {
+        setupProductSearch(firstProductCodeInput);
+      } else {
+        console.error("No product code input found!");
+      }
+    }, 100);
+  }
+
+  function setupProductSearch(input) {
+    console.log("Setting up product search for:", input);
+
+    if (input) {
+      input.addEventListener("input", function () {
+        clearTimeout(searchTimeout);
+        const searchValue = this.value.trim();
+
+        console.log(`Product input event: "${searchValue}"`);
+
+        if (searchValue.length < 2) {
+          hideDropdown(input);
+          return;
+        }
+
+        searchTimeout = setTimeout(() => {
+          console.log(`Starting product search for: "${searchValue}"`);
+          searchProducts(searchValue, input);
+        }, 300);
+      });
+
+      input.addEventListener("blur", function () {
+        setTimeout(() => {
+          if (!document.querySelector(".dropdown-results:hover")) {
+            hideDropdown(input);
+          }
+        }, 200);
+      });
+    } else {
+      console.error("Product input element not found for search setup");
+    }
+  }
+
+  async function searchProducts(searchValue, inputElement) {
+    console.log(`Searching products for: "${searchValue}"`);
+
+    try {
+      const url = `/api/products/search?q=${encodeURIComponent(searchValue)}`;
+      console.log(`Fetching: ${url}`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const products = await response.json();
+      console.log(`Found ${products.length} products:`, products);
+
+      showProductDropdown(products, inputElement);
+    } catch (error) {
+      console.error("Error searching products:", error);
+      hideDropdown(inputElement);
+    }
+  }
+
+  function showProductDropdown(products, inputElement) {
+    hideDropdown(inputElement);
+
+    if (products.length === 0) {
+      inputElement.style.borderColor = "#dc3545";
+      return;
+    }
+
+    const dropdown = createDropdown();
+
+    products.forEach((product) => {
+      const item = createDropdownItem(`${product.code}`, `${product.name}`);
+
+      item.addEventListener("click", function () {
+        selectProduct(product, inputElement);
+        hideAllDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function selectProduct(product, inputElement) {
+    const productRow = inputElement.closest(".product-row");
+    const codeInput = productRow.querySelector(".product-code");
+    const nameInput = productRow.querySelector(".product-name");
+
+    if (codeInput) {
+      codeInput.value = product.code;
+      codeInput.style.borderColor = "#28a745";
+    }
+
+    if (nameInput) {
+      nameInput.value = product.name;
+    }
+  }
+
+  function setupCustomerSearch() {
+    const accountInput = document.getElementById("customerAccount");
+    const nameInput = document.getElementById("customerName");
+
+    if (accountInput) {
+      setupSearchField(accountInput, "customer", "account");
+    }
+
+    if (nameInput) {
+      setupSearchField(nameInput, "customer", "name");
+    }
+  }
+
+  function setupSearchField(input, type, field) {
+    console.log(
+      `Setting up search for: ${input.id}, type: ${type}, field: ${field}`
+    );
+
+    input.addEventListener("input", function () {
+      clearTimeout(searchTimeout);
+      const searchValue = this.value.trim();
+
+      console.log(`Input event fired for ${this.id}, value: "${searchValue}"`);
+
+      if (searchValue.length < 2) {
+        hideDropdown(input);
+        if (type === "customer") {
+          clearOtherCustomerFields(field);
+        }
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        console.log(`Starting search for: "${searchValue}"`);
+        if (type === "customer") {
+          searchCustomers(searchValue, input, field);
+        }
+      }, 300);
+    });
+
+    input.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (!document.querySelector(".dropdown-results:hover")) {
+          hideDropdown(input);
+        }
+      }, 200);
+    });
+  }
+
+  async function searchCustomers(searchValue, inputElement, fieldType) {
+    console.log(`Searching customers for: "${searchValue}"`);
+
+    try {
+      const url = `/api/customers/search?q=${encodeURIComponent(searchValue)}`;
+      console.log(`Fetching: ${url}`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const customers = await response.json();
+      console.log(`Found ${customers.length} customers:`, customers);
+
+      showCustomerDropdown(customers, inputElement, fieldType);
+    } catch (error) {
+      console.error("Error searching customers:", error);
+      hideDropdown(inputElement);
+    }
+  }
+
+  function showCustomerDropdown(customers, inputElement, fieldType) {
+    hideDropdown(inputElement);
+
+    if (customers.length === 0) {
+      inputElement.style.borderColor = "#dc3545";
+      return;
+    }
+
+    const dropdown = createDropdown();
+
+    customers.forEach((customer) => {
+      const item = createDropdownItem(
+        `${customer.account_number} - ${customer.name}`,
+        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
+      );
+
+      item.addEventListener("click", function () {
+        selectCustomer(customer);
+        hideAllDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function createDropdown() {
+    const dropdown = document.createElement("div");
+    dropdown.className = "dropdown-results";
+    dropdown.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--dark-card);
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    `;
+    return dropdown;
+  }
+
+  function createDropdownItem(title, subtitle) {
+    const item = document.createElement("div");
+    item.className = "dropdown-item-custom";
+    item.style.cssText = `
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.2s;
+        color: var(--text-light);
+    `;
+
+    item.innerHTML = `
+        <div style="font-weight: 600;">${title}</div>
+        ${
+          subtitle
+            ? `<small style="color: var(--text-muted);">${subtitle}</small>`
+            : ""
+        }
+    `;
+
+    item.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "var(--primary-blue)";
+    });
+
+    item.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "transparent";
+    });
+
+    return item;
+  }
+
+  function selectCustomer(customer) {
+    const accountInput = document.getElementById("customerAccount");
+    const nameInput = document.getElementById("customerName");
+    const addressInput = document.getElementById("customerAddress");
+    const customerIdInput = document.getElementById("customerId");
+
+    if (accountInput) {
+      accountInput.value = customer.account_number;
+      accountInput.style.borderColor = "#28a745";
+    }
+
+    if (nameInput) {
+      nameInput.value = customer.name;
+      nameInput.style.borderColor = "#28a745";
+    }
+
+    if (addressInput && customer.address) {
+      addressInput.value = customer.address;
+    }
+
+    if (customerIdInput) {
+      customerIdInput.value = customer.id;
+    }
+
+    updateCustomerInfo(customer);
+  }
+
+  function clearOtherCustomerFields(fieldType) {
+    if (fieldType === "account") {
+      const nameInput = document.getElementById("customerName");
+      if (nameInput) {
+        nameInput.value = "";
+        nameInput.style.borderColor = "";
+      }
+    } else {
+      const accountInput = document.getElementById("customerAccount");
+      if (accountInput) {
+        accountInput.value = "";
+        accountInput.style.borderColor = "";
+      }
+    }
+
+    // Clear address and customer ID when searching
+    const addressInput = document.getElementById("customerAddress");
+    const customerIdInput = document.getElementById("customerId");
+
+    if (addressInput) {
+      addressInput.value = "";
+    }
+
+    if (customerIdInput) {
+      customerIdInput.value = "";
+    }
+
+    hideCustomerInfo();
+  }
+
+  function updateCustomerInfo(customer) {
+    const customerInfo = document.getElementById("customerInfo");
+    const customerDetails = document.getElementById("customerDetails");
+
+    if (customerInfo && customerDetails) {
+      customerDetails.innerHTML = `
+        Account: ${customer.account_number}<br>
+        Name: ${customer.name}<br>
+        ${customer.contact_name ? `Contact: ${customer.contact_name}<br>` : ""}
+        ${customer.phone ? `Phone: ${customer.phone}<br>` : ""}
+        ${customer.address ? `Address: ${customer.address}` : ""}
+      `;
+      customerInfo.style.display = "block";
+    }
+  }
+
+  function hideCustomerInfo() {
+    const customerInfo = document.getElementById("customerInfo");
+    if (customerInfo) {
+      customerInfo.style.display = "none";
+    }
+  }
+
+  function hideDropdown(inputElement) {
+    const existing =
+      inputElement.parentElement.querySelector(".dropdown-results");
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  function hideAllDropdowns() {
+    document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
+      dropdown.remove();
+    });
+  }
+
   // Toggle delivery day buttons
   document
     .querySelectorAll('input[name="deliveryDays"]')
@@ -223,30 +570,20 @@
       });
     });
 
-  // Update customer info display
-  function updateCustomerInfo() {
-    const select = document.getElementById("customerId");
-    const selectedOption = select.options[select.selectedIndex];
-
-    if (select.value) {
-      const customerInfo = document.getElementById("customerInfo");
-      const customerDetails = document.getElementById("customerDetails");
-
-      customerDetails.innerHTML = `
-            Account: ${selectedOption.dataset.account}<br>
-            Name: ${selectedOption.dataset.name}
-        `;
-      customerInfo.style.display = "block";
-    } else {
-      document.getElementById("customerInfo").style.display = "none";
-    }
-  }
-
   // Add product row
   function addProductRow() {
     const template = document.getElementById("productRowTemplate");
     const clone = template.content.cloneNode(true);
     document.getElementById("productsContainer").appendChild(clone);
+
+    // Set up product search for the newly added row
+    const newProductRows = document.querySelectorAll(".product-row");
+    const latestRow = newProductRows[newProductRows.length - 1];
+    const newProductCodeInput = latestRow.querySelector(".product-code");
+
+    if (newProductCodeInput) {
+      setupProductSearch(newProductCodeInput);
+    }
   }
 
   // Remove product row
@@ -255,6 +592,7 @@
   }
 
   // Initialize with one product row
+  console.log("Initializing with first product row...");
   addProductRow();
 
   // Form submission
@@ -263,29 +601,62 @@
     .addEventListener("submit", async function (e) {
       e.preventDefault();
 
-      // Validate at least one delivery day is selected
+      console.log("Form submission started...");
+
+      // Validate customer selection
+      const customerId = document.getElementById("customerId").value;
+      console.log("Customer ID:", customerId);
+
+      if (!customerId) {
+        alert("Please select a customer from the search dropdown");
+        return;
+      }
+
+      // Validate at least one delivery day is selected (and no weekends)
       const deliveryDays = Array.from(
         document.querySelectorAll('input[name="deliveryDays"]:checked')
       ).map((cb) => cb.value);
+
+      console.log("Delivery days:", deliveryDays);
 
       if (deliveryDays.length === 0) {
         alert("Please select at least one delivery day");
         return;
       }
 
+      // Check for weekend days (5=Saturday, 6=Sunday)
+      const weekendDays = deliveryDays.filter((day) => parseInt(day) >= 5);
+      if (weekendDays.length > 0) {
+        alert(
+          "Weekend deliveries are not supported. Please select Monday through Friday only."
+        );
+        return;
+      }
+
+      // Collect product data
       // Collect product data
       const products = [];
       document.querySelectorAll(".product-row").forEach((row) => {
-        const product = {
-          product_code: row.querySelector(".product-code").value,
-          product_name: row.querySelector(".product-name").value,
-          quantity: parseInt(row.querySelector(".product-quantity").value),
-          unit_type: row.querySelector(".product-unit").value,
-          notes: row.querySelector(".product-notes").value,
-        };
+        const codeInput = row.querySelector(".product-code");
+        const nameInput = row.querySelector(".product-name");
+        const quantityInput = row.querySelector(".product-quantity");
 
-        if (product.product_code && product.product_name && product.quantity) {
-          products.push(product);
+        if (codeInput && nameInput && quantityInput) {
+          const product = {
+            product_code: codeInput.value,
+            product_name: nameInput.value,
+            quantity: parseInt(quantityInput.value),
+            unit_type: "units", // Default value
+            notes: "", // Default empty
+          };
+
+          if (
+            product.product_code &&
+            product.product_name &&
+            product.quantity
+          ) {
+            products.push(product);
+          }
         }
       });
 
@@ -295,39 +666,69 @@
       }
 
       // Prepare data
-      const customerSelect = document.getElementById("customerId");
+      const customerName = document.getElementById("customerName").value;
+      console.log("Customer name:", customerName);
+
       const data = {
-        customer_id: customerSelect.value,
-        customer_name:
-          customerSelect.options[customerSelect.selectedIndex].dataset.name,
+        customer_id: customerId,
+        customer_name: customerName,
         delivery_days: deliveryDays,
-        start_date: document.getElementById("startDate").value,
         end_date: document.getElementById("endDate").value,
         special_instructions: document.getElementById("specialInstructions")
           .value,
-        notification_email: document.getElementById("notificationEmail").value,
-        notify_days_before: parseInt(
-          document.getElementById("notifyDaysBefore").value
-        ),
+
         items: products,
       };
 
+      console.log("Data to submit:", data);
+
       try {
+        console.log("Making API call...");
         const response = await fetch("/standing-orders/new", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         });
 
+        console.log("Response received:", response);
+
         const result = await response.json();
+        console.log("Result:", result);
+
         if (result.success) {
+          console.log("Success! Redirecting...");
           window.location.href = `/standing-orders/${result.id}`;
         } else {
           alert("Error: " + result.message);
         }
       } catch (error) {
+        console.error("Error creating standing order:", error);
         alert("Error creating standing order: " + error.message);
       }
     });
 </script>
+
+<style>
+  .search-container {
+    position: relative;
+  }
+
+  .dropdown-results {
+    border: 2px solid var(--border-color, #ddd) !important;
+    background: var(--dark-card, white) !important;
+  }
+
+  .dropdown-results::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .dropdown-results::-webkit-scrollbar-track {
+    background: var(--dark-bg, #f1f1f1);
+  }
+
+  .dropdown-results::-webkit-scrollbar-thumb {
+    background: var(--primary-blue, #007bff);
+    border-radius: 3px;
+  }
+</style>
 {% endblock %}

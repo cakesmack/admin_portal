@@ -71,6 +71,65 @@ class User(db.Model, UserMixin):
                 'link': None
             })
         
+        # Recent standing order creation
+        recent_standing_orders = StandingOrder.query.filter_by(created_by=self.id).order_by(StandingOrder.created_at.desc()).limit(3).all()
+        for order in recent_standing_orders:
+            activities.append({
+                'type': 'standing_order_created',
+                'description': f'Created standing order for {order.customer.name}',
+                'date': order.created_at,
+                'link': f'/standing-orders/{order.id}'
+            })
+        
+        # Recent standing order actions (pause, resume, end)
+        recent_so_logs = StandingOrderLog.query.filter_by(performed_by=self.id).filter(
+            StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
+        ).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
+        
+        for log in recent_so_logs:
+            action_descriptions = {
+                'paused': f'Paused standing order for {log.standing_order.customer.name}',
+                'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
+                'ended': f'Ended standing order for {log.standing_order.customer.name}'
+            }
+            
+            activities.append({
+                'type': f'standing_order_{log.action_type}',
+                'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
+                'date': log.performed_at,
+                'link': f'/standing-orders/{log.standing_order_id}'
+            })
+        
+        # Recent stock transactions
+        recent_stock_transactions = StockTransaction.query.filter_by(created_by=self.id).order_by(StockTransaction.transaction_date.desc()).limit(3).all()
+        for transaction in recent_stock_transactions:
+            transaction_types = {
+                'stock_in': 'Added stock for',
+                'stock_out': 'Processed stock order for', 
+                'adjustment': 'Adjusted stock for'
+            }
+            
+            description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
+            activities.append({
+                'type': f'stock_{transaction.transaction_type}',
+                'description': f'{description} {transaction.stock_item.customer.name}',
+                'date': transaction.transaction_date,
+                'link': '/customer-stock'
+            })
+        
+        # Recent form completions by this user
+        recent_completed_forms = Form.query.filter_by(completed_by=self.id).filter(
+            Form.completed_date.isnot(None)
+        ).order_by(Form.completed_date.desc()).limit(3).all()
+        
+        for form in recent_completed_forms:
+            activities.append({
+                'type': 'form_completed',
+                'description': f'Completed {form.type.replace("_", " ").title()} form',
+                'date': form.completed_date,
+                'link': f'/form/{form.id}'
+            })
+        
         # Sort by date and return limited results
         activities.sort(key=lambda x: x['date'], reverse=True)
         return activities[:limit]
@@ -284,10 +343,7 @@ class StandingOrder(db.Model):
     # Special instructions for this standing order
     special_instructions = db.Column(db.Text)
     
-    # Email notification settings
-    notification_email = db.Column(db.String(100))  # Email for reminders
-    notify_days_before = db.Column(db.Integer, default=1)  # How many days before to send reminder
-    
+
     # Tracking
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -300,17 +356,28 @@ class StandingOrder(db.Model):
     schedules = db.relationship('StandingOrderSchedule', backref='standing_order', cascade='all, delete-orphan')
     logs = db.relationship('StandingOrderLog', backref='standing_order', cascade='all, delete-orphan')
     
+    # Add these methods to your StandingOrder model in models.py
+
     def get_delivery_days_list(self):
-        """Return list of day numbers"""
+        """Return list of day numbers (excluding weekends)"""
         if self.delivery_days:
-            return [int(d) for d in self.delivery_days.split(',')]
+            days = [int(d) for d in self.delivery_days.split(',')]
+            # Filter out weekends (5=Saturday, 6=Sunday)
+            return [d for d in days if d < 5]
         return []
-    
+
     def get_delivery_days_names(self):
-        """Return readable day names"""
-        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        """Return readable day names (weekdays only)"""
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
         day_numbers = self.get_delivery_days_list()
-        return [days[d] for d in day_numbers]
+        return [days[d] for d in day_numbers if d < 5]
+
+    def validate_delivery_days(self):
+        """Validate that only weekdays are selected"""
+        day_numbers = self.get_delivery_days_list()
+        weekend_days = [d for d in day_numbers if d >= 5]
+        if weekend_days:
+            raise ValueError("Weekend deliveries are not supported. Please select Monday through Friday only.")
 
 class StandingOrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)

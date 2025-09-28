@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule
+from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule, Product
 from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
 import json
 from datetime import datetime, date, timedelta
@@ -454,7 +454,7 @@ def callsheets():
     current_month = request.args.get('month', default=now.month, type=int)
     current_year = request.args.get('year', default=now.year, type=int)
     
-    # Get all callsheets for current month
+    # Get all callsheets for current month (weekdays only)
     callsheets = Callsheet.query.filter_by(
         month=current_month,
         year=current_year,
@@ -1573,6 +1573,7 @@ def standing_orders():
                          paused_count=paused_count,
                          pending_this_week=pending_this_week)
 
+# Update your standing order creation route in routes.py
 @main.route('/standing-orders/new', methods=['GET', 'POST'])
 @login_required
 def new_standing_order():
@@ -1580,17 +1581,25 @@ def new_standing_order():
         data = request.json
         
         try:
+            # Validate delivery days (no weekends)
+            delivery_days = data.get('delivery_days', [])
+            weekend_days = [day for day in delivery_days if int(day) >= 5]
+            if weekend_days:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Weekend deliveries are not supported. Please select Monday through Friday only.'
+                }), 400
+            
             # Create standing order
             standing_order = StandingOrder(
-                customer_id=data['customer_id'],
-                delivery_days=','.join(data['delivery_days']),
-                start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
-                end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
-                special_instructions=data.get('special_instructions', ''),
-                notification_email=data.get('notification_email', ''),
-                notify_days_before=data.get('notify_days_before', 1),
-                created_by=current_user.id
-            )
+    customer_id=data['customer_id'],
+    delivery_days=','.join([day for day in data['delivery_days'] if int(day) < 5]),
+    # ADD THIS LINE:
+    start_date=date.today(),  # Use today as the start date
+    end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
+    special_instructions=data.get('special_instructions', ''),
+    created_by=current_user.id
+)
             
             db.session.add(standing_order)
             db.session.flush()
@@ -1616,7 +1625,7 @@ def new_standing_order():
             )
             db.session.add(log)
             
-            # Generate initial schedules for the first month
+            # Generate initial schedules for the first month (weekdays only)
             generate_schedules_for_order(standing_order.id)
             
             db.session.commit()
@@ -1630,6 +1639,7 @@ def new_standing_order():
     # GET request - show form
     customers = Customer.query.order_by(Customer.name).all()
     return render_template('standing_order_form.html', customers=customers)
+
 
 @main.route('/standing-orders/<int:order_id>')
 @login_required
@@ -1844,9 +1854,8 @@ def schedule_view():
                          pending=pending,
                          skipped=skipped)
 
-# Helper function to generate schedules
 def generate_schedules_for_order(order_id, months_ahead=1):
-    """Generate schedule entries for a standing order"""
+    """Generate schedule entries for a standing order (Monday-Friday only)"""
     order = StandingOrder.query.get(order_id)
     if not order or order.status != 'active':
         return 0
@@ -1861,8 +1870,12 @@ def generate_schedules_for_order(order_id, months_ahead=1):
     current_date = max(order.start_date, today)
     delivery_days = order.get_delivery_days_list()
     
+    # Filter out weekends (5=Saturday, 6=Sunday)
+    weekday_delivery_days = [day for day in delivery_days if day < 5]
+    
     while current_date <= end_date:
-        if current_date.weekday() in delivery_days:
+        # Only check weekdays (0=Monday through 4=Friday)
+        if current_date.weekday() in weekday_delivery_days:
             # Check if schedule already exists
             existing = StandingOrderSchedule.query.filter_by(
                 standing_order_id=order_id,
@@ -1882,6 +1895,82 @@ def generate_schedules_for_order(order_id, months_ahead=1):
     
     return count
 
+@main.route('/standing-orders/<int:order_id>/print')
+@login_required
+def print_standing_order(order_id):
+    """Print standing order details"""
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    # Get current month schedules
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    month_end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+    
+    schedules = StandingOrderSchedule.query.filter(
+        StandingOrderSchedule.standing_order_id == order_id,
+        StandingOrderSchedule.scheduled_date.between(month_start, month_end)
+    ).order_by(StandingOrderSchedule.scheduled_date).all()
+    
+    return render_template(
+        'print_standing_order.html',
+        order=order,
+        schedules=schedules,
+        today=today
+    )
+
+@main.route('/standing-orders/schedule-view/print')
+@login_required
+def print_schedule_view():
+    """Print schedule view"""
+    view_type = request.args.get('view', 'month')
+    target_date = request.args.get('date', str(date.today()))
+    
+    try:
+        target_date = datetime.strptime(target_date, '%Y-%m-%d').date()
+    except:
+        target_date = date.today()
+    
+    if view_type == 'day':
+        start_date = target_date
+        end_date = target_date
+    elif view_type == 'week':
+        start_date = target_date - timedelta(days=target_date.weekday())
+        end_date = start_date + timedelta(days=6)
+    else:  # month
+        start_date = date(target_date.year, target_date.month, 1)
+        end_date = date(target_date.year, target_date.month, calendar.monthrange(target_date.year, target_date.month)[1])
+    
+    # Get schedules in date range
+    schedules = StandingOrderSchedule.query.join(StandingOrder).join(Customer).filter(
+        StandingOrderSchedule.scheduled_date.between(start_date, end_date)
+    ).order_by(StandingOrderSchedule.scheduled_date, Customer.name).all()
+    
+    # Group by date
+    schedules_by_date = {}
+    for schedule in schedules:
+        date_key = schedule.scheduled_date
+        if date_key not in schedules_by_date:
+            schedules_by_date[date_key] = []
+        schedules_by_date[date_key].append(schedule)
+    
+    # Calculate completion stats
+    total = len(schedules)
+    completed = len([s for s in schedules if s.status == 'created'])
+    pending = len([s for s in schedules if s.status == 'pending'])
+    skipped = len([s for s in schedules if s.status == 'skipped'])
+    
+    return render_template(
+        'print_schedule_view.html',
+        view_type=view_type,
+        target_date=target_date,
+        start_date=start_date,
+        end_date=end_date,
+        schedules_by_date=schedules_by_date,
+        total=total,
+        completed=completed,
+        pending=pending,
+        skipped=skipped
+    )
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -2095,9 +2184,130 @@ def get_dashboard_stats():
     })
 
 # Enhanced recent activity API
+# Enhanced recent activity API
 @main.route('/api/recent-activity')
 @login_required
 def get_recent_activity():
+    """Get recent activity across the system"""
+    activities = []
+    
+    # Recent forms (created and completed)
+    recent_forms = Form.query.order_by(Form.date_created.desc()).limit(5).all()
+    for form in recent_forms:
+        activities.append({
+            'type': 'form_created',
+            'description': f'Created {form.type.replace("_", " ").title()} form',
+            'user': form.author.username,
+            'timestamp': form.date_created,
+            'link': url_for('main.view_form', form_id=form.id),
+            'icon': 'bi-file-text'
+        })
+    
+    # Recently completed forms
+    completed_forms = Form.query.filter(
+        Form.is_completed == True,
+        Form.completed_date.isnot(None)
+    ).order_by(Form.completed_date.desc()).limit(3).all()
+    
+    for form in completed_forms:
+        if form.completer:
+            activities.append({
+                'type': 'form_completed',
+                'description': f'Completed {form.type.replace("_", " ").title()} form',
+                'user': form.completer.username,
+                'timestamp': form.completed_date,
+                'link': url_for('main.view_form', form_id=form.id),
+                'icon': 'bi-check-circle'
+            })
+    
+    # Recent standing order creation
+    recent_standing_orders = StandingOrder.query.order_by(StandingOrder.created_at.desc()).limit(3).all()
+    for order in recent_standing_orders:
+        activities.append({
+            'type': 'standing_order_created',
+            'description': f'Created standing order for {order.customer.name}',
+            'user': order.created_by_user.username,
+            'timestamp': order.created_at,
+            'link': url_for('main.view_standing_order', order_id=order.id),
+            'icon': 'bi-arrow-repeat'
+        })
+    
+    # Recent standing order actions (pause, resume, end)
+    recent_so_logs = StandingOrderLog.query.filter(
+        StandingOrderLog.action_type.in_(['paused', 'resumed', 'ended'])
+    ).order_by(StandingOrderLog.performed_at.desc()).limit(3).all()
+    
+    for log in recent_so_logs:
+        action_descriptions = {
+            'paused': f'Paused standing order for {log.standing_order.customer.name}',
+            'resumed': f'Resumed standing order for {log.standing_order.customer.name}',
+            'ended': f'Ended standing order for {log.standing_order.customer.name}'
+        }
+        
+        activities.append({
+            'type': f'standing_order_{log.action_type}',
+            'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
+            'user': log.user.username,
+            'timestamp': log.performed_at,
+            'link': url_for('main.view_standing_order', order_id=log.standing_order_id),
+            'icon': 'bi-arrow-repeat'
+        })
+    
+    # Recent company updates
+    recent_updates = CompanyUpdate.query.order_by(CompanyUpdate.created_at.desc()).limit(4).all()
+    for update in recent_updates:
+        activities.append({
+            'type': 'company_update',
+            'description': f'Posted update: {update.title}',
+            'user': update.author.username,
+            'timestamp': update.created_at,
+            'link': None,
+            'icon': 'bi-megaphone'
+        })
+    
+    # Recent callsheet activity
+    recent_callsheet_entries = CallsheetEntry.query.filter(
+        CallsheetEntry.call_status != 'not_called'
+    ).order_by(CallsheetEntry.updated_at.desc()).limit(3).all()
+    
+    for entry in recent_callsheet_entries:
+        activities.append({
+            'type': 'callsheet_update',
+            'description': f'Updated callsheet for {entry.customer.name}',
+            'user': entry.entered_by.username,
+            'timestamp': entry.updated_at,
+            'link': url_for('main.callsheets'),
+            'icon': 'bi-telephone'
+        })
+    
+    # Recent customer stock transactions
+    recent_stock_transactions = StockTransaction.query.order_by(StockTransaction.transaction_date.desc()).limit(3).all()
+    for transaction in recent_stock_transactions:
+        transaction_types = {
+            'stock_in': 'Added stock for',
+            'stock_out': 'Processed stock order for', 
+            'adjustment': 'Adjusted stock for'
+        }
+        
+        description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
+        activities.append({
+            'type': f'stock_{transaction.transaction_type}',
+            'description': f'{description} {transaction.stock_item.customer.name}',
+            'user': transaction.user.username,
+            'timestamp': transaction.transaction_date,
+            'link': url_for('main.customer_stock'),
+            'icon': 'bi-box-seam'
+        })
+    
+    # Sort all activities by timestamp and limit to 10
+    activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    activities = activities[:10]
+    
+    # Convert timestamps to ISO format for JavaScript
+    for activity in activities:
+        activity['timestamp'] = activity['timestamp'].isoformat()
+    
+        return jsonify(activities)
     """Get recent activity across the system"""
     activities = []
     
