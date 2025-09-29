@@ -1,0 +1,712 @@
+{% extends "base.html" %} {% block content %}
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-graph-up-arrow"></i> Admin Reports & Analytics</h2>
+    <button class="btn btn-primary" onclick="exportReport()">
+      <i class="bi bi-download"></i> Export Report
+    </button>
+  </div>
+
+  <!-- Date Range Selector -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">Report Period</label>
+          <select
+            class="form-select"
+            id="reportPeriod"
+            onchange="updateDateRange()"
+          >
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="this_week">This Week</option>
+            <option value="last_week">Last Week</option>
+            <option value="this_month" selected>This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Start Date</label>
+          <input type="date" class="form-control" id="startDate" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">End Date</label>
+          <input type="date" class="form-control" id="endDate" />
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-success w-100" onclick="loadAllReports()">
+            <i class="bi bi-arrow-clockwise"></i> Generate Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Statistics -->
+  <div class="row mb-4" id="summaryStats">
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h3 class="text-primary mb-0" id="totalFormsCount">-</h3>
+          <small class="text-muted">Total Forms</small>
+          <div class="mt-2">
+            <span class="badge bg-success" id="completedFormsBadge"
+              >- Completed</span
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h3 class="text-warning mb-0" id="standingOrdersCount">-</h3>
+          <small class="text-muted">Active Standing Orders</small>
+          <div class="mt-2">
+            <span class="badge bg-info" id="newOrdersBadge">- New</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h3 class="text-info mb-0" id="stockTransactionsCount">-</h3>
+          <small class="text-muted">Stock Transactions</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h3 class="text-success mb-0" id="callsheetEntriesCount">-</h3>
+          <small class="text-muted">Callsheet Updates</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1 -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-activity"></i> Daily Activity Trend
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="dailyActivityChart" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-pie-chart-fill"></i> Forms by Type
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="formsTypeChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-telephone-fill"></i> Callsheet Status Breakdown
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="callsheetStatusChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-boxes"></i> Stock Transaction Types
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="stockTypeChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Activity Table -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="bi bi-people-fill"></i> Staff Activity Report
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Staff Member</th>
+              <th>Role</th>
+              <th>Forms Created</th>
+              <th>Forms Completed</th>
+              <th>Standing Orders</th>
+              <th>Stock Transactions</th>
+              <th>Callsheet Updates</th>
+              <th>Total Activity</th>
+              <th>Last Login</th>
+            </tr>
+          </thead>
+          <tbody id="userActivityTable">
+            <tr>
+              <td colspan="9" class="text-center text-muted">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Engagement Analysis -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Callsheet Customers</h5>
+        </div>
+        <div class="card-body">
+          <div id="topCallsheetCustomers" class="list-group">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Customers with Standing Orders</h5>
+        </div>
+        <div class="card-body">
+          <div id="standingOrderCustomers" class="list-group">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Stock Tracked Customers</h5>
+        </div>
+        <div class="card-body">
+          <div id="stockCustomers" class="list-group">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let dailyActivityChart, formsTypeChart, callsheetStatusChart, stockTypeChart;
+
+  // Date range helper functions
+  function updateDateRange() {
+    const period = document.getElementById("reportPeriod").value;
+    const today = new Date();
+    let startDate, endDate;
+
+    switch (period) {
+      case "today":
+        startDate = endDate = today;
+        break;
+      case "yesterday":
+        startDate = endDate = new Date(today.setDate(today.getDate() - 1));
+        break;
+      case "this_week":
+        startDate = new Date(today.setDate(today.getDate() - today.getDay()));
+        endDate = new Date();
+        break;
+      case "last_week":
+        const lastWeekEnd = new Date(
+          today.setDate(today.getDate() - today.getDay() - 1)
+        );
+        startDate = new Date(lastWeekEnd);
+        startDate.setDate(lastWeekEnd.getDate() - 6);
+        endDate = lastWeekEnd;
+        break;
+      case "this_month":
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date();
+        break;
+      case "last_month":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case "custom":
+        return; // User will set manually
+    }
+
+    document.getElementById("startDate").value = formatDate(startDate);
+    document.getElementById("endDate").value = formatDate(endDate);
+  }
+
+  function formatDate(date) {
+    return date.toISOString().split("T")[0];
+  }
+
+  // Load all reports
+  async function loadAllReports() {
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+
+    if (!startDate || !endDate) {
+      alert("Please select date range");
+      return;
+    }
+
+    await Promise.all([
+      loadSummary(startDate, endDate),
+      loadDailyActivity(startDate, endDate),
+      loadUserActivity(startDate, endDate),
+      loadCustomerAnalysis(),
+    ]);
+  }
+
+  // Load summary statistics
+  async function loadSummary(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/api/admin/reports/summary?start_date=${startDate}&end_date=${endDate}`
+      );
+      const data = await response.json();
+
+      // Update summary cards
+      document.getElementById("totalFormsCount").textContent = data.forms.total;
+      document.getElementById(
+        "completedFormsBadge"
+      ).textContent = `${data.forms.completed} Completed`;
+      document.getElementById("standingOrdersCount").textContent =
+        data.standing_orders.active;
+      document.getElementById(
+        "newOrdersBadge"
+      ).textContent = `${data.standing_orders.created_this_period} New`;
+      document.getElementById("stockTransactionsCount").textContent =
+        data.stock.total_transactions;
+      document.getElementById("callsheetEntriesCount").textContent =
+        data.callsheets.total_entries;
+
+      // Update forms by type chart
+      updateFormsTypeChart(data.forms.by_type);
+
+      // Update callsheet status chart
+      updateCallsheetStatusChart(data.callsheets.by_status);
+
+      // Update stock type chart
+      updateStockTypeChart(data.stock.by_type);
+    } catch (error) {
+      console.error("Error loading summary:", error);
+    }
+  }
+
+  // Load daily activity data
+  async function loadDailyActivity(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/api/admin/reports/daily-activity?start_date=${startDate}&end_date=${endDate}`
+      );
+      const data = await response.json();
+      updateDailyActivityChart(data);
+    } catch (error) {
+      console.error("Error loading daily activity:", error);
+    }
+  }
+
+  // Load user activity
+  async function loadUserActivity(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/api/admin/reports/user-activity?start_date=${startDate}&end_date=${endDate}`
+      );
+      const users = await response.json();
+
+      const tableBody = document.getElementById("userActivityTable");
+      tableBody.innerHTML = "";
+
+      if (users.length === 0) {
+        tableBody.innerHTML =
+          '<tr><td colspan="9" class="text-center text-muted">No activity in selected period</td></tr>';
+        return;
+      }
+
+      users.forEach((user) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td><strong>${
+                  user.full_name
+                }</strong><br><small class="text-muted">${
+          user.username
+        }</small></td>
+                <td><span class="badge bg-${
+                  user.role === "admin" ? "danger" : "primary"
+                }">${user.role}</span></td>
+                <td class="text-center">${user.forms_created}</td>
+                <td class="text-center">${user.forms_completed}</td>
+                <td class="text-center">${user.standing_orders}</td>
+                <td class="text-center">${user.stock_transactions}</td>
+                <td class="text-center">${user.callsheet_updates}</td>
+                <td class="text-center"><strong>${
+                  user.total_activity
+                }</strong></td>
+                <td><small>${
+                  user.last_login
+                    ? new Date(user.last_login).toLocaleString()
+                    : "Never"
+                }</small></td>
+            `;
+        tableBody.appendChild(row);
+      });
+    } catch (error) {
+      console.error("Error loading user activity:", error);
+    }
+  }
+
+  // Load customer analysis
+  async function loadCustomerAnalysis() {
+    try {
+      const response = await fetch("/api/admin/reports/customer-analysis");
+      const data = await response.json();
+
+      // Top callsheet customers
+      const callsheetDiv = document.getElementById("topCallsheetCustomers");
+      callsheetDiv.innerHTML = "";
+      data.top_callsheet_customers.slice(0, 10).forEach((customer, index) => {
+        const item = document.createElement("div");
+        item.className =
+          "list-group-item d-flex justify-content-between align-items-center";
+        item.innerHTML = `
+                <div>
+                    <strong>${index + 1}. ${customer.name}</strong><br>
+                    <small class="text-muted">${customer.account_number}</small>
+                </div>
+                <span class="badge bg-primary rounded-pill">${
+                  customer.call_count
+                } calls</span>
+            `;
+        callsheetDiv.appendChild(item);
+      });
+
+      // Standing order customers
+      const standingDiv = document.getElementById("standingOrderCustomers");
+      standingDiv.innerHTML = "";
+      data.customers_with_standing_orders
+        .slice(0, 10)
+        .forEach((customer, index) => {
+          const item = document.createElement("div");
+          item.className =
+            "list-group-item d-flex justify-content-between align-items-center";
+          item.innerHTML = `
+                <div>
+                    <strong>${index + 1}. ${customer.name}</strong><br>
+                    <small class="text-muted">${customer.account_number}</small>
+                </div>
+                <span class="badge bg-warning rounded-pill">${
+                  customer.order_count
+                } orders</span>
+            `;
+          standingDiv.appendChild(item);
+        });
+
+      // Stock customers
+      const stockDiv = document.getElementById("stockCustomers");
+      stockDiv.innerHTML = "";
+      data.customers_with_stock.slice(0, 10).forEach((customer, index) => {
+        const item = document.createElement("div");
+        item.className =
+          "list-group-item d-flex justify-content-between align-items-center";
+        item.innerHTML = `
+                <div>
+                    <strong>${index + 1}. ${customer.name}</strong><br>
+                    <small class="text-muted">${customer.account_number}</small>
+                </div>
+                <span class="badge bg-info rounded-pill">${
+                  customer.total_stock
+                } units</span>
+            `;
+        stockDiv.appendChild(item);
+      });
+    } catch (error) {
+      console.error("Error loading customer analysis:", error);
+    }
+  }
+
+  // Chart update functions
+  function updateDailyActivityChart(data) {
+    const ctx = document.getElementById("dailyActivityChart").getContext("2d");
+
+    if (dailyActivityChart) {
+      dailyActivityChart.destroy();
+    }
+
+    dailyActivityChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.map((d) =>
+          new Date(d.date).toLocaleDateString("en-GB", {
+            month: "short",
+            day: "numeric",
+          })
+        ),
+        datasets: [
+          {
+            label: "Forms",
+            data: data.map((d) => d.forms),
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0, 123, 255, 0.1)",
+            tension: 0.4,
+          },
+          {
+            label: "Stock Transactions",
+            data: data.map((d) => d.stock),
+            borderColor: "#28a745",
+            backgroundColor: "rgba(40, 167, 69, 0.1)",
+            tension: 0.4,
+          },
+          {
+            label: "Callsheet Updates",
+            data: data.map((d) => d.callsheets),
+            borderColor: "#ffc107",
+            backgroundColor: "rgba(255, 193, 7, 0.1)",
+            tension: 0.4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: "top",
+          },
+          title: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function updateFormsTypeChart(data) {
+    const ctx = document.getElementById("formsTypeChart").getContext("2d");
+
+    if (formsTypeChart) {
+      formsTypeChart.destroy();
+    }
+
+    const typeLabels = {
+      returns: "Returns",
+      branded_stock: "Customer's Own Stock",
+      invoice_correction: "Invoiced Goods",
+      special_order: "Special Orders",
+    };
+
+    formsTypeChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: data.map((d) => typeLabels[d.type] || d.type),
+        datasets: [
+          {
+            data: data.map((d) => d.count),
+            backgroundColor: ["#007bff", "#28a745", "#ffc107", "#dc3545"],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: "bottom",
+          },
+        },
+      },
+    });
+  }
+
+  function updateCallsheetStatusChart(data) {
+    const ctx = document
+      .getElementById("callsheetStatusChart")
+      .getContext("2d");
+
+    if (callsheetStatusChart) {
+      callsheetStatusChart.destroy();
+    }
+
+    const statusLabels = {
+      not_called: "Not Called",
+      no_answer: "No Answer",
+      declined: "Declined",
+      ordered: "Ordered",
+      callback: "Callback",
+    };
+
+    const statusColors = {
+      not_called: "#6c757d",
+      no_answer: "#ffc107",
+      declined: "#dc3545",
+      ordered: "#28a745",
+      callback: "#17a2b8",
+    };
+
+    callsheetStatusChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.map((d) => statusLabels[d.status] || d.status),
+        datasets: [
+          {
+            label: "Call Status",
+            data: data.map((d) => d.count),
+            backgroundColor: data.map(
+              (d) => statusColors[d.status] || "#007bff"
+            ),
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function updateStockTypeChart(data) {
+    const ctx = document.getElementById("stockTypeChart").getContext("2d");
+
+    if (stockTypeChart) {
+      stockTypeChart.destroy();
+    }
+
+    const typeLabels = {
+      stock_in: "Stock In",
+      stock_out: "Stock Out",
+      adjustment: "Adjustments",
+    };
+
+    const typeColors = {
+      stock_in: "#28a745",
+      stock_out: "#dc3545",
+      adjustment: "#ffc107",
+    };
+
+    stockTypeChart = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels: data.map((d) => typeLabels[d.type] || d.type),
+        datasets: [
+          {
+            data: data.map((d) => d.count),
+            backgroundColor: data.map((d) => typeColors[d.type] || "#007bff"),
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: "bottom",
+          },
+        },
+      },
+    });
+  }
+
+  // Export report function
+  function exportReport() {
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+
+    alert(
+      `Report export functionality would export data from ${startDate} to ${endDate}.\n\nThis can be implemented to generate PDF or Excel reports.`
+    );
+
+    // Future implementation: Generate PDF or Excel file
+    // For now, user can print the page or screenshot
+    window.print();
+  }
+
+  // Initialize on page load
+  document.addEventListener("DOMContentLoaded", function () {
+    updateDateRange();
+    loadAllReports();
+  });
+</script>
+
+<style>
+  .card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+  }
+
+  .list-group-item {
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+
+  .list-group-item:hover {
+    border-left-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.05);
+  }
+
+  .table th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+
+  @media print {
+    .btn,
+    .form-control,
+    .form-select {
+      display: none !important;
+    }
+  }
+</style>
+
+{% endblock %}

@@ -164,6 +164,30 @@
             </a>
           </div>
         </div>
+        {% if current_user.role == 'admin' %}
+        <!-- Admin Section -->
+        <div class="nav-section">
+          <div class="nav-section-title">Admin</div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.admin_dashboard') }}">
+              <i class="bi bi-shield-lock-fill"></i>
+              Admin Dashboard
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.users') }}">
+              <i class="bi bi-people-fill"></i>
+              User Management
+            </a>
+          </div>
+          <div class="nav-item">
+            <a class="nav-link" href="{{ url_for('main.admin_reports') }}">
+              <i class="bi bi-graph-up-arrow"></i>
+              Reports & Analytics
+            </a>
+          </div>
+        </div>
+        {% endif %}
       </div>
 
       {% endif %}

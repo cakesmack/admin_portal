@@ -472,11 +472,60 @@
   // Update additional products before form submission
   document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById("returnsForm");
+
     if (form) {
-      form.addEventListener("submit", function () {
+      // Remove any existing submit listeners and add the AJAX one
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault(); // Prevent normal form submission
+
+        // Update additional products
         updateAdditionalProducts();
         document.getElementById("additional_products").value =
           JSON.stringify(additionalProducts);
+
+        // Get form data
+        const formData = new FormData(form);
+
+        try {
+          // Submit via AJAX
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: formData,
+          });
+
+          const responseText = await response.text();
+
+          // Check if response contains form ID (successful submission)
+          // The Flask route will return JSON with the form_id
+          if (response.ok) {
+            // Parse the response to get form_id
+            // The backend should return JSON like: {"success": true, "form_id": 123}
+            try {
+              const data = JSON.parse(responseText);
+              if (data.success && data.form_id) {
+                // Open print window
+                window.open(`/print-form/${data.form_id}`, "_blank");
+                // Redirect to dashboard
+                window.location.href = "/dashboard";
+              }
+            } catch (e) {
+              // If response is not JSON, try to execute it as HTML/JavaScript
+              // (for backward compatibility if the route returns the script directly)
+              const tempDiv = document.createElement("div");
+              tempDiv.innerHTML = responseText;
+              const scripts = tempDiv.getElementsByTagName("script");
+              for (let script of scripts) {
+                eval(script.innerHTML);
+              }
+            }
+          } else {
+            // Show error
+            alert("Error submitting form. Please try again.");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error submitting form. Please try again.");
+        }
       });
     }
   });

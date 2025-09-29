@@ -1,0 +1,110 @@
+{% extends "base.html" %} {% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-shield-lock-fill"></i> Admin Dashboard</h2>
+  </div>
+
+  <!-- Quick Access Cards -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-people-fill text-primary"></i> User Management
+          </h5>
+          <p class="card-text">Manage user accounts, roles, and permissions</p>
+          <a href="{{ url_for('main.users') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-right-circle"></i> Manage Users
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-graph-up text-success"></i> Reports & Analytics
+          </h5>
+          <p class="card-text">
+            View detailed reports on portal usage and staff activity
+          </p>
+          <a href="{{ url_for('main.admin_reports') }}" class="btn btn-success">
+            <i class="bi bi-arrow-right-circle"></i> View Reports
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Overview -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0"><i class="bi bi-speedometer2"></i> System Overview</h5>
+    </div>
+    <div class="card-body">
+      <div class="row text-center">
+        <div class="col-md-3">
+          <div class="p-3">
+            <h3 class="text-primary" id="totalUsers">-</h3>
+            <small class="text-muted">Total Users</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="p-3">
+            <h3 class="text-success" id="activeUsers">-</h3>
+            <small class="text-muted">Active Users</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="p-3">
+            <h3 class="text-info" id="totalCustomers">-</h3>
+            <small class="text-muted">Total Customers</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="p-3">
+            <h3 class="text-warning" id="totalForms">-</h3>
+            <small class="text-muted">Forms This Month</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Load system overview stats
+  async function loadSystemStats() {
+    try {
+      // Get basic counts
+      const usersResponse = await fetch("/api/staff-contacts");
+      const users = await usersResponse.json();
+      document.getElementById("totalUsers").textContent = users.length;
+      document.getElementById("activeUsers").textContent = users.filter(
+        (u) => u.role !== "admin"
+      ).length;
+
+      // Get customer count
+      const customersResponse = await fetch("/api/customers/directory");
+      const customers = await customersResponse.json();
+      document.getElementById("totalCustomers").textContent = customers.length;
+
+      // Get forms count for current month
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const reportsResponse = await fetch(
+        `/api/admin/reports/summary?start_date=${
+          startOfMonth.toISOString().split("T")[0]
+        }&end_date=${now.toISOString().split("T")[0]}`
+      );
+      const reports = await reportsResponse.json();
+      document.getElementById("totalForms").textContent = reports.forms.total;
+    } catch (error) {
+      console.error("Error loading system stats:", error);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", loadSystemStats);
+</script>
+{% endblock %}

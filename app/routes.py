@@ -1139,7 +1139,7 @@ def returns():
         # Get products from the form - check if there are multiple products submitted via JavaScript
         products_data = []
         
-        # Check for additional products submitted via JavaScript (we'll add this)
+        # Check for additional products submitted via JavaScript
         additional_products = request.form.getlist('additional_products')
         if additional_products:
             import json
@@ -1155,18 +1155,19 @@ def returns():
                 'product_name': form.product_name.data,
                 'quantity': form.quantity.data
             })
+        
         customer_contact = None
         if form.customer_account.data:
             customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
-        if customer:
-            customer_contact = customer.contact_name
+            if customer:
+                customer_contact = customer.contact_name
 
         form_data = {
             'customer_account': form.customer_account.data,
             'customer_name': form.customer_name.data,
             'customer_address': form.customer_address.data,
             'contact_name': customer_contact,
-            'products': products_data,  # This will work with your existing print form
+            'products': products_data,
             'reason': form.reason.data,
             'notes': form.notes.data
         }
@@ -1179,15 +1180,24 @@ def returns():
         db.session.add(new_form)
         db.session.commit()
         
-        flash('Return form has been created successfully!', 'success')
+        flash(f'Return form #{new_form.id} has been created successfully!', 'success')
         
-        # Return JavaScript to open print form and redirect
-        return f'''
-        <script>
-            window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
-            window.location.href = '{url_for('main.dashboard')}';
-        </script>
-        '''
+        # Check if this is an AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+            # Return JSON for AJAX request
+            return jsonify({
+                'success': True,
+                'form_id': new_form.id,
+                'message': f'Return form #{new_form.id} has been created successfully!'
+            })
+        else:
+            # Return JavaScript for regular form submission (backward compatibility)
+            return f'''
+            <script>
+                window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
+                window.location.href = '{url_for('main.dashboard')}';
+            </script>
+            '''
     
     return render_template('returns_form.html', title='Returns Form', form=form)
 
@@ -2574,3 +2584,353 @@ def get_recent_activity():
     return jsonify(activities)
 
 
+# Add these routes to your app/routes.py file
+
+@main.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    """Admin dashboard with overview stats"""
+    return render_template('admin/dashboard.html', title='Admin Dashboard')
+
+@main.route('/admin/reports')
+@login_required
+@admin_required
+def admin_reports():
+    """Main reports page"""
+    return render_template('admin/reports.html', title='Admin Reports')
+
+@main.route('/api/admin/reports/summary')
+@login_required
+@admin_required
+def get_report_summary():
+    """Get overall summary statistics"""
+    from sqlalchemy import func
+    
+    # Date range from request or default to current month
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    if start_date_str and end_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+    else:
+        # Default to current month
+        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_date.month == 12:
+            end_date = start_date.replace(year=start_date.year + 1, month=1)
+        else:
+            end_date = start_date.replace(month=start_date.month + 1)
+    
+    # Total forms created
+    total_forms = Form.query.filter(
+        Form.date_created >= start_date,
+        Form.date_created < end_date
+    ).count()
+    
+    completed_forms = Form.query.filter(
+        Form.date_created >= start_date,
+        Form.date_created < end_date,
+        Form.is_completed == True
+    ).count()
+    
+    # Forms by type
+    forms_by_type = db.session.query(
+        Form.type,
+        func.count(Form.id)
+    ).filter(
+        Form.date_created >= start_date,
+        Form.date_created < end_date
+    ).group_by(Form.type).all()
+    
+    # Standing orders
+    active_standing_orders = StandingOrder.query.filter_by(status='active').count()
+    paused_standing_orders = StandingOrder.query.filter_by(status='paused').count()
+    
+    standing_orders_created = StandingOrder.query.filter(
+        StandingOrder.created_at >= start_date,
+        StandingOrder.created_at < end_date
+    ).count()
+    
+    # Stock transactions
+    stock_transactions = StockTransaction.query.filter(
+        StockTransaction.transaction_date >= start_date.date(),
+        StockTransaction.transaction_date < end_date.date()
+    ).count()
+    
+    stock_by_type = db.session.query(
+        StockTransaction.transaction_type,
+        func.count(StockTransaction.id)
+    ).filter(
+        StockTransaction.transaction_date >= start_date.date(),
+        StockTransaction.transaction_date < end_date.date()
+    ).group_by(StockTransaction.transaction_type).all()
+    
+    # Callsheet statistics
+    callsheet_entries = CallsheetEntry.query.filter(
+        CallsheetEntry.updated_at >= start_date,
+        CallsheetEntry.updated_at < end_date
+    ).count()
+    
+    callsheet_by_status = db.session.query(
+        CallsheetEntry.call_status,
+        func.count(CallsheetEntry.id)
+    ).filter(
+        CallsheetEntry.updated_at >= start_date,
+        CallsheetEntry.updated_at < end_date
+    ).group_by(CallsheetEntry.call_status).all()
+    
+    # Company updates
+    company_updates = CompanyUpdate.query.filter(
+        CompanyUpdate.created_at >= start_date,
+        CompanyUpdate.created_at < end_date
+    ).count()
+    
+    # User activity
+    active_users = db.session.query(User.id).filter(
+        User.last_login >= start_date
+    ).distinct().count()
+    
+    return jsonify({
+        'period': {
+            'start': start_date.strftime('%Y-%m-%d'),
+            'end': end_date.strftime('%Y-%m-%d')
+        },
+        'forms': {
+            'total': total_forms,
+            'completed': completed_forms,
+            'pending': total_forms - completed_forms,
+            'completion_rate': round((completed_forms / total_forms * 100) if total_forms > 0 else 0, 1),
+            'by_type': [{'type': t[0], 'count': t[1]} for t in forms_by_type]
+        },
+        'standing_orders': {
+            'active': active_standing_orders,
+            'paused': paused_standing_orders,
+            'created_this_period': standing_orders_created
+        },
+        'stock': {
+            'total_transactions': stock_transactions,
+            'by_type': [{'type': t[0], 'count': t[1]} for t in stock_by_type]
+        },
+        'callsheets': {
+            'total_entries': callsheet_entries,
+            'by_status': [{'status': t[0], 'count': t[1]} for t in callsheet_by_status]
+        },
+        'company_updates': company_updates,
+        'active_users': active_users
+    })
+
+@main.route('/api/admin/reports/daily-activity')
+@login_required
+@admin_required
+def get_daily_activity():
+    """Get daily activity breakdown for charts"""
+    from sqlalchemy import func, cast, Date
+    
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    if start_date_str and end_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+    else:
+        # Default to last 30 days
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+    
+    # Forms created by day
+    forms_by_day = db.session.query(
+        cast(Form.date_created, Date).label('date'),
+        func.count(Form.id).label('count')
+    ).filter(
+        Form.date_created >= start_date,
+        Form.date_created < end_date
+    ).group_by(cast(Form.date_created, Date)).all()
+    
+    # Stock transactions by day
+    stock_by_day = db.session.query(
+        StockTransaction.transaction_date.label('date'),
+        func.count(StockTransaction.id).label('count')
+    ).filter(
+        StockTransaction.transaction_date >= start_date.date(),
+        StockTransaction.transaction_date < end_date.date()
+    ).group_by(StockTransaction.transaction_date).all()
+    
+    # Callsheet updates by day
+    callsheet_by_day = db.session.query(
+        cast(CallsheetEntry.updated_at, Date).label('date'),
+        func.count(CallsheetEntry.id).label('count')
+    ).filter(
+        CallsheetEntry.updated_at >= start_date,
+        CallsheetEntry.updated_at < end_date
+    ).group_by(cast(CallsheetEntry.updated_at, Date)).all()
+    
+    # Create a date range
+    date_range = []
+    current = start_date.date()
+    while current < end_date.date():
+        date_range.append(current)
+        current += timedelta(days=1)
+    
+    # Build response with all dates
+    daily_data = []
+    for date in date_range:
+        forms_count = next((d.count for d in forms_by_day if d.date == date), 0)
+        stock_count = next((d.count for d in stock_by_day if d.date == date), 0)
+        callsheet_count = next((d.count for d in callsheet_by_day if d.date == date), 0)
+        
+        daily_data.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'forms': forms_count,
+            'stock': stock_count,
+            'callsheets': callsheet_count,
+            'total': forms_count + stock_count + callsheet_count
+        })
+    
+    return jsonify(daily_data)
+
+@main.route('/api/admin/reports/user-activity')
+@login_required
+@admin_required
+def get_user_activity():
+    """Get activity breakdown by user"""
+    from sqlalchemy import func
+    
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    if start_date_str and end_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+    else:
+        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_date.month == 12:
+            end_date = start_date.replace(year=start_date.year + 1, month=1)
+        else:
+            end_date = start_date.replace(month=start_date.month + 1)
+    
+    users = User.query.filter_by(is_active=True).all()
+    user_stats = []
+    
+    for user in users:
+        forms_created = Form.query.filter(
+            Form.user_id == user.id,
+            Form.date_created >= start_date,
+            Form.date_created < end_date
+        ).count()
+        
+        forms_completed = Form.query.filter(
+            Form.completed_by == user.id,
+            Form.completed_date >= start_date,
+            Form.completed_date < end_date
+        ).count()
+        
+        standing_orders_created = StandingOrder.query.filter(
+            StandingOrder.created_by == user.id,
+            StandingOrder.created_at >= start_date,
+            StandingOrder.created_at < end_date
+        ).count()
+        
+        stock_transactions = StockTransaction.query.filter(
+            StockTransaction.created_by == user.id,
+            StockTransaction.transaction_date >= start_date.date(),
+            StockTransaction.transaction_date < end_date.date()
+        ).count()
+        
+        callsheet_updates = CallsheetEntry.query.filter(
+            CallsheetEntry.user_id == user.id,
+            CallsheetEntry.updated_at >= start_date,
+            CallsheetEntry.updated_at < end_date
+        ).count()
+        
+        company_updates = CompanyUpdate.query.filter(
+            CompanyUpdate.user_id == user.id,
+            CompanyUpdate.created_at >= start_date,
+            CompanyUpdate.created_at < end_date
+        ).count()
+        
+        total_activity = (forms_created + forms_completed + standing_orders_created + 
+                         stock_transactions + callsheet_updates + company_updates)
+        
+        if total_activity > 0:  # Only include users with activity
+            user_stats.append({
+                'user_id': user.id,
+                'username': user.username,
+                'full_name': user.full_name,
+                'role': user.role,
+                'forms_created': forms_created,
+                'forms_completed': forms_completed,
+                'standing_orders': standing_orders_created,
+                'stock_transactions': stock_transactions,
+                'callsheet_updates': callsheet_updates,
+                'company_updates': company_updates,
+                'total_activity': total_activity,
+                'last_login': user.last_login.isoformat() if user.last_login else None
+            })
+    
+    # Sort by total activity
+    user_stats.sort(key=lambda x: x['total_activity'], reverse=True)
+    
+    return jsonify(user_stats)
+
+@main.route('/api/admin/reports/customer-analysis')
+@login_required
+@admin_required
+def get_customer_analysis():
+    """Get customer engagement analysis"""
+    from sqlalchemy import func
+    
+    # Customers with most callsheet activity
+    top_callsheet_customers = db.session.query(
+        Customer.id,
+        Customer.name,
+        Customer.account_number,
+        func.count(CallsheetEntry.id).label('call_count')
+    ).join(CallsheetEntry).group_by(
+        Customer.id
+    ).order_by(func.count(CallsheetEntry.id).desc()).limit(10).all()
+    
+    # Customers with standing orders
+    customers_with_standing_orders = db.session.query(
+        Customer.id,
+        Customer.name,
+        Customer.account_number,
+        func.count(StandingOrder.id).label('order_count')
+    ).join(StandingOrder).filter(
+        StandingOrder.status == 'active'
+    ).group_by(Customer.id).order_by(
+        func.count(StandingOrder.id).desc()
+    ).limit(10).all()
+    
+    # Customers with most stock tracked
+    customers_with_stock = db.session.query(
+        Customer.id,
+        Customer.name,
+        Customer.account_number,
+        func.count(CustomerStock.id).label('stock_items'),
+        func.sum(CustomerStock.current_stock).label('total_stock')
+    ).join(CustomerStock).group_by(
+        Customer.id
+    ).order_by(func.sum(CustomerStock.current_stock).desc()).limit(10).all()
+    
+    return jsonify({
+        'top_callsheet_customers': [{
+            'id': c.id,
+            'name': c.name,
+            'account_number': c.account_number,
+            'call_count': c.call_count
+        } for c in top_callsheet_customers],
+        'customers_with_standing_orders': [{
+            'id': c.id,
+            'name': c.name,
+            'account_number': c.account_number,
+            'order_count': c.order_count
+        } for c in customers_with_standing_orders],
+        'customers_with_stock': [{
+            'id': c.id,
+            'name': c.name,
+            'account_number': c.account_number,
+            'stock_items': c.stock_items,
+            'total_stock': int(c.total_stock) if c.total_stock else 0
+        } for c in customers_with_stock]
+    })

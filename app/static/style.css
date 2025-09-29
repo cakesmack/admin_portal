@@ -715,26 +715,28 @@ body,
   margin-top: 8px;
 }
 
-/* Activity items */
+/* Activity items - Updated styling */
 .activity-item {
   position: relative;
-  padding-left: 0;
-  transition: background-color 0.2s ease;
+  padding: 12px;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  margin-bottom: 8px;
 }
 
 .activity-item:hover {
   background-color: #394047;
-  border-radius: 4px;
-  padding: 8px;
-  margin: -8px -8px 2px -8px;
+  transform: translateX(2px);
 }
 
 .activity-item:last-child {
   border-bottom: none !important;
   margin-bottom: 0 !important;
-  padding-bottom: 0 !important;
+  padding-bottom: 12px !important;
 }
 
+/* Remove the grey line by commenting out or removing this rule */
+/* 
 .activity-item:not(:last-child)::after {
   content: "";
   position: absolute;
@@ -744,17 +746,69 @@ body,
   width: 2px;
   background: var(--border-color);
 }
+*/
 
-.activity-icon {
-  width: 20px;
-  text-align: center;
-  position: relative;
-  z-index: 1;
+.activity-item .d-flex {
+  align-items: flex-start;
+  gap: 8px;
 }
 
-.activity-content {
-  min-height: 40px;
-  padding-left: 10px;
+.activity-item i {
+  font-size: 1.1rem;
+  min-width: 20px;
+  margin-top: 2px;
+}
+
+.activity-item .small {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-light);
+}
+
+.activity-item .text-muted {
+  font-size: 0.75rem;
+  margin-top: 4px;
+  display: block;
+}
+
+/* Better link styling in activity items */
+.activity-item a {
+  color: inherit;
+  transition: color 0.2s ease;
+}
+
+.activity-item a:hover {
+  color: var(--primary-blue-light);
+}
+
+/* Icon colors for different activity types */
+.activity-item .bi-file-text {
+  color: #17a2b8;
+}
+
+.activity-item .bi-check-circle {
+  color: #20c997;
+}
+
+.activity-item .bi-megaphone {
+  color: #ffc107;
+}
+
+.activity-item .bi-telephone {
+  color: #6f42c1;
+}
+
+.activity-item .bi-arrow-repeat {
+  color: #007bff;
+}
+
+.activity-item .bi-box-seam {
+  color: #fd7e14;
+}
+
+.activity-item .bi-activity {
+  color: #28a745;
 }
 
 /* === TODO ITEMS === */
