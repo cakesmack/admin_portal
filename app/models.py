@@ -210,6 +210,10 @@ class Customer(db.Model):
     email = db.Column(db.String(100))
     address = db.Column(db.String(200))
     notes = db.Column(db.Text)
+    
+    # NEW: Persistent callsheet notes
+    callsheet_notes = db.Column(db.Text)  # Persistent across all callsheets
+    
     callsheet_entries = db.relationship('CallsheetEntry', backref='customer', lazy=True)
     
     def to_dict(self):
@@ -221,8 +225,10 @@ class Customer(db.Model):
             'phone': self.phone,
             'email': self.email,
             'address': self.address,
-            'notes': self.notes
+            'notes': self.notes,
+            'callsheet_notes': self.callsheet_notes
         }
+
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -259,9 +265,6 @@ class CallsheetEntry(db.Model):
     # Order information - simplified
     person_spoken_to = db.Column(db.String(100))  # Name of person who placed the order
     
-    # Notes for this specific call
-    call_notes = db.Column(db.Text)
-    
     # Callback information
     callback_time = db.Column(db.String(50))  # When to call back
     
@@ -271,6 +274,11 @@ class CallsheetEntry(db.Model):
     
     # Position in the callsheet (for ordering)
     position = db.Column(db.Integer, default=0)
+    
+    # Pause feature for seasonal customers
+    is_paused = db.Column(db.Boolean, default=False)
+    
+    # NOTE: call_notes removed - now using customer.callsheet_notes
     
     def get_status_badge(self):
         """Return HTML badge class for status"""

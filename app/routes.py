@@ -13,6 +13,8 @@ from PIL import Image
 import uuid
 from bs4 import BeautifulSoup
 import bleach
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 
 main = Blueprint('main', __name__)
 
@@ -541,43 +543,64 @@ def get_recent_forms():
     
     return jsonify(result)
 
+# Callsheet Routes - Add these to your routes.py file
+# Replace existing callsheet routes with these updated versions
+
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
+
 @main.route('/callsheets')
 @login_required
 def callsheets():
-    # Get current month and year
+    """Main callsheets page with improved query efficiency"""
     now = datetime.now()
     current_month = request.args.get('month', default=now.month, type=int)
     current_year = request.args.get('year', default=now.year, type=int)
     
-    # Get all callsheets for current month (weekdays only)
+    # Calculate previous and next month/year for navigation
+    if current_month == 1:
+        prev_month, prev_year = 12, current_year - 1
+    else:
+        prev_month, prev_year = current_month - 1, current_year
+    
+    if current_month == 12:
+        next_month, next_year = 1, current_year + 1
+    else:
+        next_month, next_year = current_month + 1, current_year
+    
+    # Efficient query with eager loading
     callsheets = Callsheet.query.filter_by(
         month=current_month,
         year=current_year,
         is_active=True
+    ).options(
+        joinedload(Callsheet.entries).joinedload(CallsheetEntry.customer)
     ).order_by(
         Callsheet.day_of_week,
         Callsheet.name
     ).all()
     
-    # Organize callsheets by day (Monday to Friday only)
+    # Organize callsheets by day
     days_of_week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     callsheets_by_day = {day: [] for day in days_of_week}
     
     for callsheet in callsheets:
         if callsheet.day_of_week in callsheets_by_day:
-            # Load entries for each callsheet
-            entries = CallsheetEntry.query.filter_by(
-                callsheet_id=callsheet.id
-            ).join(Customer).order_by(CallsheetEntry.position).all()
+            # Load entries and separate active from paused
+            all_entries = sorted(callsheet.entries, key=lambda x: x.position)
+            
+            active_entries = [e for e in all_entries if not e.is_paused]
+            paused_entries = [e for e in all_entries if e.is_paused]
             
             callsheet_data = {
                 'id': callsheet.id,
                 'name': callsheet.name,
-                'entries': entries
+                'entries': active_entries,
+                'paused_entries': paused_entries
             }
             callsheets_by_day[callsheet.day_of_week].append(callsheet_data)
     
-    # Get all customers for the add customer modal
+    # Get all customers for add customer modal
     all_customers = Customer.query.order_by(Customer.name).all()
     
     return render_template(
@@ -588,16 +611,37 @@ def callsheets():
         current_month=current_month,
         current_year=current_year,
         month_name=calendar.month_name[current_month],
+        prev_month=prev_month,
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year,
         all_customers=all_customers,
         current_user=current_user
     )
 
+
 @main.route('/api/callsheet/create', methods=['POST'])
 @login_required
 def create_callsheet():
+    """Create new callsheet with duplicate name checking"""
     data = request.json
     
     try:
+        # Check for duplicate name on same day
+        existing = Callsheet.query.filter_by(
+            name=data['name'],
+            day_of_week=data['day_of_week'],
+            month=data['month'],
+            year=data['year'],
+            is_active=True
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'success': False, 
+                'message': 'A callsheet with this name already exists for this day'
+            }), 400
+        
         callsheet = Callsheet(
             name=data['name'],
             day_of_week=data['day_of_week'],
@@ -608,45 +652,73 @@ def create_callsheet():
         db.session.add(callsheet)
         db.session.commit()
         
-        return jsonify({'success': True, 'id': callsheet.id, 'message': 'Callsheet created successfully'})
+        return jsonify({
+            'success': True, 
+            'id': callsheet.id, 
+            'message': 'Callsheet created successfully'
+        })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 
-@main.route('/api/callsheet-entry/<int:entry_id>/update', methods=['POST'])
+@main.route('/api/callsheet/<int:callsheet_id>/update', methods=['POST'])
 @login_required
 def update_callsheet(callsheet_id):
+    """Update callsheet - FIXED parameter name"""
     callsheet = Callsheet.query.get_or_404(callsheet_id)
     data = request.json
     
     try:
         if 'name' in data:
+            # Check for duplicate name
+            existing = Callsheet.query.filter(
+                Callsheet.name == data['name'],
+                Callsheet.day_of_week == callsheet.day_of_week,
+                Callsheet.month == callsheet.month,
+                Callsheet.year == callsheet.year,
+                Callsheet.is_active == True,
+                Callsheet.id != callsheet_id
+            ).first()
+            
+            if existing:
+                return jsonify({
+                    'success': False, 
+                    'message': 'A callsheet with this name already exists for this day'
+                }), 400
+            
             callsheet.name = data['name']
+        
         if 'day_of_week' in data:
             callsheet.day_of_week = data['day_of_week']
         
         db.session.commit()
         return jsonify({'success': True, 'message': 'Callsheet updated successfully'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 
 @main.route('/api/callsheet/<int:callsheet_id>/delete', methods=['POST'])
 @login_required
 def delete_callsheet(callsheet_id):
+    """Soft delete callsheet instead of permanent deletion"""
     callsheet = Callsheet.query.get_or_404(callsheet_id)
     
     try:
-        db.session.delete(callsheet)
+        # Soft delete - mark as inactive
+        callsheet.is_active = False
         db.session.commit()
         return jsonify({'success': True, 'message': 'Callsheet deleted successfully'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 
 @main.route('/api/callsheet/<int:callsheet_id>/add-customer', methods=['POST'])
 @login_required
 def add_customer_to_callsheet(callsheet_id):
+    """Add customer to callsheet"""
     data = request.json
     
     try:
@@ -657,10 +729,13 @@ def add_customer_to_callsheet(callsheet_id):
         ).first()
         
         if existing:
-            return jsonify({'success': False, 'message': 'Customer already in this callsheet'}), 400
+            return jsonify({
+                'success': False, 
+                'message': 'Customer already in this callsheet'
+            }), 400
         
         # Get the highest position in this callsheet
-        max_position = db.session.query(db.func.max(CallsheetEntry.position))\
+        max_position = db.session.query(func.max(CallsheetEntry.position))\
             .filter_by(callsheet_id=callsheet_id).scalar() or 0
         
         entry = CallsheetEntry(
@@ -675,11 +750,14 @@ def add_customer_to_callsheet(callsheet_id):
         
         return jsonify({'success': True, 'message': 'Customer added successfully'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
 
 @main.route('/api/callsheet-entry/<int:entry_id>/update-status', methods=['POST'])
 @login_required
 def update_callsheet_entry_status(entry_id):
+    """Update call status with automatic tracking"""
     entry = CallsheetEntry.query.get_or_404(entry_id)
     data = request.json
     
@@ -688,20 +766,18 @@ def update_callsheet_entry_status(entry_id):
         if 'call_status' in data:
             entry.call_status = data['call_status']
             
-            # If status is changing from 'not_called' to something else, record the call
-            if data['call_status'] != 'not_called':
+            # Record who called and when (if status changed from not_called)
+            if data['call_status'] != 'not_called' and entry.called_by is None:
                 entry.called_by = current_user.username
                 entry.call_date = datetime.now()
             
-            # Handle status-specific data
-            if data['call_status'] == 'ordered':
-                entry.person_spoken_to = data.get('person_spoken_to', '')
-            elif data['call_status'] == 'callback':
-                entry.callback_time = data.get('callback_time', '')
-        
-        # Update notes if provided
-        if 'call_notes' in data:
-            entry.call_notes = data['call_notes']
+            # Handle person_spoken_to for ALL statuses (not just ordered)
+            if 'person_spoken_to' in data:
+                entry.person_spoken_to = data['person_spoken_to']
+            
+            # Handle callback time
+            if data['call_status'] == 'callback' and 'callback_time' in data:
+                entry.callback_time = data['callback_time']
         
         # Track who made the update
         entry.user_id = current_user.id
@@ -716,11 +792,36 @@ def update_callsheet_entry_status(entry_id):
             'updated_at': entry.updated_at.strftime('%Y-%m-%d %H:%M')
         })
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/callsheet-entry/<int:entry_id>/update-notes', methods=['POST'])
+@login_required
+def update_customer_notes(entry_id):
+    """Update customer's persistent callsheet notes"""
+    entry = CallsheetEntry.query.get_or_404(entry_id)
+    data = request.json
+    
+    try:
+        customer = entry.customer
+        customer.callsheet_notes = data.get('notes', '')
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Notes updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
 
 @main.route('/api/callsheet-entry/<int:entry_id>/delete', methods=['POST'])
 @login_required
 def delete_callsheet_entry(entry_id):
+    """Remove customer from callsheet"""
     entry = CallsheetEntry.query.get_or_404(entry_id)
     
     try:
@@ -728,7 +829,198 @@ def delete_callsheet_entry(entry_id):
         db.session.commit()
         return jsonify({'success': True, 'message': 'Customer removed from callsheet'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/callsheet-entry/<int:entry_id>/toggle-pause', methods=['POST'])
+@login_required
+def toggle_pause_callsheet_entry(entry_id):
+    """Pause or resume a customer on the callsheet"""
+    entry = CallsheetEntry.query.get_or_404(entry_id)
+    
+    try:
+        # Toggle pause status
+        entry.is_paused = not entry.is_paused
+        
+        # When pausing, move to end of list
+        if entry.is_paused:
+            max_position = db.session.query(func.max(CallsheetEntry.position))\
+                .filter_by(callsheet_id=entry.callsheet_id).scalar() or 0
+            entry.position = max_position + 1
+        
+        db.session.commit()
+        
+        status = "paused" if entry.is_paused else "resumed"
+        return jsonify({
+            'success': True, 
+            'message': f'Customer {status} successfully',
+            'is_paused': entry.is_paused
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/callsheet-entry/<int:entry_id>/reorder', methods=['POST'])
+@login_required
+def reorder_callsheet_entry(entry_id):
+    """Update position of entry for drag-and-drop reordering"""
+    entry = CallsheetEntry.query.get_or_404(entry_id)
+    data = request.json
+    
+    try:
+        new_position = data.get('position')
+        old_position = entry.position
+        callsheet_id = entry.callsheet_id
+        
+        # Update positions of other entries
+        if new_position > old_position:
+            # Moving down - decrement positions in between
+            CallsheetEntry.query.filter(
+                CallsheetEntry.callsheet_id == callsheet_id,
+                CallsheetEntry.position > old_position,
+                CallsheetEntry.position <= new_position
+            ).update({'position': CallsheetEntry.position - 1})
+        else:
+            # Moving up - increment positions in between
+            CallsheetEntry.query.filter(
+                CallsheetEntry.callsheet_id == callsheet_id,
+                CallsheetEntry.position >= new_position,
+                CallsheetEntry.position < old_position
+            ).update({'position': CallsheetEntry.position + 1})
+        
+        entry.position = new_position
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Order updated'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/callsheets/reset-week', methods=['POST'])
+@login_required
+def reset_week():
+    """Reset all callsheets for the current week - preserves customer notes"""
+    data = request.json
+    month = data.get('month')
+    year = data.get('year')
+    
+    try:
+        # Get all active callsheets for the month
+        callsheets = Callsheet.query.filter_by(
+            month=month, 
+            year=year, 
+            is_active=True
+        ).all()
+        
+        for callsheet in callsheets:
+            # Reset all entries to 'not_called'
+            entries = CallsheetEntry.query.filter_by(callsheet_id=callsheet.id).all()
+            for entry in entries:
+                entry.call_status = 'not_called'
+                entry.called_by = None
+                entry.call_date = None
+                entry.person_spoken_to = None
+                entry.callback_time = None
+                entry.updated_at = datetime.now()
+                # Note: customer.callsheet_notes are preserved automatically!
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'All callsheets reset for {calendar.month_name[month]} {year}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/callsheets/archive', methods=['POST'])
+@login_required
+def archive_callsheets():
+    """Archive current month's callsheets"""
+    data = request.json
+    month = data.get('month')
+    year = data.get('year')
+    
+    try:
+        # Get all callsheets for the month
+        callsheets = Callsheet.query.filter_by(
+            month=month, 
+            year=year, 
+            is_active=True
+        ).all()
+        
+        # Create archive data
+        archive_data = []
+        for cs in callsheets:
+            entries = CallsheetEntry.query.filter_by(callsheet_id=cs.id).all()
+            cs_data = {
+                'name': cs.name,
+                'day_of_week': cs.day_of_week,
+                'entries': [
+                    {
+                        'customer_id': entry.customer_id,
+                        'customer_name': entry.customer.name,
+                        'customer_account': entry.customer.account_number,
+                        'call_status': entry.call_status,
+                        'called_by': entry.called_by,
+                        'person_spoken_to': entry.person_spoken_to,
+                        'callback_time': entry.callback_time,
+                        'notes': entry.customer.callsheet_notes
+                    } for entry in entries
+                ]
+            }
+            archive_data.append(cs_data)
+        
+        # Create archive record
+        archive = CallsheetArchive(
+            month=month,
+            year=year,
+            data=json.dumps(archive_data),
+            archived_by=current_user.id
+        )
+        db.session.add(archive)
+        
+        # Mark current callsheets as inactive
+        for cs in callsheets:
+            cs.is_active = False
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Callsheets for {calendar.month_name[month]} {year} archived successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/callsheets/archive/<int:month>/<int:year>')
+@login_required
+def view_archived_callsheets(month, year):
+    """View archived callsheets for a specific month/year"""
+    archive = CallsheetArchive.query.filter_by(month=month, year=year).first()
+    
+    if not archive:
+        flash(f'No archived callsheets found for {calendar.month_name[month]} {year}', 'warning')
+        return redirect(url_for('main.callsheets'))
+    
+    archive_data = json.loads(archive.data)
+    
+    return render_template(
+        'archived_callsheets.html',
+        title=f'Archived Callsheets - {calendar.month_name[month]} {year}',
+        archive_data=archive_data,
+        month=month,
+        year=year,
+        archived_by=archive.archived_by_user.username,
+        archived_at=archive.archived_at
+    )
 
 @main.route('/api/customer/<int:customer_id>', methods=['GET'])
 @login_required
@@ -800,130 +1092,6 @@ def create_customer():
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
-
-@main.route('/api/callsheets/archive', methods=['POST'])
-@login_required
-def archive_callsheets():
-    """Archive current month's callsheets and create new ones"""
-    data = request.json
-    month = data.get('month')
-    year = data.get('year')
-    
-    try:
-        # Get all callsheets for the month
-        callsheets = Callsheet.query.filter_by(month=month, year=year, is_active=True).all()
-        
-        # Create archive data
-        archive_data = []
-        for cs in callsheets:
-            entries = CallsheetEntry.query.filter_by(callsheet_id=cs.id).all()
-            cs_data = {
-                'name': cs.name,
-                'day_of_week': cs.day_of_week,
-                'entries': [
-                    {
-                        'customer_name': entry.customer.name,
-                        'customer_account': entry.customer.account_number,
-                        'call_status': entry.call_status,
-                        'called_by': entry.called_by,
-                        'call_notes': entry.call_notes
-                    } for entry in entries
-                ]
-            }
-            archive_data.append(cs_data)
-        
-        # Create archive record
-        archive = CallsheetArchive(
-            month=month,
-            year=year,
-            data=json.dumps(archive_data),
-            archived_by=current_user.id
-        )
-        db.session.add(archive)
-        
-        # Mark current callsheets as inactive
-        for cs in callsheets:
-            cs.is_active = False
-        
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': f'Callsheets for {month}/{year} archived successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 400
-
-@main.route('/api/callsheets/reset', methods=['POST'])
-@login_required
-def reset_callsheets():
-    """Reset callsheets for new month - keeps structure but clears call data"""
-    data = request.json
-    old_month = data.get('old_month')
-    old_year = data.get('old_year')
-    new_month = data.get('new_month')
-    new_year = data.get('new_year')
-    
-    try:
-        # Archive old month first
-        archive_response = archive_callsheets()
-        
-        # Get old callsheets structure
-        old_callsheets = Callsheet.query.filter_by(
-            month=old_month, 
-            year=old_year
-        ).all()
-        
-        # Create new callsheets with same structure
-        for old_cs in old_callsheets:
-            # Create new callsheet
-            new_cs = Callsheet(
-                name=old_cs.name,
-                day_of_week=old_cs.day_of_week,
-                month=new_month,
-                year=new_year,
-                created_by=current_user.id
-            )
-            db.session.add(new_cs)
-            db.session.flush()  # Get the ID
-            
-            # Copy customer list but reset call data
-            old_entries = CallsheetEntry.query.filter_by(callsheet_id=old_cs.id).all()
-            for old_entry in old_entries:
-                new_entry = CallsheetEntry(
-                    callsheet_id=new_cs.id,
-                    customer_id=old_entry.customer_id,
-                    position=old_entry.position,
-                    user_id=current_user.id,
-                    call_status='not_called'
-                )
-                db.session.add(new_entry)
-        
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': f'Callsheets reset for {new_month}/{new_year}'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 400
-
-@main.route('/callsheets/archive/<int:month>/<int:year>')
-@login_required
-def view_archived_callsheets(month, year):
-    """View archived callsheets for a specific month/year"""
-    archive = CallsheetArchive.query.filter_by(month=month, year=year).first()
-    
-    if not archive:
-        flash(f'No archived callsheets found for {calendar.month_name[month]} {year}', 'warning')
-        return redirect(url_for('main.callsheets'))
-    
-    archive_data = json.loads(archive.data)
-    
-    return render_template(
-        'archived_callsheets.html',
-        title=f'Archived Callsheets - {calendar.month_name[month]} {year}',
-        archive_data=archive_data,
-        month=month,
-        year=year,
-        archived_by=archive.archived_by_user.username,
-        archived_at=archive.archived_at
-    )
 
 
 @main.route('/api/products/search')
