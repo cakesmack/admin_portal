@@ -1,6 +1,139 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} 
+{% block content %}
 <h2>Customer Stock Order Form</h2>
 <p class="text-muted">Process customer orders from their held inventory</p>
+
+<!-- Available Stock Items Table -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5>Available Customer Stock</h5>
+  </div>
+  <div class="card-body">
+    {% if stock_items and stock_items|length > 0 %}
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Product Code</th>
+            <th>Product Name</th>
+            <th>Available Stock</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in stock_items %}
+          <tr>
+            <td>{{ item.customer.name }}</td>
+            <td>{{ item.product_code or 'N/A' }}</td>
+            <td>{{ item.product_name }}</td>
+            <td>
+              <span class="badge {% if item.current_stock == 0 %}bg-danger{% elif item.current_stock <= item.reorder_level %}bg-warning{% else %}bg-success{% endif %}">
+                {{ item.current_stock }} {{ item.unit_type }}
+              </span>
+            </td>
+            <td>
+              <button 
+                class="btn btn-sm btn-primary" 
+                onclick="quickSelectItem({{ item.id }}, '{{ item.customer.account_number }}', '{{ item.customer.name }}', '{{ item.product_code or 'N/A' }}', '{{ item.product_name }}', {{ item.current_stock }}, '{{ item.unit_type }}')"
+                {% if item.current_stock == 0 %}disabled{% endif %}>
+                <i class="bi bi-cart-plus"></i> Create Order
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No customer stock items found. Add stock items in the Customer Stock page first.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Order Form Modal -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Stock Order</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form method="POST" id="orderForm">
+          {{ form.hidden_tag() }}
+          
+          <input type="hidden" name="stock_item_id" id="modalStockItemId" />
+          <input type="hidden" name="customer_id" id="modalCustomerId" />
+          <input type="hidden" name="customer_account" id="modalCustomerAccount" />
+          <input type="hidden" name="customer_name" id="modalCustomerName" />
+          <input type="hidden" name="product_code" id="modalProductCode" />
+          <input type="hidden" name="product_name" id="modalProductName" />
+
+          <div class="alert alert-info">
+            <strong>Customer:</strong> <span id="modalCustomerDisplay"></span><br>
+            <strong>Product:</strong> <span id="modalProductDisplay"></span><br>
+            <strong>Available Stock:</strong> <span id="modalAvailableStock"></span>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Quantity to Order *</label>
+              <input
+                type="number"
+                class="form-control"
+                name="quantity_delivered"
+                id="modalQuantity"
+                min="1"
+                required
+              />
+              <small class="text-muted">Maximum: <span id="modalMaxQty"></span></small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">New Stock Level</label>
+              <input
+                type="number"
+                class="form-control"
+                name="current_stock"
+                id="modalNewStock"
+                readonly
+                style="background-color: #f8f9fa"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Order Reference</label>
+            <input
+              type="text"
+              class="form-control"
+              name="order_reference"
+              id="modalReference"
+              placeholder="Order number, invoice etc."
+            />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Order Notes</label>
+            <textarea
+              class="form-control"
+              name="order_notes"
+              id="modalNotes"
+              rows="3"
+              placeholder="Additional notes about this order"
+            ></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitOrder()">
+          <i class="bi bi-check-circle"></i> Process Order
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="card mt-4">
   <div class="card-body">
@@ -142,7 +275,7 @@
     <h5>Recent Stock Orders</h5>
   </div>
   <div class="card-body">
-    {% if recent_branded_stock %}
+    {% if recent_branded_stock and recent_branded_stock|length > 0 %}
     <div class="table-responsive">
       <table class="table table-striped table-sm">
         <thead>
@@ -158,11 +291,11 @@
         <tbody>
           {% for delivery in recent_branded_stock %}
           <tr>
-            <td>{{ delivery.date_created.strftime('%Y-%m-%d') }}</td>
-            <td>{{ delivery.data.customer_account }}</td>
-            <td>{{ delivery.data.product_code }}</td>
-            <td>{{ delivery.data.quantity_delivered }}</td>
-            <td>{{ delivery.data.current_stock }}</td>
+            <td>{{ delivery.date_created.strftime('%Y-%m-%d %H:%M') if delivery.date_created else 'N/A' }}</td>
+            <td>{{ delivery.data.get('customer_name', delivery.data.get('customer_account', 'N/A')) }}</td>
+            <td>{{ delivery.data.get('product_name', delivery.data.get('product_code', 'N/A')) }}</td>
+            <td>{{ delivery.data.get('quantity_delivered', 'N/A') }}</td>
+            <td>{{ delivery.data.get('current_stock', 'N/A') }}</td>
             <td>
               <a
                 href="{{ url_for('main.print_form', form_id=delivery.id) }}"
@@ -183,15 +316,21 @@
   </div>
 </div>
 
-{% endblock %} {% block scripts %}
+{% endblock %} 
+
+{% block scripts %}
 <script>
-  let selectedCustomerId = null;
   let selectedStockItem = null;
+  let selectedCustomerId = null;
   let customerSearchTimeout;
+  let orderModal;
 
   document.addEventListener("DOMContentLoaded", function () {
     setupCustomerSearch();
-    setupQuantityCalculation();
+    orderModal = new bootstrap.Modal(document.getElementById("orderModal"));
+    
+    // Setup quantity calculation in modal
+    document.getElementById("modalQuantity").addEventListener("input", calculateModalNewStock);
   });
 
   function setupCustomerSearch() {
@@ -245,7 +384,7 @@
           customerMap.set(item.customer_id, {
             id: item.customer_id,
             name: item.customer_name,
-            account_number: item.customer_id, // You might need this from API
+            account_number: item.customer_id,
             stockCount: 0,
           });
         }
@@ -253,6 +392,29 @@
       });
 
       const customers = Array.from(customerMap.values());
+      
+      // If no customers found, try searching by customer directly
+      if (customers.length === 0) {
+        const custResponse = await fetch(
+          `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+        );
+        const allCustomers = await custResponse.json();
+        
+        // Filter to only show customers that have stock
+        for (const cust of allCustomers) {
+          const stockResp = await fetch(`/api/customer-stock/search?customer_id=${cust.id}`);
+          const custStock = await stockResp.json();
+          if (custStock.length > 0) {
+            customers.push({
+              id: cust.id,
+              name: cust.name,
+              account_number: cust.account_number,
+              stockCount: custStock.length
+            });
+          }
+        }
+      }
+      
       showCustomerDropdown(customers, inputElement, fieldType);
     } catch (error) {
       console.error("Error searching customers:", error);
@@ -271,22 +433,24 @@
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
     dropdown.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
+        position: fixed;
         background: var(--dark-card);
         border: 2px solid var(--border-color);
         border-radius: 12px;
-        max-height: 200px;
+        max-height: 300px;
         overflow-y: auto;
-        z-index: 1000;
+        z-index: 9999;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        min-width: 400px;
     `;
+    
+    // Position dropdown below the input
+    const rect = inputElement.getBoundingClientRect();
+    dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+    dropdown.style.left = `${rect.left + window.scrollX}px`;
 
     customers.forEach((customer) => {
       const item = document.createElement("div");
-      item.className = "dropdown-item-custom";
       item.style.cssText = `
             padding: 12px 16px;
             cursor: pointer;
@@ -296,9 +460,9 @@
         `;
 
       item.innerHTML = `
-            <div style="font-weight: 600;">${customer.name}</div>
+            <div style="font-weight: 600;">${customer.account_number} - ${customer.name}</div>
             <small style="color: var(--text-muted);">
-                ${customer.stockCount} items in stock
+                Stock items: ${customer.stockCount}
             </small>
         `;
 
@@ -318,7 +482,7 @@
       dropdown.appendChild(item);
     });
 
-    inputElement.parentElement.appendChild(dropdown);
+    document.body.appendChild(dropdown);
     inputElement.style.borderColor = "#28a745";
   }
 
@@ -378,28 +542,27 @@
           : item.current_stock <= item.reorder_level
           ? "warning"
           : "success";
+      
+      const productCode = item.product_code || 'N/A';
+      const unitType = item.unit_type || 'units';
 
       html += `
             <div class="col-md-4 mb-3">
-                <div class="card stock-item-card" onclick="selectStockItem(${
-                  item.id
-                }, '${item.product_code}', '${item.product_name}', ${
-        item.current_stock
-      }, '${item.unit_type}')" 
-                     style="cursor: pointer; transition: all 0.2s;">
+                <div class="card stock-item-card" style="cursor: pointer; transition: all 0.2s;">
                     <div class="card-body">
-                        <h6 class="card-title">${item.product_code}</h6>
+                        <h6 class="card-title">${productCode}</h6>
                         <p class="card-text">${item.product_name}</p>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge bg-${statusClass}">${
-        item.current_stock
-      } ${item.unit_type}</span>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-${statusClass}">${item.current_stock} ${unitType}</span>
                             ${
                               item.current_stock <= item.reorder_level
                                 ? '<small class="text-warning">Low stock!</small>'
                                 : ""
                             }
                         </div>
+                        <button class="btn btn-sm btn-primary w-100" ${item.current_stock === 0 ? 'disabled' : ''}>
+                            <i class="bi bi-cart-plus"></i> Create Order
+                        </button>
                     </div>
                 </div>
             </div>
@@ -408,6 +571,19 @@
 
     itemsDiv.innerHTML = html;
     document.getElementById("stockItemsSection").style.display = "block";
+
+    // Add click handlers to buttons after rendering
+    document.querySelectorAll('.stock-item-card button').forEach((button, index) => {
+      button.addEventListener('click', function() {
+        const item = stockItems[index];
+        const accountNumber = document.getElementById("customerAccount").value;
+        const customerName = document.getElementById("customerName").value;
+        const productCode = item.product_code || 'N/A';
+        const unitType = item.unit_type || 'units';
+        
+        quickSelectItem(item.id, accountNumber, customerName, productCode, item.product_name, item.current_stock, unitType);
+      });
+    });
 
     // Add hover effects
     document.querySelectorAll(".stock-item-card").forEach((card) => {
@@ -428,32 +604,31 @@
     itemId,
     productCode,
     productName,
-    currentStock,
-    unitType
+    currentStock
   ) {
     selectedStockItem = {
       id: itemId,
       product_code: productCode,
       product_name: productName,
-      current_stock: currentStock,
-      unit_type: unitType,
+      current_stock: currentStock
     };
 
     // Fill form fields
-    document.querySelector('input[name="product_code"]').value = productCode;
+    document.querySelector('input[name="product_code"]').value = productCode || 'N/A';
     document.querySelector('input[name="product_name"]').value = productName;
     document.getElementById("stockItemId").value = itemId;
 
     // Update display
+    const displayCode = productCode && productCode !== 'N/A' ? productCode + ' - ' : '';
     document.getElementById(
       "selectedItemDisplay"
-    ).textContent = `${productCode} - ${productName}`;
+    ).textContent = `${displayCode}${productName}`;
     document.getElementById(
       "availableStock"
-    ).textContent = `${currentStock} ${unitType}`;
+    ).textContent = `${currentStock} units`;
     document.getElementById(
       "maxQuantity"
-    ).textContent = `${currentStock} ${unitType}`;
+    ).textContent = `${currentStock} units`;
     document.getElementById("quantityOrdered").max = currentStock;
 
     // Show order details section
@@ -512,6 +687,119 @@
   function hideAllDropdowns() {
     document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
       dropdown.remove();
+    });
+  }
+
+  // Quick select function from stock table
+  function quickSelectItem(itemId, accountNumber, customerName, productCode, productName, currentStock, unitType) {
+    // Set selected stock item
+    selectedStockItem = {
+      id: itemId,
+      account_number: accountNumber,
+      customer_name: customerName,
+      product_code: productCode,
+      product_name: productName,
+      current_stock: currentStock,
+      unit_type: unitType
+    };
+    
+    // Fill modal hidden fields
+    document.getElementById("modalStockItemId").value = itemId;
+    document.getElementById("modalCustomerId").value = itemId;
+    document.getElementById("modalCustomerAccount").value = accountNumber;
+    document.getElementById("modalCustomerName").value = customerName;
+    document.getElementById("modalProductCode").value = productCode;
+    document.getElementById("modalProductName").value = productName;
+    
+    // Update modal display
+    document.getElementById("modalCustomerDisplay").textContent = `${accountNumber} - ${customerName}`;
+    document.getElementById("modalProductDisplay").textContent = `${productCode} - ${productName}`;
+    document.getElementById("modalAvailableStock").textContent = `${currentStock} ${unitType}`;
+    document.getElementById("modalMaxQty").textContent = `${currentStock} ${unitType}`;
+    
+    // Set max quantity
+    document.getElementById("modalQuantity").max = currentStock;
+    document.getElementById("modalQuantity").value = "";
+    document.getElementById("modalNewStock").value = currentStock;
+    
+    // Clear other fields
+    document.getElementById("modalReference").value = "";
+    document.getElementById("modalNotes").value = "";
+    
+    // Show modal
+    orderModal.show();
+  }
+  
+  function calculateModalNewStock() {
+    const ordered = parseInt(document.getElementById("modalQuantity").value) || 0;
+    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
+    const newLevel = Math.max(0, available - ordered);
+    
+    document.getElementById("modalNewStock").value = newLevel;
+    
+    // Visual feedback
+    const input = document.getElementById("modalQuantity");
+    if (ordered > available) {
+      input.style.borderColor = "#dc3545";
+    } else if (ordered > 0) {
+      input.style.borderColor = "#28a745";
+    } else {
+      input.style.borderColor = "";
+    }
+  }
+  
+  function submitOrder() {
+    const quantity = parseInt(document.getElementById("modalQuantity").value);
+    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
+    
+    if (!quantity || quantity < 1) {
+      alert("Please enter a valid quantity");
+      return;
+    }
+    
+    if (quantity > available) {
+      alert(`Cannot order more than available stock (${available})`);
+      return;
+    }
+    
+    // Show loading state
+    const submitBtn = event.target;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+    
+    // Get form data
+    const formData = new FormData(document.getElementById("orderForm"));
+    
+    // Submit via fetch
+    fetch('{{ url_for("main.branded_stock") }}', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+      // Check if response contains the script tag with print window
+      if (html.includes('window.open')) {
+        // Extract the URL from the script
+        const match = html.match(/window\.open\('([^']+)'/);
+        if (match && match[1]) {
+          // Open print window
+          window.open(match[1], '_blank');
+          
+          // Close modal and reload page
+          orderModal.hide();
+          window.location.reload();
+        }
+      } else {
+        // Something went wrong, reload to show error message
+        window.location.reload();
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Error processing order');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
     });
   }
 </script>

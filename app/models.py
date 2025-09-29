@@ -199,8 +199,6 @@ class CompanyUpdate(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     category = db.Column(db.String(50), default='general')
 
-
-
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
@@ -228,7 +226,6 @@ class Customer(db.Model):
             'notes': self.notes,
             'callsheet_notes': self.callsheet_notes
         }
-
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -331,10 +328,9 @@ class Form(db.Model):
 class CustomerStock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
-    product_code = db.Column(db.String(50), nullable=False)
+    product_code = db.Column(db.String(50), nullable=True)  # Changed to nullable=True
     product_name = db.Column(db.String(100), nullable=False)
     current_stock = db.Column(db.Integer, nullable=False, default=0)
-    unit_type = db.Column(db.String(20), default='cases')  # cases, boxes, units, etc.
     reorder_level = db.Column(db.Integer, default=5)  # Alert when stock gets low
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -351,7 +347,6 @@ class CustomerStock(db.Model):
             'product_code': self.product_code,
             'product_name': self.product_name,
             'current_stock': self.current_stock,
-            'unit_type': self.unit_type,
             'reorder_level': self.reorder_level,
             'is_low_stock': self.current_stock <= self.reorder_level
         }
@@ -379,8 +374,6 @@ class StockTransaction(db.Model):
             'transaction_date': self.transaction_date.isoformat(),
             'created_by': self.user.username
         }
-
-# Add these models to your app/models.py
 
 class StandingOrder(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -1196,20 +1196,16 @@ def returns():
 def branded_stock():
     form = BrandedStockForm()
     if form.validate_on_submit():
-        # Check if this is a stock order (has stock_item_id)
         stock_item_id = request.form.get('stock_item_id')
         
         if stock_item_id:
-            # Process stock order
             stock_item = CustomerStock.query.get_or_404(stock_item_id)
             quantity_ordered = int(request.form.get('quantity_delivered', 0))
             
-            # Validate quantity
             if quantity_ordered > stock_item.current_stock:
                 flash('Cannot order more than available stock', 'danger')
                 return redirect(url_for('main.branded_stock'))
             
-            # Create stock transaction
             transaction = StockTransaction(
                 stock_item_id=stock_item_id,
                 transaction_type='stock_out',
@@ -1219,13 +1215,11 @@ def branded_stock():
                 created_by=current_user.id
             )
             
-            # Update stock level
             stock_item.current_stock -= quantity_ordered
             stock_item.updated_at = datetime.now()
             
             db.session.add(transaction)
             
-            # Create form record for printing
             form_data = {
                 'customer_account': request.form.get('customer_account'),
                 'customer_name': request.form.get('customer_name'),
@@ -1237,29 +1231,28 @@ def branded_stock():
                 'order_notes': request.form.get('order_notes', ''),
                 'transaction_type': 'Customer Stock Order'
             }
-        else:
-            # Regular branded stock delivery
-            form_data = {
-                'customer_account': form.customer_account.data,
-                'customer_name': form.customer_name.data,
-                'product_code': form.product_code.data,
-                'product_name': form.product_name.data,
-                'quantity_delivered': form.quantity_delivered.data,
-                'current_stock': form.current_stock.data
-            }
-        
-        new_form = Form(
-            type='branded_stock',
-            data=json.dumps(form_data),
-            user_id=current_user.id
-        )
-        db.session.add(new_form)
-        db.session.commit()
-        
-        flash(f'Stock order #{new_form.id} has been processed successfully!', 'success')
-        return redirect(url_for('main.branded_stock'))
+            
+            new_form = Form(
+                type='branded_stock',
+                data=json.dumps(form_data),
+                user_id=current_user.id
+            )
+            db.session.add(new_form)
+            db.session.commit()
+            
+            flash(f'Stock order #{new_form.id} has been processed successfully!', 'success')
+            
+            # Return JavaScript to open print form and redirect
+            return f'''
+            <script>
+                window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
+                window.location.href = '{url_for('main.branded_stock')}';
+            </script>
+            '''
     
-    # Get recent branded stock orders for the table
+    # GET request - display the form
+    stock_items = CustomerStock.query.join(Customer).order_by(Customer.name, CustomerStock.product_name).all()
+    
     recent_forms = Form.query.filter_by(type='branded_stock').order_by(Form.date_created.desc()).limit(5).all()
     recent_branded_stock = []
     
@@ -1271,8 +1264,11 @@ def branded_stock():
         }
         recent_branded_stock.append(form_dict)
     
-    return render_template('branded_stock.html', title='Customer Stock Orders', form=form, recent_branded_stock=recent_branded_stock)
-
+    return render_template('branded_stock.html', 
+                         title='Customer Stock Orders', 
+                         form=form,
+                         stock_items=stock_items,
+                         recent_branded_stock=recent_branded_stock)
 
 @main.route('/invoice-correction', methods=['GET', 'POST'])
 @login_required
@@ -1509,15 +1505,30 @@ def print_form(form_id):
     user = User.query.get(form.user_id)
     author = user.username if user else 'Unknown'
     
-    return render_template(
-        'print_form.html', 
-        title=f'{form.type.replace("_", " ").title()} - #{form_id}',
-        form_type=form.type,
-        form_data=form_data,
-        author=author,
-        date_created=form.date_created,
-        company_name='Highland Industrial Supplies'
-    )
+    # Determine which template to use based on form type
+    if form.type == 'branded_stock':
+        return render_template(
+            'print_branded_stock.html',
+            title=f'Stock Order - #{form_id}',
+            form_type=form.type,
+            form_data=form_data,
+            author=author,
+            date_created=form.date_created,
+            form_id=form_id,
+            company_name='Highland Industrial Supplies'
+        )
+    else:
+        # Default to returns/credit uplift template
+        return render_template(
+            'print_form.html', 
+            title=f'{form.type.replace("_", " ").title()} - #{form_id}',
+            form_type=form.type,
+            form_data=form_data,
+            author=author,
+            date_created=form.date_created,
+            form_id=form_id,
+            company_name='Highland Industrial Supplies'
+        )
 
 @main.route('/api/customers/search')
 @login_required
@@ -1665,21 +1676,30 @@ def create_customer_stock():
     data = request.json
     
     try:
-        # Check if this customer already has this product
-        existing = CustomerStock.query.filter_by(
-            customer_id=data['customer_id'],
-            product_code=data['product_code']
-        ).first()
+        # Product name is required, but product_code is optional
+        if not data.get('product_name'):
+            return jsonify({'success': False, 'message': 'Product name is required'}), 400
+            
+        # Check if this customer already has this product (by product code if provided, otherwise by name)
+        if data.get('product_code'):
+            existing = CustomerStock.query.filter_by(
+                customer_id=data['customer_id'],
+                product_code=data['product_code']
+            ).first()
+        else:
+            existing = CustomerStock.query.filter_by(
+                customer_id=data['customer_id'],
+                product_name=data['product_name']
+            ).first()
         
         if existing:
             return jsonify({'success': False, 'message': 'This customer already has this product in stock'}), 400
         
         stock_item = CustomerStock(
             customer_id=data['customer_id'],
-            product_code=data['product_code'],
+            product_code=data.get('product_code'),  # Optional
             product_name=data['product_name'],
             current_stock=data.get('initial_stock', 0),
-            unit_type=data.get('unit_type', 'cases'),
             reorder_level=data.get('reorder_level', 5)
         )
         
@@ -1692,7 +1712,7 @@ def create_customer_stock():
                 stock_item_id=stock_item.id,
                 transaction_type='stock_in',
                 quantity=data['initial_stock'],
-                reference=data.get('reference', 'Initial Stock'),
+                reference=data.get('invoice_number', 'Initial Stock'),  # Changed from 'reference'
                 notes=data.get('notes', 'Initial stock setup'),
                 created_by=current_user.id
             )
@@ -2552,3 +2572,5 @@ def get_recent_activity():
             activity['timestamp'] = activity['timestamp'].isoformat()
     
     return jsonify(activities)
+
+

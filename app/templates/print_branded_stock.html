@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        line-height: 1.4;
+      }
+      .header {
+        text-align: center;
+        border-bottom: 3px solid #084385;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+      }
+      .company-name {
+        font-size: 24px;
+        font-weight: bold;
+        color: #084385;
+      }
+      .form-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-top: 10px;
+        color: #084385;
+      }
+      .form-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+      }
+      .form-number {
+        font-size: 18px;
+        font-weight: bold;
+        color: #084385;
+      }
+      .info-container {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .customer-details {
+        flex: 1;
+        border: 1px solid #000;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      .customer-details h4 {
+        color: #084385;
+        font-size: 14px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #084385;
+        padding-bottom: 5px;
+      }
+      .detail-row {
+        display: flex;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+      .detail-row .label {
+        font-weight: bold;
+        width: 120px;
+        flex-shrink: 0;
+      }
+      .products-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+      }
+      .products-table th,
+      .products-table td {
+        border: 1px solid #000;
+        padding: 8px;
+        text-align: left;
+        font-size: 13px;
+      }
+      .products-table th {
+        background-color: #084385;
+        color: white;
+        font-weight: bold;
+      }
+      .products-table tbody tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+      h4 {
+        color: #084385;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+      .signature-area {
+        margin-top: 40px;
+        page-break-inside: avoid;
+      }
+      .signature-container {
+        display: flex;
+        justify-content: space-around;
+        gap: 40px;
+        margin-bottom: 30px;
+      }
+      .signature-box {
+        flex: 1;
+        text-align: center;
+      }
+      .signature-line {
+        border-top: 2px solid #000;
+        margin: 40px auto 10px;
+        width: 200px;
+      }
+      .footer {
+        margin-top: 30px;
+        border-top: 1px solid #000;
+        padding-top: 10px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .order-summary {
+        background-color: #f0f8ff;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+        border-left: 4px solid #084385;
+      }
+      .order-summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        font-size: 14px;
+      }
+      .order-summary-row.highlight {
+        font-weight: bold;
+        font-size: 16px;
+        color: #084385;
+        border-top: 2px solid #084385;
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          padding: 10px;
+        }
+        .btn {
+          display: none;
+        }
+      }
+      .btn {
+        padding: 8px 16px;
+        margin: 0 5px;
+        border: 1px solid #007bff;
+        background-color: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="company-name">HIGHLAND INDUSTRIAL SUPPLIES</div>
+      <div>Hygiene & Catering Division</div>
+      <div class="form-title">CUSTOMER STOCK ORDER</div>
+    </div>
+
+    <div class="form-info">
+      <div>
+        <span class="form-number">Order #{{ form_id }}</span>
+      </div>
+      <div>
+        <strong>Date:</strong> {{ date_created.strftime('%d/%m/%Y %H:%M') }}
+      </div>
+      <div><strong>Processed By:</strong> {{ author }}</div>
+    </div>
+
+    <!-- Customer Details -->
+    <div class="info-container">
+      <div class="customer-details">
+        <h4>Customer Details</h4>
+        <div class="detail-row">
+          <span class="label">Account:</span>
+          <span>{{ form_data.get('customer_account', 'N/A') }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Name:</span>
+          <span>{{ form_data.get('customer_name', 'N/A') }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Order Reference:</span>
+          <span>{{ form_data.get('order_reference', 'N/A') }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Details -->
+    <h4 style="color: #084385; font-size: 14px; margin-bottom: 10px">
+      Product Details
+    </h4>
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th width="25%">Product Code</th>
+          <th width="50%">Product Name</th>
+          <th width="25%">Quantity Ordered</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ form_data.get('product_code', 'N/A') }}</td>
+          <td>{{ form_data.get('product_name', 'N/A') }}</td>
+          <td><strong>{{ form_data.get('quantity_delivered', 0) }}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Order Summary -->
+    <div class="order-summary">
+      <h4 style="margin-bottom: 15px">Stock Summary</h4>
+      <div class="order-summary-row">
+        <span>Quantity Ordered:</span>
+        <span
+          ><strong>{{ form_data.get('quantity_delivered', 0) }}</strong></span
+        >
+      </div>
+      <div class="order-summary-row highlight">
+        <span>Remaining Stock Level:</span>
+        <span>{{ form_data.get('current_stock', 'N/A') }}</span>
+      </div>
+    </div>
+
+    <!-- Order Notes -->
+    {% if form_data.get('order_notes') %}
+    <div
+      style="
+        margin: 20px 0;
+        padding: 15px;
+        background-color: #fff9e6;
+        border-radius: 5px;
+        border-left: 4px solid #ffc107;
+      "
+    >
+      <h4>Order Notes:</h4>
+      <p style="margin-top: 10px; font-size: 13px">
+        {{ form_data.get('order_notes') }}
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- Signature Area -->
+    <div class="signature-area">
+      <div class="signature-container">
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <p><strong>Driver Signature</strong></p>
+          <p style="font-size: 12px; margin-top: 5px">Date: _______________</p>
+        </div>
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <p><strong>Customer Signature</strong></p>
+          <p style="font-size: 12px; margin-top: 5px">Date: _______________</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>Highland Industrial Supplies - Hygiene & Catering Division</p>
+      <p>This document serves as proof of delivery for customer-held stock</p>
+    </div>
+
+    <!-- Print Controls -->
+    <div class="no-print" style="text-align: center; margin-top: 20px">
+      <button class="btn" onclick="window.print()">Print Form</button>
+      <a href="{{ url_for('main.branded_stock') }}" class="btn btn-secondary"
+        >Back to Stock Orders</a
+      >
+    </div>
+  </body>
+</html>
