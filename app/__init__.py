@@ -1,6 +1,3 @@
-# app/__init__.py
-# Updated to use the new secure configuration
-
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -36,7 +33,10 @@ def create_app():
     
     # Register blueprints
     from app.routes import main
+    from app.admin_routes import admin_bp
+    
     app.register_blueprint(main)
+    app.register_blueprint(admin_bp)
     
     # Add security headers in production
     if app.config.get('FLASK_ENV') == 'production':

@@ -91,7 +91,37 @@
     </div>
   </div>
 
-  <!-- Charts Row 1 -->
+  <!-- Inactive Customers Alert -->
+  <div class="card mb-4 border-danger">
+    <div class="card-header bg-danger text-white">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+          <i class="bi bi-exclamation-triangle-fill"></i> Inactive Customers
+          Alert
+        </h5>
+        <select
+          class="form-select form-select-sm"
+          id="inactivePeriod"
+          style="width: auto"
+          onchange="loadInactiveCustomers()"
+        >
+          <option value="7">No contact for 1 week</option>
+          <option value="14">No contact for 2 weeks</option>
+          <option value="21">No contact for 3 weeks</option>
+          <option value="30" selected>No contact for 1 month</option>
+          <option value="60">No contact for 2 months</option>
+          <option value="90">No contact for 3 months</option>
+        </select>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="inactiveCustomersList">
+        <div class="text-center text-muted">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1 - Daily Activity and Forms -->
   <div class="row mb-4">
     <div class="col-md-8">
       <div class="card">
@@ -119,29 +149,156 @@
     </div>
   </div>
 
-  <!-- Charts Row 2 -->
+  <!-- Callsheet Analytics Section -->
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">
+        <i class="bi bi-telephone-fill"></i> Callsheet Performance Analysis
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row mb-4">
+        <!-- Callsheet KPIs -->
+        <div class="col-md-3">
+          <div class="card text-center bg-light">
+            <div class="card-body">
+              <h3 class="text-success mb-0" id="orderSuccessRate">-</h3>
+              <small class="text-muted">Order Success Rate</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center bg-light">
+            <div class="card-body">
+              <h3 class="text-warning mb-0" id="noAnswerRate">-</h3>
+              <small class="text-muted">No Answer Rate</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center bg-light">
+            <div class="card-body">
+              <h3 class="text-danger mb-0" id="declineRate">-</h3>
+              <small class="text-muted">Decline Rate</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center bg-light">
+            <div class="card-body">
+              <h3 class="text-info mb-0" id="callbackRate">-</h3>
+              <small class="text-muted">Callback Rate</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Call Status Breakdown</h6>
+            </div>
+            <div class="card-body">
+              <canvas id="callsheetStatusChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Daily Call Success Trend</h6>
+            </div>
+            <div class="card-body">
+              <canvas id="dailyCallSuccessChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mt-4">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Best Performing Days</h6>
+            </div>
+            <div class="card-body">
+              <canvas id="dayPerformanceChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Staff Call Performance</h6>
+            </div>
+            <div class="card-body">
+              <canvas id="staffCallPerformanceChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Callsheet Insights Tables -->
   <div class="row mb-4">
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">
-            <i class="bi bi-telephone-fill"></i> Callsheet Status Breakdown
-          </h5>
+        <div class="card-header bg-success text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-star-fill"></i> Most Responsive Customers
+          </h6>
         </div>
         <div class="card-body">
-          <canvas id="callsheetStatusChart"></canvas>
+          <div id="mostResponsiveCustomers">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
         </div>
       </div>
     </div>
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">
-            <i class="bi bi-boxes"></i> Stock Transaction Types
-          </h5>
+        <div class="card-header bg-warning text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-clock-history"></i> Hard to Reach Customers
+          </h6>
         </div>
         <div class="card-body">
-          <canvas id="stockTypeChart"></canvas>
+          <div id="hardToReachCustomers">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-danger text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-x-circle-fill"></i> Frequent Decliners
+          </h6>
+        </div>
+        <div class="card-body">
+          <div id="frequentDecliners">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-telephone-forward-fill"></i> Pending Callbacks
+          </h6>
+        </div>
+        <div class="card-body">
+          <div id="pendingCallbacks">
+            <div class="text-center text-muted">Loading...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -184,11 +341,13 @@
   <div class="row mb-4">
     <div class="col-md-4">
       <div class="card">
-        <div class="card-header">
-          <h5 class="mb-0">Top Callsheet Customers</h5>
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">
+            <i class="bi bi-trophy-fill"></i> Best Ordering Customers
+          </h5>
         </div>
         <div class="card-body">
-          <div id="topCallsheetCustomers" class="list-group">
+          <div id="bestOrderingCustomers" class="list-group">
             <div class="text-center text-muted">Loading...</div>
           </div>
         </div>
@@ -197,7 +356,9 @@
     <div class="col-md-4">
       <div class="card">
         <div class="card-header">
-          <h5 class="mb-0">Customers with Standing Orders</h5>
+          <h5 class="mb-0">
+            <i class="bi bi-arrow-repeat"></i> Customers with Standing Orders
+          </h5>
         </div>
         <div class="card-body">
           <div id="standingOrderCustomers" class="list-group">
@@ -209,7 +370,9 @@
     <div class="col-md-4">
       <div class="card">
         <div class="card-header">
-          <h5 class="mb-0">Top Stock Tracked Customers</h5>
+          <h5 class="mb-0">
+            <i class="bi bi-boxes"></i> Top Stock Tracked Customers
+          </h5>
         </div>
         <div class="card-body">
           <div id="stockCustomers" class="list-group">
@@ -219,10 +382,32 @@
       </div>
     </div>
   </div>
+
+  <!-- Additional Analytics -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-calendar-week"></i> Day of Week Performance
+          </h5>
+        </div>
+        <div class="card-body">
+          <canvas id="dayOfWeekChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-  let dailyActivityChart, formsTypeChart, callsheetStatusChart, stockTypeChart;
+  let dailyActivityChart,
+    formsTypeChart,
+    callsheetStatusChart,
+    dayOfWeekChart,
+    dailyCallSuccessChart,
+    dayPerformanceChart,
+    staffCallPerformanceChart;
 
   // Date range helper functions
   function updateDateRange() {
@@ -232,30 +417,52 @@
 
     switch (period) {
       case "today":
-        startDate = endDate = today;
+        startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
         break;
       case "yesterday":
-        startDate = endDate = new Date(today.setDate(today.getDate() - 1));
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        startDate = new Date(yesterday);
+        endDate = new Date(yesterday);
+        endDate.setHours(23, 59, 59, 999);
         break;
       case "this_week":
-        startDate = new Date(today.setDate(today.getDate() - today.getDay()));
+        const thisWeekStart = new Date();
+        thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
+        startDate = thisWeekStart;
         endDate = new Date();
         break;
       case "last_week":
-        const lastWeekEnd = new Date(
-          today.setDate(today.getDate() - today.getDay() - 1)
+        const lastWeekStart = new Date();
+        lastWeekStart.setDate(
+          lastWeekStart.getDate() - lastWeekStart.getDay() - 7
         );
-        startDate = new Date(lastWeekEnd);
-        startDate.setDate(lastWeekEnd.getDate() - 6);
+        const lastWeekEnd = new Date(lastWeekStart);
+        lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+        startDate = lastWeekStart;
         endDate = lastWeekEnd;
         break;
       case "this_month":
-        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        startDate = new Date(
+          new Date().getFullYear(),
+          new Date().getMonth(),
+          1
+        );
         endDate = new Date();
         break;
       case "last_month":
-        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        startDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+        endDate = new Date(
+          lastMonth.getFullYear(),
+          lastMonth.getMonth() + 1,
+          0
+        );
         break;
       case "custom":
         return; // User will set manually
@@ -284,6 +491,9 @@
       loadDailyActivity(startDate, endDate),
       loadUserActivity(startDate, endDate),
       loadCustomerAnalysis(),
+      loadInactiveCustomers(),
+      loadCallsheetAnalytics(startDate, endDate),
+      loadAdditionalAnalytics(startDate, endDate),
     ]);
   }
 
@@ -291,7 +501,7 @@
   async function loadSummary(startDate, endDate) {
     try {
       const response = await fetch(
-        `/api/admin/reports/summary?start_date=${startDate}&end_date=${endDate}`
+        `/admin/api/reports/summary?start_date=${startDate}&end_date=${endDate}`
       );
       const data = await response.json();
 
@@ -310,14 +520,9 @@
       document.getElementById("callsheetEntriesCount").textContent =
         data.callsheets.total_entries;
 
-      // Update forms by type chart
+      // Update charts
       updateFormsTypeChart(data.forms.by_type);
-
-      // Update callsheet status chart
       updateCallsheetStatusChart(data.callsheets.by_status);
-
-      // Update stock type chart
-      updateStockTypeChart(data.stock.by_type);
     } catch (error) {
       console.error("Error loading summary:", error);
     }
@@ -327,10 +532,18 @@
   async function loadDailyActivity(startDate, endDate) {
     try {
       const response = await fetch(
-        `/api/admin/reports/daily-activity?start_date=${startDate}&end_date=${endDate}`
+        `/admin/api/reports/daily-activity?start_date=${startDate}&end_date=${endDate}`
       );
       const data = await response.json();
-      updateDailyActivityChart(data);
+
+      console.log("Daily activity data:", data);
+
+      if (data && data.length > 0) {
+        updateDailyActivityChart(data);
+      } else {
+        console.log("No daily activity data returned");
+        updateDailyActivityChart([]);
+      }
     } catch (error) {
       console.error("Error loading daily activity:", error);
     }
@@ -340,7 +553,7 @@
   async function loadUserActivity(startDate, endDate) {
     try {
       const response = await fetch(
-        `/api/admin/reports/user-activity?start_date=${startDate}&end_date=${endDate}`
+        `/admin/api/reports/user-activity?start_date=${startDate}&end_date=${endDate}`
       );
       const users = await response.json();
 
@@ -388,69 +601,494 @@
   // Load customer analysis
   async function loadCustomerAnalysis() {
     try {
-      const response = await fetch("/api/admin/reports/customer-analysis");
+      const response = await fetch("/admin/api/reports/customer-analysis");
       const data = await response.json();
 
-      // Top callsheet customers
-      const callsheetDiv = document.getElementById("topCallsheetCustomers");
-      callsheetDiv.innerHTML = "";
-      data.top_callsheet_customers.slice(0, 10).forEach((customer, index) => {
-        const item = document.createElement("div");
-        item.className =
-          "list-group-item d-flex justify-content-between align-items-center";
-        item.innerHTML = `
-                <div>
-                    <strong>${index + 1}. ${customer.name}</strong><br>
-                    <small class="text-muted">${customer.account_number}</small>
-                </div>
-                <span class="badge bg-primary rounded-pill">${
-                  customer.call_count
-                } calls</span>
-            `;
-        callsheetDiv.appendChild(item);
-      });
+      // Best ordering customers
+      const bestOrderingDiv = document.getElementById("bestOrderingCustomers");
+      bestOrderingDiv.innerHTML = "";
+      if (
+        data.best_ordering_customers &&
+        data.best_ordering_customers.length > 0
+      ) {
+        data.best_ordering_customers.slice(0, 10).forEach((customer, index) => {
+          const item = document.createElement("div");
+          item.className =
+            "list-group-item d-flex justify-content-between align-items-center";
+          const orderRate = Math.round(customer.order_rate);
+          item.innerHTML = `
+                    <div>
+                        <strong>${index + 1}. ${customer.name}</strong><br>
+                        <small class="text-muted">${
+                          customer.account_number
+                        }</small><br>
+                        <small class="text-success">${customer.orders_placed}/${
+            customer.total_calls
+          } calls</small>
+                    </div>
+                    <span class="badge bg-success rounded-pill">${orderRate}%</span>
+                `;
+          bestOrderingDiv.appendChild(item);
+        });
+      } else {
+        bestOrderingDiv.innerHTML =
+          '<p class="text-muted text-center">No data available</p>';
+      }
 
       // Standing order customers
       const standingDiv = document.getElementById("standingOrderCustomers");
       standingDiv.innerHTML = "";
-      data.customers_with_standing_orders
-        .slice(0, 10)
-        .forEach((customer, index) => {
-          const item = document.createElement("div");
-          item.className =
-            "list-group-item d-flex justify-content-between align-items-center";
-          item.innerHTML = `
-                <div>
-                    <strong>${index + 1}. ${customer.name}</strong><br>
-                    <small class="text-muted">${customer.account_number}</small>
-                </div>
-                <span class="badge bg-warning rounded-pill">${
-                  customer.order_count
-                } orders</span>
-            `;
-          standingDiv.appendChild(item);
-        });
+      if (
+        data.customers_with_standing_orders &&
+        data.customers_with_standing_orders.length > 0
+      ) {
+        data.customers_with_standing_orders
+          .slice(0, 10)
+          .forEach((customer, index) => {
+            const item = document.createElement("div");
+            item.className =
+              "list-group-item d-flex justify-content-between align-items-center";
+            item.innerHTML = `
+                    <div>
+                        <strong>${index + 1}. ${customer.name}</strong><br>
+                        <small class="text-muted">${
+                          customer.account_number
+                        }</small>
+                    </div>
+                    <span class="badge bg-warning rounded-pill">${
+                      customer.order_count
+                    } orders</span>
+                `;
+            standingDiv.appendChild(item);
+          });
+      } else {
+        standingDiv.innerHTML =
+          '<p class="text-muted text-center">No standing orders</p>';
+      }
 
       // Stock customers
       const stockDiv = document.getElementById("stockCustomers");
       stockDiv.innerHTML = "";
-      data.customers_with_stock.slice(0, 10).forEach((customer, index) => {
-        const item = document.createElement("div");
-        item.className =
-          "list-group-item d-flex justify-content-between align-items-center";
-        item.innerHTML = `
-                <div>
-                    <strong>${index + 1}. ${customer.name}</strong><br>
-                    <small class="text-muted">${customer.account_number}</small>
-                </div>
-                <span class="badge bg-info rounded-pill">${
-                  customer.total_stock
-                } units</span>
-            `;
-        stockDiv.appendChild(item);
-      });
+      if (data.customers_with_stock && data.customers_with_stock.length > 0) {
+        data.customers_with_stock.slice(0, 10).forEach((customer, index) => {
+          const item = document.createElement("div");
+          item.className =
+            "list-group-item d-flex justify-content-between align-items-center";
+          item.innerHTML = `
+                    <div>
+                        <strong>${index + 1}. ${customer.name}</strong><br>
+                        <small class="text-muted">${
+                          customer.account_number
+                        }</small>
+                    </div>
+                    <span class="badge bg-info rounded-pill">${
+                      customer.total_stock
+                    } units</span>
+                `;
+          stockDiv.appendChild(item);
+        });
+      } else {
+        stockDiv.innerHTML =
+          '<p class="text-muted text-center">No stock tracked</p>';
+      }
     } catch (error) {
       console.error("Error loading customer analysis:", error);
+    }
+  }
+
+  // Load inactive customers
+  async function loadInactiveCustomers() {
+    const days = document.getElementById("inactivePeriod").value;
+
+    try {
+      const response = await fetch(
+        `/admin/api/reports/inactive-customers?days=${days}`
+      );
+      const customers = await response.json();
+
+      const listDiv = document.getElementById("inactiveCustomersList");
+      listDiv.innerHTML = "";
+
+      if (customers.length === 0) {
+        listDiv.innerHTML =
+          '<div class="alert alert-success"><i class="bi bi-check-circle-fill"></i> Great! All customers have been contacted recently.</div>';
+        return;
+      }
+
+      listDiv.innerHTML = `<div class="alert alert-warning mb-3">
+            <i class="bi bi-exclamation-triangle-fill"></i> 
+            <strong>${customers.length} customer${
+        customers.length > 1 ? "s" : ""
+      }</strong> haven't been contacted in ${days} days
+        </div>`;
+
+      const table = document.createElement("div");
+      table.className = "table-responsive";
+      table.innerHTML = `
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Account #</th>
+                        <th>Last Contact</th>
+                        <th>Days Ago</th>
+                        <th>Last Status</th>
+                        <th>Phone</th>
+                    </tr>
+                </thead>
+                <tbody id="inactiveTableBody"></tbody>
+            </table>
+        `;
+      listDiv.appendChild(table);
+
+      const tbody = document.getElementById("inactiveTableBody");
+      customers.forEach((customer) => {
+        const row = document.createElement("tr");
+        const statusBadge = customer.last_status
+          ? `<span class="badge bg-secondary">${customer.last_status}</span>`
+          : "-";
+        row.innerHTML = `
+                <td><strong>${customer.name}</strong></td>
+                <td><small>${customer.account_number}</small></td>
+                <td>${
+                  customer.last_contact
+                    ? new Date(customer.last_contact).toLocaleDateString()
+                    : "Never"
+                }</td>
+                <td><span class="badge bg-danger">${
+                  customer.days_since_contact
+                } days</span></td>
+                <td>${statusBadge}</td>
+                <td><a href="tel:${
+                  customer.phone
+                }" class="btn btn-sm btn-outline-primary"><i class="bi bi-telephone"></i> ${
+          customer.phone
+        }</a></td>
+            `;
+        tbody.appendChild(row);
+      });
+    } catch (error) {
+      console.error("Error loading inactive customers:", error);
+    }
+  }
+
+  // Load callsheet analytics
+  async function loadCallsheetAnalytics(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/admin/api/reports/callsheet-analytics?start_date=${startDate}&end_date=${endDate}`
+      );
+      const data = await response.json();
+
+      // Update KPI cards
+      document.getElementById("orderSuccessRate").textContent =
+        data.order_success_rate + "%";
+      document.getElementById("noAnswerRate").textContent =
+        data.no_answer_rate + "%";
+      document.getElementById("declineRate").textContent =
+        data.decline_rate + "%";
+      document.getElementById("callbackRate").textContent =
+        data.callback_rate + "%";
+
+      // Update charts
+      if (data.daily_success_rate) {
+        updateDailyCallSuccessChart(data.daily_success_rate);
+      }
+
+      if (data.day_performance) {
+        updateDayPerformanceChart(data.day_performance);
+      }
+
+      if (data.staff_performance) {
+        updateStaffCallPerformanceChart(data.staff_performance);
+      }
+
+      // Update customer lists
+      updateMostResponsiveCustomers(data.most_responsive || []);
+      updateHardToReachCustomers(data.hard_to_reach || []);
+      updateFrequentDecliners(data.frequent_decliners || []);
+      updatePendingCallbacks(data.pending_callbacks || []);
+    } catch (error) {
+      console.error("Error loading callsheet analytics:", error);
+    }
+  }
+
+  function updateMostResponsiveCustomers(customers) {
+    const div = document.getElementById("mostResponsiveCustomers");
+    div.innerHTML = "";
+
+    if (customers.length === 0) {
+      div.innerHTML = '<p class="text-muted text-center">No data available</p>';
+      return;
+    }
+
+    customers.slice(0, 10).forEach((customer, index) => {
+      const item = document.createElement("div");
+      item.className =
+        "list-group-item d-flex justify-content-between align-items-center";
+      item.innerHTML = `
+            <div>
+                <strong>${index + 1}. ${customer.name}</strong><br>
+                <small class="text-muted">${customer.account_number}</small><br>
+                <small class="text-success">${customer.orders_placed}/${
+        customer.total_calls
+      } ordered</small>
+            </div>
+            <span class="badge bg-success rounded-pill">${
+              customer.success_rate
+            }%</span>
+        `;
+      div.appendChild(item);
+    });
+  }
+
+  function updateHardToReachCustomers(customers) {
+    const div = document.getElementById("hardToReachCustomers");
+    div.innerHTML = "";
+
+    if (customers.length === 0) {
+      div.innerHTML = '<p class="text-muted text-center">No data available</p>';
+      return;
+    }
+
+    customers.slice(0, 10).forEach((customer, index) => {
+      const item = document.createElement("div");
+      item.className =
+        "list-group-item d-flex justify-content-between align-items-center";
+      item.innerHTML = `
+            <div>
+                <strong>${index + 1}. ${customer.name}</strong><br>
+                <small class="text-muted">${customer.account_number}</small><br>
+                <small class="text-warning">${customer.no_answer}/${
+        customer.total_calls
+      } no answer</small>
+            </div>
+            <span class="badge bg-warning rounded-pill">${
+              customer.no_answer_rate
+            }%</span>
+        `;
+      div.appendChild(item);
+    });
+  }
+
+  function updateFrequentDecliners(customers) {
+    const div = document.getElementById("frequentDecliners");
+    div.innerHTML = "";
+
+    if (customers.length === 0) {
+      div.innerHTML = '<p class="text-muted text-center">No data available</p>';
+      return;
+    }
+
+    customers.slice(0, 10).forEach((customer, index) => {
+      const item = document.createElement("div");
+      item.className =
+        "list-group-item d-flex justify-content-between align-items-center";
+      item.innerHTML = `
+            <div>
+                <strong>${index + 1}. ${customer.name}</strong><br>
+                <small class="text-muted">${customer.account_number}</small><br>
+                <small class="text-danger">${customer.declined}/${
+        customer.total_calls
+      } declined</small>
+            </div>
+            <span class="badge bg-danger rounded-pill">${
+              customer.decline_rate
+            }%</span>
+        `;
+      div.appendChild(item);
+    });
+  }
+
+  function updatePendingCallbacks(customers) {
+    const div = document.getElementById("pendingCallbacks");
+    div.innerHTML = "";
+
+    if (customers.length === 0) {
+      div.innerHTML =
+        '<div class="alert alert-success"><i class="bi bi-check-circle-fill"></i> No pending callbacks</div>';
+      return;
+    }
+
+    customers.forEach((customer, index) => {
+      const item = document.createElement("div");
+      item.className =
+        "list-group-item d-flex justify-content-between align-items-center";
+      const callbackInfo = customer.callback_time
+        ? `<small class="text-info">Callback: ${customer.callback_time}</small>`
+        : "";
+      item.innerHTML = `
+            <div>
+                <strong>${index + 1}. ${customer.name}</strong><br>
+                <small class="text-muted">${customer.account_number}</small><br>
+                ${callbackInfo}
+                ${customer.notes ? `<br><small>${customer.notes}</small>` : ""}
+            </div>
+            <a href="tel:${
+              customer.phone
+            }" class="btn btn-sm btn-info"><i class="bi bi-telephone"></i></a>
+        `;
+      div.appendChild(item);
+    });
+  }
+
+  function updateDailyCallSuccessChart(data) {
+    const ctx = document
+      .getElementById("dailyCallSuccessChart")
+      .getContext("2d");
+
+    if (dailyCallSuccessChart) {
+      dailyCallSuccessChart.destroy();
+    }
+
+    dailyCallSuccessChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.map((d) =>
+          new Date(d.date).toLocaleDateString("en-GB", {
+            month: "short",
+            day: "numeric",
+          })
+        ),
+        datasets: [
+          {
+            label: "Order Success Rate %",
+            data: data.map((d) => d.success_rate),
+            borderColor: "#28a745",
+            backgroundColor: "rgba(40, 167, 69, 0.1)",
+            tension: 0.4,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: function (value) {
+                return value + "%";
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function updateDayPerformanceChart(data) {
+    const ctx = document.getElementById("dayPerformanceChart").getContext("2d");
+
+    if (dayPerformanceChart) {
+      dayPerformanceChart.destroy();
+    }
+
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+    dayPerformanceChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: days,
+        datasets: [
+          {
+            label: "Order Success Rate %",
+            data: days.map((day) => data[day] || 0),
+            backgroundColor: "rgba(75, 192, 192, 0.6)",
+            borderColor: "rgba(75, 192, 192, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: function (value) {
+                return value + "%";
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function updateStaffCallPerformanceChart(data) {
+    const ctx = document
+      .getElementById("staffCallPerformanceChart")
+      .getContext("2d");
+
+    if (staffCallPerformanceChart) {
+      staffCallPerformanceChart.destroy();
+    }
+
+    staffCallPerformanceChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.map((d) => d.username),
+        datasets: [
+          {
+            label: "Order Success Rate %",
+            data: data.map((d) => d.success_rate),
+            backgroundColor: "rgba(153, 102, 255, 0.6)",
+            borderColor: "rgba(153, 102, 255, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: function (value) {
+                return value + "%";
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Load additional analytics
+  async function loadAdditionalAnalytics(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/admin/api/reports/additional-analytics?start_date=${startDate}&end_date=${endDate}`
+      );
+      const data = await response.json();
+
+      if (data.activity_by_day_of_week) {
+        updateDayOfWeekChart(data.activity_by_day_of_week);
+      }
+    } catch (error) {
+      console.error("Error loading additional analytics:", error);
     }
   }
 
@@ -462,15 +1100,28 @@
       dailyActivityChart.destroy();
     }
 
+    if (!data || data.length === 0) {
+      ctx.font = "14px Arial";
+      ctx.fillStyle = "#6c757d";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "No activity data for selected period",
+        ctx.canvas.width / 2,
+        ctx.canvas.height / 2
+      );
+      return;
+    }
+
     dailyActivityChart = new Chart(ctx, {
       type: "line",
       data: {
-        labels: data.map((d) =>
-          new Date(d.date).toLocaleDateString("en-GB", {
+        labels: data.map((d) => {
+          const date = new Date(d.date);
+          return date.toLocaleDateString("en-GB", {
             month: "short",
             day: "numeric",
-          })
-        ),
+          });
+        }),
         datasets: [
           {
             label: "Forms",
@@ -478,6 +1129,7 @@
             borderColor: "#007bff",
             backgroundColor: "rgba(0, 123, 255, 0.1)",
             tension: 0.4,
+            fill: true,
           },
           {
             label: "Stock Transactions",
@@ -485,6 +1137,7 @@
             borderColor: "#28a745",
             backgroundColor: "rgba(40, 167, 69, 0.1)",
             tension: 0.4,
+            fill: true,
           },
           {
             label: "Callsheet Updates",
@@ -492,6 +1145,7 @@
             borderColor: "#ffc107",
             backgroundColor: "rgba(255, 193, 7, 0.1)",
             tension: 0.4,
+            fill: true,
           },
         ],
       },
@@ -502,8 +1156,9 @@
           legend: {
             position: "top",
           },
-          title: {
-            display: false,
+          tooltip: {
+            mode: "index",
+            intersect: false,
           },
         },
         scales: {
@@ -511,6 +1166,13 @@
             beginAtZero: true,
             ticks: {
               stepSize: 1,
+              precision: 0,
+            },
+          },
+          x: {
+            ticks: {
+              maxRotation: 45,
+              minRotation: 45,
             },
           },
         },
@@ -614,33 +1276,30 @@
     });
   }
 
-  function updateStockTypeChart(data) {
-    const ctx = document.getElementById("stockTypeChart").getContext("2d");
+  function updateDayOfWeekChart(data) {
+    const ctx = document.getElementById("dayOfWeekChart").getContext("2d");
 
-    if (stockTypeChart) {
-      stockTypeChart.destroy();
+    if (dayOfWeekChart) {
+      dayOfWeekChart.destroy();
     }
 
-    const typeLabels = {
-      stock_in: "Stock In",
-      stock_out: "Stock Out",
-      adjustment: "Adjustments",
-    };
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-    const typeColors = {
-      stock_in: "#28a745",
-      stock_out: "#dc3545",
-      adjustment: "#ffc107",
-    };
-
-    stockTypeChart = new Chart(ctx, {
-      type: "pie",
+    dayOfWeekChart = new Chart(ctx, {
+      type: "bar",
       data: {
-        labels: data.map((d) => typeLabels[d.type] || d.type),
+        labels: days,
         datasets: [
           {
-            data: data.map((d) => d.count),
-            backgroundColor: data.map((d) => typeColors[d.type] || "#007bff"),
+            label: "Activity Count",
+            data: days.map((day) => data[day] || 0),
+            backgroundColor: [
+              "rgba(255, 99, 132, 0.6)",
+              "rgba(54, 162, 235, 0.6)",
+              "rgba(255, 206, 86, 0.6)",
+              "rgba(75, 192, 192, 0.6)",
+              "rgba(153, 102, 255, 0.6)",
+            ],
           },
         ],
       },
@@ -649,7 +1308,15 @@
         maintainAspectRatio: true,
         plugins: {
           legend: {
-            position: "bottom",
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+            },
           },
         },
       },

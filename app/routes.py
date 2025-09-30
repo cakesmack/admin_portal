@@ -2582,28 +2582,6 @@ def get_recent_activity():
             activity['timestamp'] = activity['timestamp'].isoformat()
     
     return jsonify(activities)
-
-
-# Add these routes to your app/routes.py file
-
-@main.route('/admin')
-@login_required
-@admin_required
-def admin_dashboard():
-    """Admin dashboard with overview stats"""
-    return render_template('admin/dashboard.html', title='Admin Dashboard')
-
-@main.route('/admin/reports')
-@login_required
-@admin_required
-def admin_reports():
-    """Main reports page"""
-    return render_template('admin/reports.html', title='Admin Reports')
-
-@main.route('/api/admin/reports/summary')
-@login_required
-@admin_required
-def get_report_summary():
     """Get overall summary statistics"""
     from sqlalchemy import func
     
@@ -2720,81 +2698,8 @@ def get_report_summary():
         'active_users': active_users
     })
 
-@main.route('/api/admin/reports/daily-activity')
-@login_required
-@admin_required
-def get_daily_activity():
-    """Get daily activity breakdown for charts"""
-    from sqlalchemy import func, cast, Date
-    
-    start_date_str = request.args.get('start_date')
-    end_date_str = request.args.get('end_date')
-    
-    if start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-    else:
-        # Default to last 30 days
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-    
-    # Forms created by day
-    forms_by_day = db.session.query(
-        cast(Form.date_created, Date).label('date'),
-        func.count(Form.id).label('count')
-    ).filter(
-        Form.date_created >= start_date,
-        Form.date_created < end_date
-    ).group_by(cast(Form.date_created, Date)).all()
-    
-    # Stock transactions by day
-    stock_by_day = db.session.query(
-        StockTransaction.transaction_date.label('date'),
-        func.count(StockTransaction.id).label('count')
-    ).filter(
-        StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date < end_date.date()
-    ).group_by(StockTransaction.transaction_date).all()
-    
-    # Callsheet updates by day
-    callsheet_by_day = db.session.query(
-        cast(CallsheetEntry.updated_at, Date).label('date'),
-        func.count(CallsheetEntry.id).label('count')
-    ).filter(
-        CallsheetEntry.updated_at >= start_date,
-        CallsheetEntry.updated_at < end_date
-    ).group_by(cast(CallsheetEntry.updated_at, Date)).all()
-    
-    # Create a date range
-    date_range = []
-    current = start_date.date()
-    while current < end_date.date():
-        date_range.append(current)
-        current += timedelta(days=1)
-    
-    # Build response with all dates
-    daily_data = []
-    for date in date_range:
-        forms_count = next((d.count for d in forms_by_day if d.date == date), 0)
-        stock_count = next((d.count for d in stock_by_day if d.date == date), 0)
-        callsheet_count = next((d.count for d in callsheet_by_day if d.date == date), 0)
-        
-        daily_data.append({
-            'date': date.strftime('%Y-%m-%d'),
-            'forms': forms_count,
-            'stock': stock_count,
-            'callsheets': callsheet_count,
-            'total': forms_count + stock_count + callsheet_count
-        })
-    
-    return jsonify(daily_data)
-
-@main.route('/api/admin/reports/user-activity')
-@login_required
-@admin_required
-def get_user_activity():
-    """Get activity breakdown by user"""
-    from sqlalchemy import func
+    """Get additional analytics data"""
+    from sqlalchemy import func, cast, Date, extract
     
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -2809,128 +2714,92 @@ def get_user_activity():
         else:
             end_date = start_date.replace(month=start_date.month + 1)
     
-    users = User.query.filter_by(is_active=True).all()
-    user_stats = []
+    # Form completion time analysis
+    completed_forms = Form.query.filter(
+        Form.completed_date.isnot(None),
+        Form.date_created >= start_date,
+        Form.completed_date < end_date
+    ).all()
     
-    for user in users:
-        forms_created = Form.query.filter(
-            Form.user_id == user.id,
-            Form.date_created >= start_date,
-            Form.date_created < end_date
-        ).count()
-        
-        forms_completed = Form.query.filter(
-            Form.completed_by == user.id,
-            Form.completed_date >= start_date,
-            Form.completed_date < end_date
-        ).count()
-        
-        standing_orders_created = StandingOrder.query.filter(
-            StandingOrder.created_by == user.id,
-            StandingOrder.created_at >= start_date,
-            StandingOrder.created_at < end_date
-        ).count()
-        
-        stock_transactions = StockTransaction.query.filter(
-            StockTransaction.created_by == user.id,
-            StockTransaction.transaction_date >= start_date.date(),
-            StockTransaction.transaction_date < end_date.date()
-        ).count()
-        
-        callsheet_updates = CallsheetEntry.query.filter(
-            CallsheetEntry.user_id == user.id,
-            CallsheetEntry.updated_at >= start_date,
-            CallsheetEntry.updated_at < end_date
-        ).count()
-        
-        company_updates = CompanyUpdate.query.filter(
-            CompanyUpdate.user_id == user.id,
-            CompanyUpdate.created_at >= start_date,
-            CompanyUpdate.created_at < end_date
-        ).count()
-        
-        total_activity = (forms_created + forms_completed + standing_orders_created + 
-                         stock_transactions + callsheet_updates + company_updates)
-        
-        if total_activity > 0:  # Only include users with activity
-            user_stats.append({
-                'user_id': user.id,
-                'username': user.username,
-                'full_name': user.full_name,
-                'role': user.role,
-                'forms_created': forms_created,
-                'forms_completed': forms_completed,
-                'standing_orders': standing_orders_created,
-                'stock_transactions': stock_transactions,
-                'callsheet_updates': callsheet_updates,
-                'company_updates': company_updates,
-                'total_activity': total_activity,
-                'last_login': user.last_login.isoformat() if user.last_login else None
-            })
+    completion_time_buckets = {
+        '0': 0,      # Same day
+        '1': 0,      # 1 day
+        '2-3': 0,    # 2-3 days
+        '4-7': 0,    # 4-7 days
+        '7+': 0      # 7+ days
+    }
     
-    # Sort by total activity
-    user_stats.sort(key=lambda x: x['total_activity'], reverse=True)
+    for form in completed_forms:
+        days_to_complete = (form.completed_date - form.date_created).days
+        if days_to_complete == 0:
+            completion_time_buckets['0'] += 1
+        elif days_to_complete == 1:
+            completion_time_buckets['1'] += 1
+        elif 2 <= days_to_complete <= 3:
+            completion_time_buckets['2-3'] += 1
+        elif 4 <= days_to_complete <= 7:
+            completion_time_buckets['4-7'] += 1
+        else:
+            completion_time_buckets['7+'] += 1
     
-    return jsonify(user_stats)
-
-@main.route('/api/admin/reports/customer-analysis')
-@login_required
-@admin_required
-def get_customer_analysis():
-    """Get customer engagement analysis"""
-    from sqlalchemy import func
+    # Activity by day of week
+    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    activity_by_day = {day: 0 for day in day_names}
     
-    # Customers with most callsheet activity
-    top_callsheet_customers = db.session.query(
-        Customer.id,
-        Customer.name,
-        Customer.account_number,
-        func.count(CallsheetEntry.id).label('call_count')
-    ).join(CallsheetEntry).group_by(
-        Customer.id
-    ).order_by(func.count(CallsheetEntry.id).desc()).limit(10).all()
+    # Count forms by day of week
+    forms_by_day = db.session.query(
+        extract('dow', Form.date_created).label('day_of_week'),
+        func.count(Form.id).label('count')
+    ).filter(
+        Form.date_created >= start_date,
+        Form.date_created < end_date
+    ).group_by(extract('dow', Form.date_created)).all()
     
-    # Customers with standing orders
-    customers_with_standing_orders = db.session.query(
-        Customer.id,
-        Customer.name,
-        Customer.account_number,
-        func.count(StandingOrder.id).label('order_count')
-    ).join(StandingOrder).filter(
-        StandingOrder.status == 'active'
-    ).group_by(Customer.id).order_by(
-        func.count(StandingOrder.id).desc()
-    ).limit(10).all()
+    for day_num, count in forms_by_day:
+        # PostgreSQL: 0=Sunday, 1=Monday, etc.
+        # SQLite: 0=Sunday, 1=Monday, etc.
+        day_index = int(day_num)
+        if day_index == 0:
+            day_name = 'Sunday'
+        else:
+            day_name = day_names[day_index - 1]
+        activity_by_day[day_name] = count
     
-    # Customers with most stock tracked
-    customers_with_stock = db.session.query(
-        Customer.id,
-        Customer.name,
-        Customer.account_number,
-        func.count(CustomerStock.id).label('stock_items'),
-        func.sum(CustomerStock.current_stock).label('total_stock')
-    ).join(CustomerStock).group_by(
-        Customer.id
-    ).order_by(func.sum(CustomerStock.current_stock).desc()).limit(10).all()
+    # Count callsheet entries by day of week
+    callsheet_by_day = db.session.query(
+        extract('dow', CallsheetEntry.updated_at).label('day_of_week'),
+        func.count(CallsheetEntry.id).label('count')
+    ).filter(
+        CallsheetEntry.updated_at >= start_date,
+        CallsheetEntry.updated_at < end_date
+    ).group_by(extract('dow', CallsheetEntry.updated_at)).all()
+    
+    for day_num, count in callsheet_by_day:
+        day_index = int(day_num)
+        if day_index == 0:
+            day_name = 'Sunday'
+        else:
+            day_name = day_names[day_index - 1]
+        activity_by_day[day_name] += count
+    
+    # Count stock transactions by day of week
+    stock_by_day = db.session.query(
+        extract('dow', StockTransaction.transaction_date).label('day_of_week'),
+        func.count(StockTransaction.id).label('count')
+    ).filter(
+        StockTransaction.transaction_date >= start_date.date(),
+        StockTransaction.transaction_date < end_date.date()
+    ).group_by(extract('dow', StockTransaction.transaction_date)).all()
+    
+    for day_num, count in stock_by_day:
+        day_index = int(day_num)
+        if day_index == 0:
+            day_name = 'Sunday'
+        else:
+            day_name = day_names[day_index - 1]
+        activity_by_day[day_name] += count
     
     return jsonify({
-        'top_callsheet_customers': [{
-            'id': c.id,
-            'name': c.name,
-            'account_number': c.account_number,
-            'call_count': c.call_count
-        } for c in top_callsheet_customers],
-        'customers_with_standing_orders': [{
-            'id': c.id,
-            'name': c.name,
-            'account_number': c.account_number,
-            'order_count': c.order_count
-        } for c in customers_with_standing_orders],
-        'customers_with_stock': [{
-            'id': c.id,
-            'name': c.name,
-            'account_number': c.account_number,
-            'stock_items': c.stock_items,
-            'total_stock': int(c.total_stock) if c.total_stock else 0
-        } for c in customers_with_stock]
-    })
+        'form_completion_time': completion_time_buckets,
+        'activity_by_day_of_week': activity_by_day
+    })# Add these routes to your app/routes.py file
