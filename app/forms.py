@@ -83,11 +83,14 @@ class BrandedStockForm(FlaskForm):
 class InvoiceCorrectionForm(FlaskForm):
     invoice_number = StringField('Invoice Number', validators=[DataRequired()])
     customer_account = StringField('Customer Account Number', validators=[DataRequired()])
+    customer_name = StringField('Customer Name', validators=[DataRequired()])
+    customer_address = StringField('Customer Address')
     product_code = StringField('Product Code', validators=[DataRequired()])
+    product_name = StringField('Product Name', validators=[DataRequired()])
     ordered_quantity = StringField('Ordered Quantity', validators=[DataRequired()])
     delivered_quantity = StringField('Delivered Quantity', validators=[DataRequired()])
     notes = TextAreaField('Correction Notes')
-    submit = SubmitField('Record Correction')
+    submit = SubmitField('Submit Correction')
 
 class SpecialOrderForm(FlaskForm):
     supplier = StringField('Supplier Name', validators=[DataRequired()])

@@ -1285,27 +1285,75 @@ def branded_stock():
 def invoice_correction():
     form = InvoiceCorrectionForm()
     if form.validate_on_submit():
+        # Update customer address if provided
+        if form.customer_account.data and form.customer_address.data:
+            customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
+            if customer and form.customer_address.data != customer.address:
+                customer.address = form.customer_address.data
+                db.session.commit()
+        
+        customer_contact = None
+        if form.customer_account.data:
+            customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
+            if customer:
+                customer_contact = customer.contact_name
+        
+        # Get products from the form - check if there are multiple products submitted via JavaScript
+        products_data = []
+        
+        # Check for additional products submitted via JavaScript
+        additional_products = request.form.getlist('additional_products')
+        if additional_products:
+            try:
+                products_data = json.loads(additional_products[0])
+            except:
+                products_data = []
+        
+        # Add the main product
+        if form.product_code.data:
+            ordered = int(form.ordered_quantity.data) if form.ordered_quantity.data else 0
+            delivered = int(form.delivered_quantity.data) if form.delivered_quantity.data else 0
+            outstanding = ordered - delivered
+            
+            products_data.insert(0, {
+                'product_code': form.product_code.data,
+                'product_name': form.product_name.data,
+                'ordered_quantity': ordered,
+                'delivered_quantity': delivered,
+                'outstanding_quantity': outstanding
+            })
+        
         form_data = {
             'invoice_number': form.invoice_number.data,
             'customer_account': form.customer_account.data,
-            'product_code': form.product_code.data,
-            'ordered_quantity': form.ordered_quantity.data,
-            'delivered_quantity': form.delivered_quantity.data,
+            'customer_name': form.customer_name.data,
+            'customer_address': form.customer_address.data,
+            'contact_name': customer_contact,
+            'products': products_data,
             'notes': form.notes.data
         }
         
         new_form = Form(
-            type='Invoiced Goods, Delivery Only',
+            type='invoice_correction',
             data=json.dumps(form_data),
             user_id=current_user.id
         )
         db.session.add(new_form)
         db.session.commit()
         
-        flash('Invoice correction recorded successfully!', 'success')
+        flash(f'Invoice correction form #{new_form.id} has been created successfully!', 'success')
+        
+        # Check if this is an AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+            return jsonify({
+                'success': True,
+                'form_id': new_form.id,
+                'message': f'Invoice correction form #{new_form.id} has been created successfully!'
+            })
+        
         return redirect(url_for('main.dashboard'))
     
-    return render_template('invoice_correction.html', title='Invoiced Goods, Delivery Only', form=form)
+    return render_template('invoice_correction.html', title='Invoice Correction - Delivery Only', form=form)
 
 @main.route('/special-order', methods=['GET', 'POST'])
 @login_required
@@ -1520,6 +1568,17 @@ def print_form(form_id):
         return render_template(
             'print_branded_stock.html',
             title=f'Stock Order - #{form_id}',
+            form_type=form.type,
+            form_data=form_data,
+            author=author,
+            date_created=form.date_created,
+            form_id=form_id,
+            company_name='Highland Industrial Supplies'
+        )
+    elif form.type == 'invoice_correction':
+        return render_template(
+            'print_invoice_correction.html',
+            title=f'Invoice Correction - #{form_id}',
             form_type=form.type,
             form_data=form_data,
             author=author,
@@ -2582,224 +2641,4 @@ def get_recent_activity():
             activity['timestamp'] = activity['timestamp'].isoformat()
     
     return jsonify(activities)
-    """Get overall summary statistics"""
-    from sqlalchemy import func
-    
-    # Date range from request or default to current month
-    start_date_str = request.args.get('start_date')
-    end_date_str = request.args.get('end_date')
-    
-    if start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-    else:
-        # Default to current month
-        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if start_date.month == 12:
-            end_date = start_date.replace(year=start_date.year + 1, month=1)
-        else:
-            end_date = start_date.replace(month=start_date.month + 1)
-    
-    # Total forms created
-    total_forms = Form.query.filter(
-        Form.date_created >= start_date,
-        Form.date_created < end_date
-    ).count()
-    
-    completed_forms = Form.query.filter(
-        Form.date_created >= start_date,
-        Form.date_created < end_date,
-        Form.is_completed == True
-    ).count()
-    
-    # Forms by type
-    forms_by_type = db.session.query(
-        Form.type,
-        func.count(Form.id)
-    ).filter(
-        Form.date_created >= start_date,
-        Form.date_created < end_date
-    ).group_by(Form.type).all()
-    
-    # Standing orders
-    active_standing_orders = StandingOrder.query.filter_by(status='active').count()
-    paused_standing_orders = StandingOrder.query.filter_by(status='paused').count()
-    
-    standing_orders_created = StandingOrder.query.filter(
-        StandingOrder.created_at >= start_date,
-        StandingOrder.created_at < end_date
-    ).count()
-    
-    # Stock transactions
-    stock_transactions = StockTransaction.query.filter(
-        StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date < end_date.date()
-    ).count()
-    
-    stock_by_type = db.session.query(
-        StockTransaction.transaction_type,
-        func.count(StockTransaction.id)
-    ).filter(
-        StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date < end_date.date()
-    ).group_by(StockTransaction.transaction_type).all()
-    
-    # Callsheet statistics
-    callsheet_entries = CallsheetEntry.query.filter(
-        CallsheetEntry.updated_at >= start_date,
-        CallsheetEntry.updated_at < end_date
-    ).count()
-    
-    callsheet_by_status = db.session.query(
-        CallsheetEntry.call_status,
-        func.count(CallsheetEntry.id)
-    ).filter(
-        CallsheetEntry.updated_at >= start_date,
-        CallsheetEntry.updated_at < end_date
-    ).group_by(CallsheetEntry.call_status).all()
-    
-    # Company updates
-    company_updates = CompanyUpdate.query.filter(
-        CompanyUpdate.created_at >= start_date,
-        CompanyUpdate.created_at < end_date
-    ).count()
-    
-    # User activity
-    active_users = db.session.query(User.id).filter(
-        User.last_login >= start_date
-    ).distinct().count()
-    
-    return jsonify({
-        'period': {
-            'start': start_date.strftime('%Y-%m-%d'),
-            'end': end_date.strftime('%Y-%m-%d')
-        },
-        'forms': {
-            'total': total_forms,
-            'completed': completed_forms,
-            'pending': total_forms - completed_forms,
-            'completion_rate': round((completed_forms / total_forms * 100) if total_forms > 0 else 0, 1),
-            'by_type': [{'type': t[0], 'count': t[1]} for t in forms_by_type]
-        },
-        'standing_orders': {
-            'active': active_standing_orders,
-            'paused': paused_standing_orders,
-            'created_this_period': standing_orders_created
-        },
-        'stock': {
-            'total_transactions': stock_transactions,
-            'by_type': [{'type': t[0], 'count': t[1]} for t in stock_by_type]
-        },
-        'callsheets': {
-            'total_entries': callsheet_entries,
-            'by_status': [{'status': t[0], 'count': t[1]} for t in callsheet_by_status]
-        },
-        'company_updates': company_updates,
-        'active_users': active_users
-    })
-
-    """Get additional analytics data"""
-    from sqlalchemy import func, cast, Date, extract
-    
-    start_date_str = request.args.get('start_date')
-    end_date_str = request.args.get('end_date')
-    
-    if start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-    else:
-        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if start_date.month == 12:
-            end_date = start_date.replace(year=start_date.year + 1, month=1)
-        else:
-            end_date = start_date.replace(month=start_date.month + 1)
-    
-    # Form completion time analysis
-    completed_forms = Form.query.filter(
-        Form.completed_date.isnot(None),
-        Form.date_created >= start_date,
-        Form.completed_date < end_date
-    ).all()
-    
-    completion_time_buckets = {
-        '0': 0,      # Same day
-        '1': 0,      # 1 day
-        '2-3': 0,    # 2-3 days
-        '4-7': 0,    # 4-7 days
-        '7+': 0      # 7+ days
-    }
-    
-    for form in completed_forms:
-        days_to_complete = (form.completed_date - form.date_created).days
-        if days_to_complete == 0:
-            completion_time_buckets['0'] += 1
-        elif days_to_complete == 1:
-            completion_time_buckets['1'] += 1
-        elif 2 <= days_to_complete <= 3:
-            completion_time_buckets['2-3'] += 1
-        elif 4 <= days_to_complete <= 7:
-            completion_time_buckets['4-7'] += 1
-        else:
-            completion_time_buckets['7+'] += 1
-    
-    # Activity by day of week
-    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    activity_by_day = {day: 0 for day in day_names}
-    
-    # Count forms by day of week
-    forms_by_day = db.session.query(
-        extract('dow', Form.date_created).label('day_of_week'),
-        func.count(Form.id).label('count')
-    ).filter(
-        Form.date_created >= start_date,
-        Form.date_created < end_date
-    ).group_by(extract('dow', Form.date_created)).all()
-    
-    for day_num, count in forms_by_day:
-        # PostgreSQL: 0=Sunday, 1=Monday, etc.
-        # SQLite: 0=Sunday, 1=Monday, etc.
-        day_index = int(day_num)
-        if day_index == 0:
-            day_name = 'Sunday'
-        else:
-            day_name = day_names[day_index - 1]
-        activity_by_day[day_name] = count
-    
-    # Count callsheet entries by day of week
-    callsheet_by_day = db.session.query(
-        extract('dow', CallsheetEntry.updated_at).label('day_of_week'),
-        func.count(CallsheetEntry.id).label('count')
-    ).filter(
-        CallsheetEntry.updated_at >= start_date,
-        CallsheetEntry.updated_at < end_date
-    ).group_by(extract('dow', CallsheetEntry.updated_at)).all()
-    
-    for day_num, count in callsheet_by_day:
-        day_index = int(day_num)
-        if day_index == 0:
-            day_name = 'Sunday'
-        else:
-            day_name = day_names[day_index - 1]
-        activity_by_day[day_name] += count
-    
-    # Count stock transactions by day of week
-    stock_by_day = db.session.query(
-        extract('dow', StockTransaction.transaction_date).label('day_of_week'),
-        func.count(StockTransaction.id).label('count')
-    ).filter(
-        StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date < end_date.date()
-    ).group_by(extract('dow', StockTransaction.transaction_date)).all()
-    
-    for day_num, count in stock_by_day:
-        day_index = int(day_num)
-        if day_index == 0:
-            day_name = 'Sunday'
-        else:
-            day_name = day_names[day_index - 1]
-        activity_by_day[day_name] += count
-    
-    return jsonify({
-        'form_completion_time': completion_time_buckets,
-        'activity_by_day_of_week': activity_by_day
-    })# Add these routes to your app/routes.py file
+   
