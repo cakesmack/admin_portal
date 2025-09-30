@@ -1,11 +1,8 @@
-# config.py
-# Updated secure configuration that properly loads from .env
-
 import os
-from dotenv import load_dotenv
+# REMOVED: from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# REMOVED: Load environment variables from .env file
+# REMOVED: load_dotenv()
 
 class Config:
     # Get SECRET_KEY from environment, with fallback warning
