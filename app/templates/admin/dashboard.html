@@ -6,12 +6,13 @@
 
   <!-- Quick Access Cards -->
   <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
       <div class="card">
         <div class="card-body">
           <h5 class="card-title">
             <i class="bi bi-people-fill text-primary"></i> User Management
           </h5>
+          <p class="card-text">Manage user accounts and permissions</p>
           <a href="{{ url_for('main.users') }}" class="btn btn-primary">
             <i class="bi bi-arrow-right-circle"></i> Manage Users
           </a>
@@ -19,7 +20,7 @@
       </div>
     </div>
 
-    <div class="col-md-6">
+    <div class="col-md-4">
       <div class="card">
         <div class="card-body">
           <h5 class="card-title">
@@ -30,6 +31,40 @@
           </p>
           <a href="{{ url_for('admin.reports') }}" class="btn btn-success">
             <i class="bi bi-arrow-right-circle"></i> View Reports
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-box-seam text-info"></i> Product Management
+          </h5>
+          <p class="card-text">Import and manage product catalog</p>
+          <a href="{{ url_for('admin.import_products') }}" class="btn btn-info">
+            <i class="bi bi-upload"></i> Import Products
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-person-rolodex text-warning"></i> Customer
+            Management
+          </h5>
+          <p class="card-text">Import and manage customer database</p>
+          <a
+            href="{{ url_for('admin.import_customers') }}"
+            class="btn btn-warning"
+          >
+            <i class="bi bi-upload"></i> Import Customers
           </a>
         </div>
       </div>
@@ -77,33 +112,36 @@
   async function loadSystemStats() {
     try {
       // Get basic counts
-      const usersResponse = await fetch("/api/staff-contacts");
-      const users = await usersResponse.json();
-      document.getElementById("totalUsers").textContent = users.length;
-      document.getElementById("activeUsers").textContent = users.filter(
-        (u) => u.role !== "admin"
-      ).length;
+      const usersResponse = await fetch("/api/users/count");
+      const customersResponse = await fetch("/api/customers/count");
+      const formsResponse = await fetch("/api/forms/count-this-month");
 
-      // Get customer count
-      const customersResponse = await fetch("/api/customers/directory");
-      const customers = await customersResponse.json();
-      document.getElementById("totalCustomers").textContent = customers.length;
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        document.getElementById("totalUsers").textContent =
+          usersData.total || 0;
+        document.getElementById("activeUsers").textContent =
+          usersData.active || 0;
+      }
 
-      // Get forms count for current month
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const reportsResponse = await fetch(
-        `/api/admin/reports/summary?start_date=${
-          startOfMonth.toISOString().split("T")[0]
-        }&end_date=${now.toISOString().split("T")[0]}`
-      );
-      const reports = await reportsResponse.json();
-      document.getElementById("totalForms").textContent = reports.forms.total;
+      if (customersResponse.ok) {
+        const customersData = await customersResponse.json();
+        document.getElementById("totalCustomers").textContent =
+          customersData.count || 0;
+      }
+
+      if (formsResponse.ok) {
+        const formsData = await formsResponse.json();
+        document.getElementById("totalForms").textContent =
+          formsData.count || 0;
+      }
     } catch (error) {
-      console.error("Error loading system stats:", error);
+      console.error("Error loading stats:", error);
     }
   }
 
+  // Load stats on page load
   document.addEventListener("DOMContentLoaded", loadSystemStats);
 </script>
+
 {% endblock %}

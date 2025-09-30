@@ -168,9 +168,7 @@ table.table tbody tr.callsheet-row:hover td {
             <button class="btn btn-secondary me-2" onclick="archiveMonth()">
                 <i class="bi bi-archive"></i> Archive Month
             </button>
-            <button class="btn btn-info me-2" onclick="showManageCustomersModal()">
-                <i class="bi bi-people"></i> Customers
-            </button>
+           
             <button class="btn btn-success" onclick="showAddCallsheetModal()">
                 <i class="bi bi-plus-circle"></i> Add Callsheet
             </button>
@@ -510,27 +508,6 @@ table.table tbody tr.callsheet-row:hover td {
     </div>
 </div>
 
-<!-- Manage Customers Modal -->
-<div class="modal fade" id="manageCustomersModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Manage Customers</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <a href="/customers/import" class="btn btn-info">
-                        <i class="bi bi-upload"></i> Import Customers from File
-                    </a>
-                </div>
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Full customer management coming soon. Use import feature to add customers in bulk.
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Include jQuery, Select2, and SortableJS -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -920,10 +897,6 @@ async function addCustomerToCallsheet() {
         hideLoading();
         showToast('Error: ' + error.message, 'danger');
     }
-}
-
-function showManageCustomersModal() {
-    manageCustomersModal.show();
 }
 
 function removeCustomer(entryId) {

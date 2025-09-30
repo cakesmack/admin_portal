@@ -1,15 +1,12 @@
-"""
-Admin routes for reports and analytics
-"""
-
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from functools import wraps
 from app import db
 from app.models import (User, Customer, Form, CallsheetEntry, Callsheet, StandingOrder, 
-                       StandingOrderLog, StockTransaction, CustomerStock, CompanyUpdate)
+                       StandingOrderLog, StockTransaction, CustomerStock, CompanyUpdate, Product)
 from datetime import datetime, timedelta
 from sqlalchemy import func, cast, Date, extract, case, and_
+import pandas as pd
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -93,92 +90,17 @@ def get_report_summary():
     # Stock transactions
     stock_transactions = StockTransaction.query.filter(
         StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date <= end_date.date()
+        StockTransaction.transaction_date < end_date.date()
     ).count()
-    
-    stock_by_type = db.session.query(
-        StockTransaction.transaction_type,
-        func.count(StockTransaction.id)
-    ).filter(
-        StockTransaction.transaction_date >= start_date.date(),
-        StockTransaction.transaction_date <= end_date.date()
-    ).group_by(StockTransaction.transaction_type).all()
-    
-    # Callsheet statistics - Get entries from callsheets in the date range
-    # Build list of all month/year combinations in the date range
-    months_in_range = []
-    current = start_date
-    while current < end_date_inclusive:
-        if (current.month, current.year) not in months_in_range:
-            months_in_range.append((current.month, current.year))
-        # Move to next month
-        if current.month == 12:
-            current = current.replace(year=current.year + 1, month=1, day=1)
-        else:
-            current = current.replace(month=current.month + 1, day=1)
-    
-    # Get all callsheet IDs for months in range
-    callsheet_ids = []
-    for month, year in months_in_range:
-        month_callsheets = Callsheet.query.filter(
-            Callsheet.year == year,
-            Callsheet.month == month,
-            Callsheet.is_active == True
-        ).all()
-        callsheet_ids.extend([c.id for c in month_callsheets])
-    
-    # Get entries from those callsheets
-    callsheet_entries_total = CallsheetEntry.query.filter(
-        CallsheetEntry.callsheet_id.in_(callsheet_ids),
-        CallsheetEntry.call_status != 'not_called'
-    ).count() if callsheet_ids else 0
-    
-    callsheet_by_status = db.session.query(
-        CallsheetEntry.call_status,
-        func.count(CallsheetEntry.id)
-    ).filter(
-        CallsheetEntry.callsheet_id.in_(callsheet_ids),
-        CallsheetEntry.call_status != 'not_called'
-    ).group_by(CallsheetEntry.call_status).all() if callsheet_ids else []
-    
-    # Company updates
-    company_updates = CompanyUpdate.query.filter(
-        CompanyUpdate.created_at >= start_date,
-        CompanyUpdate.created_at < end_date_inclusive
-    ).count()
-    
-    # User activity
-    active_users = db.session.query(User.id).filter(
-        User.last_login >= start_date
-    ).distinct().count()
     
     return jsonify({
-        'period': {
-            'start': start_date.strftime('%Y-%m-%d'),
-            'end': end_date.strftime('%Y-%m-%d')
-        },
-        'forms': {
-            'total': total_forms,
-            'completed': completed_forms,
-            'pending': total_forms - completed_forms,
-            'completion_rate': round((completed_forms / total_forms * 100) if total_forms > 0 else 0, 1),
-            'by_type': [{'type': t[0], 'count': t[1]} for t in forms_by_type]
-        },
-        'standing_orders': {
-            'active': active_standing_orders,
-            'paused': paused_standing_orders,
-            'created_this_period': standing_orders_created
-        },
-        'stock': {
-            'total_transactions': stock_transactions,
-            'by_type': [{'type': t[0], 'count': t[1]} for t in stock_by_type]
-        },
-        'callsheets': {
-            'total_entries': callsheet_entries_total,
-            'by_status': [{'status': t[0], 'count': t[1]} for t in callsheet_by_status]
-        },
-        'company_updates': company_updates,
-        'active_users': active_users
+        'total_forms': total_forms,
+        'completed_forms': completed_forms,
+        'forms_by_type': [{'type': t, 'count': c} for t, c in forms_by_type],
+        'active_standing_orders': active_standing_orders,
+        'paused_standing_orders': paused_standing_orders,
+        'standing_orders_created': standing_orders_created,
+        'stock_transactions': stock_transactions
     })
 
 @admin_bp.route('/api/reports/daily-activity')
@@ -689,3 +611,184 @@ def get_additional_analytics():
             'ended': so_ended
         }
     })
+
+@admin_bp.route('/import-customers', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def import_customers():
+    """Import customers from CSV/Excel file (Admin only)"""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        if file and (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+            try:
+                # Read the file
+                if file.filename.endswith('.csv'):
+                    df = pd.read_csv(file)
+                else:
+                    df = pd.read_excel(file)
+                
+                # Normalize column names
+                df.columns = df.columns.str.lower().str.replace(' ', '_')
+                
+                # Check for required columns
+                if 'account_number' not in df.columns and 'account' not in df.columns:
+                    flash('File must contain an "account_number" or "account" column', 'danger')
+                    return redirect(request.url)
+                
+                if 'name' not in df.columns and 'customer_name' not in df.columns:
+                    flash('File must contain a "name" or "customer_name" column', 'danger')
+                    return redirect(request.url)
+                
+                # Rename columns if needed
+                if 'account' in df.columns:
+                    df.rename(columns={'account': 'account_number'}, inplace=True)
+                if 'customer_name' in df.columns:
+                    df.rename(columns={'customer_name': 'name'}, inplace=True)
+                
+                # Import customers
+                imported = 0
+                skipped = 0
+                updated = 0
+                
+                for _, row in df.iterrows():
+                    account_number = str(row['account_number']).strip()
+                    name = str(row['name']).strip()
+                    
+                    if not account_number or not name or account_number == 'nan' or name == 'nan':
+                        skipped += 1
+                        continue
+                    
+                    # Check if customer already exists
+                    existing = Customer.query.filter_by(account_number=account_number).first()
+                    if existing:
+                        # Update existing customer
+                        existing.name = name
+                        if 'contact_name' in row and pd.notna(row['contact_name']):
+                            existing.contact_name = str(row['contact_name']).strip()
+                        if 'phone' in row and pd.notna(row['phone']):
+                            existing.phone = str(row['phone']).strip()
+                        if 'email' in row and pd.notna(row['email']):
+                            existing.email = str(row['email']).strip()
+                        if 'address' in row and pd.notna(row['address']):
+                            existing.address = str(row['address']).strip()
+                        updated += 1
+                    else:
+                        # Create new customer
+                        customer = Customer(
+                            account_number=account_number,
+                            name=name,
+                            contact_name=str(row.get('contact_name', '')).strip() if 'contact_name' in row and pd.notna(row.get('contact_name')) else None,
+                            phone=str(row.get('phone', '')).strip() if 'phone' in row and pd.notna(row.get('phone')) else None,
+                            email=str(row.get('email', '')).strip() if 'email' in row and pd.notna(row.get('email')) else None,
+                            address=str(row.get('address', '')).strip() if 'address' in row and pd.notna(row.get('address')) else None
+                        )
+                        db.session.add(customer)
+                        imported += 1
+                
+                db.session.commit()
+                flash(f'Successfully imported {imported} new customers and updated {updated} existing customers ({skipped} skipped)', 'success')
+                return redirect(url_for('admin.dashboard'))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error importing file: {str(e)}', 'danger')
+                return redirect(request.url)
+        else:
+            flash('Please upload a CSV or Excel file', 'danger')
+            return redirect(request.url)
+    
+    return render_template('admin/import_customers.html', title='Import Customers')
+
+@admin_bp.route('/import-products', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def import_products():
+    """Import products from CSV/Excel file (Admin only)"""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        if file and (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+            try:
+                # Read the file
+                if file.filename.endswith('.csv'):
+                    df = pd.read_csv(file)
+                else:
+                    df = pd.read_excel(file)
+                
+                # Normalize column names
+                df.columns = df.columns.str.lower().str.replace(' ', '_')
+                
+                # Check for required columns
+                if 'code' not in df.columns and 'product_code' not in df.columns:
+                    flash('File must contain a "code" or "product_code" column', 'danger')
+                    return redirect(request.url)
+                
+                if 'name' not in df.columns and 'product_name' not in df.columns:
+                    flash('File must contain a "name" or "product_name" column', 'danger')
+                    return redirect(request.url)
+                
+                # Rename columns if needed
+                if 'product_code' in df.columns:
+                    df.rename(columns={'product_code': 'code'}, inplace=True)
+                if 'product_name' in df.columns:
+                    df.rename(columns={'product_name': 'name'}, inplace=True)
+                
+                # Import products
+                imported = 0
+                skipped = 0
+                updated = 0
+                
+                for _, row in df.iterrows():
+                    code = str(row['code']).strip()
+                    name = str(row['name']).strip()
+                    
+                    if not code or not name or code == 'nan' or name == 'nan':
+                        skipped += 1
+                        continue
+                    
+                    # Check if product already exists
+                    existing = Product.query.filter_by(code=code).first()
+                    if existing:
+                        # Update existing product
+                        existing.name = name
+                        if 'description' in row and pd.notna(row['description']):
+                            existing.description = str(row['description']).strip()
+                        updated += 1
+                    else:
+                        # Create new product
+                        product = Product(
+                            code=code,
+                            name=name,
+                            description=str(row.get('description', '')).strip() if 'description' in row and pd.notna(row.get('description')) else None
+                        )
+                        db.session.add(product)
+                        imported += 1
+                
+                db.session.commit()
+                flash(f'Successfully imported {imported} new products and updated {updated} existing products ({skipped} skipped)', 'success')
+                return redirect(url_for('admin.dashboard'))
+                
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error importing file: {str(e)}', 'danger')
+                return redirect(request.url)
+        else:
+            flash('Please upload a CSV or Excel file', 'danger')
+            return redirect(request.url)
+    
+    return render_template('admin/import_products.html', title='Import Products')
