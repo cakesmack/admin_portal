@@ -385,13 +385,6 @@
       const now = new Date().toLocaleString("en-GB");
       document.getElementById("print-date").textContent = now;
       document.getElementById("print-date-footer").textContent = now;
-
-      // Auto-print when page loads
-      window.onload = function () {
-        setTimeout(function () {
-          window.print();
-        }, 500);
-      };
     </script>
   </body>
 </html>

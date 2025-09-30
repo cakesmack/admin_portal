@@ -418,13 +418,6 @@
       // Show current date and time
       document.getElementById("print-date").textContent =
         new Date().toLocaleString("en-GB");
-
-      // Auto-print when page loads
-      window.onload = function () {
-        setTimeout(function () {
-          window.print();
-        }, 500);
-      };
     </script>
   </body>
 </html>

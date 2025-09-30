@@ -16,6 +16,7 @@ import bleach
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 
+
 main = Blueprint('main', __name__)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -545,9 +546,6 @@ def get_recent_forms():
 
 # Callsheet Routes - Add these to your routes.py file
 # Replace existing callsheet routes with these updated versions
-
-from sqlalchemy.orm import joinedload
-from sqlalchemy import func
 
 @main.route('/callsheets')
 @login_required
