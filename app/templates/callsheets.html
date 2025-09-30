@@ -243,6 +243,7 @@ table.table tbody tr.callsheet-row:hover td {
                                         <tr>
                                             <th style="width: 20px;"></th>
                                             <th style="width: 120px;">Account</th>
+                                            <th style="width: 120px;">Phone No.</th>
                                             <th style="width: 80px;">Status</th>
                                             <th style="width: 80px;">Called By</th>
                                             <th style="width: 80px;">Person/Time</th>
@@ -259,6 +260,7 @@ table.table tbody tr.callsheet-row:hover td {
                                             </td>
                                             <td><strong>{{ entry.customer.name }}<br />
                                             {{ entry.customer.account_number }}</strong></td>
+                                            <td><strong>{{ entry.customer.phone }}</strong></td>
                                             <td>
                                                 <select class="form-select form-select-sm status-select" 
                                                         onchange="confirmStatusChange(this, {{ entry.id }})"
@@ -284,7 +286,7 @@ table.table tbody tr.callsheet-row:hover td {
                                                         {% if entry.customer.callsheet_notes %}
                                                             {{ entry.customer.callsheet_notes[:50] }}{% if entry.customer.callsheet_notes|length > 50 %}...{% endif %}
                                                         {% else %}
-                                                            <span class="text-muted">Click to add notes</span>
+                                                            <span >Click to add notes</span>
                                                         {% endif %}
                                                     </div>
                                                     <button class="btn btn-sm btn-outline-secondary ms-2" 
