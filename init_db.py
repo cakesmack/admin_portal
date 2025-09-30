@@ -1,6 +1,10 @@
 from app import create_app, db
 from app.models import User, Customer, Product, TodoItem, CompanyUpdate
 from datetime import datetime
+from dotenv import load_dotenv # <-- You need this import
+
+# *** ADD THIS LINE ***
+load_dotenv() 
 
 app = create_app()
 
