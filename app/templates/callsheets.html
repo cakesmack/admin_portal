@@ -16,7 +16,7 @@ table.table tbody tr.callsheet-row.status-ordered td {
     color: #0f5132 !important;
 }
 
-/* RED - Customer declined r no answer */
+/* RED - Customer declined  */
 table.table tbody tr.callsheet-row.status-declined,
 table.table tbody tr.callsheet-row.status-declined td {
     background-color: #f8d7da !important;
@@ -245,8 +245,8 @@ table.table tbody tr.callsheet-row:hover td {
                                             <td class="text-center">
                                                 <i class="bi bi-grip-vertical drag-handle"></i>
                                             </td>
-                                            <td><strong>{{ entry.customer.name }}<br />
-                                            {{ entry.customer.account_number }}</strong></td>
+                                            <td><strong>{{ entry.customer.account_number }}<br />{{ entry.customer.name }}
+                                            </strong></td>
                                             <td><strong>{{ entry.customer.phone }}</strong></td>
                                             <td>
                                                 <select class="form-select form-select-sm status-select" 

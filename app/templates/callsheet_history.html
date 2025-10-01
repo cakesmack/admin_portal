@@ -204,15 +204,34 @@
 </script>
 
 <style>
-  .status-ordered {
+  /* Force table row colors with maximum specificity */
+  table.table tbody tr.status-ordered,
+  table.table tbody tr.status-ordered td {
     background-color: #d1e7dd !important;
+    color: #0f5132 !important;
   }
-  .status-declined,
-  .status-no_answer {
+
+  table.table tbody tr.status-declined,
+  table.table tbody tr.status-declined td {
     background-color: #f8d7da !important;
+    color: #842029 !important;
   }
-  .status-callback {
-    background-color: #fff3cd !important;
+
+  table.table tbody tr.status-no_answer,
+  table.table tbody tr.status-no_answer td {
+    background-color: #cfe2ff !important;
+    color: #084298 !important;
+  }
+
+  table.table tbody tr.status-not_called,
+  table.table tbody tr.status-not_called td {
+    background-color: white !important;
+    color: #212529 !important;
+  }
+
+  /* Hover effect */
+  table.table tbody tr:hover td {
+    filter: brightness(0.95);
   }
 </style>
 {% endblock %}
