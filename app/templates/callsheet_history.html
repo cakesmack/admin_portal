@@ -1,0 +1,218 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Callsheet Completion History</h2>
+    <a href="{{ url_for('main.callsheets') }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Back to Callsheets
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <table class="table table-hover" id="historyTable">
+        <thead>
+          <tr>
+            <th>Callsheet Name</th>
+            <th>Day</th>
+            <th>Completed Date</th>
+            <th>Completed By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr>
+            <td colspan="5" class="text-center">
+              <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- View Completion Modal -->
+<div class="modal fade" id="viewCompletionModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="completionModalTitle">Callsheet Details</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body" id="completionModalBody">
+        <!-- Content loaded dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  let viewCompletionModal;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    viewCompletionModal = new bootstrap.Modal(
+      document.getElementById("viewCompletionModal")
+    );
+    loadHistory();
+  });
+
+  function loadHistory() {
+    fetch("/api/callsheets/history")
+      .then((response) => response.json())
+      .then((data) => {
+        const tbody = document.getElementById("historyBody");
+
+        if (data.length === 0) {
+          tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center">
+                            <em>No completion history yet</em>
+                        </td>
+                    </tr>
+                `;
+          return;
+        }
+
+        tbody.innerHTML = data
+          .map(
+            (item) => `
+                <tr>
+                    <td><strong>${item.callsheet_name}</strong></td>
+                    <td>${item.day_of_week}</td>
+                    <td>${formatDate(item.completed_date)}</td>
+                    <td>${item.completed_by}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewCompletion(${
+                          item.id
+                        })">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                    </td>
+                </tr>
+            `
+          )
+          .join("");
+      })
+      .catch((error) => {
+        console.error("Error loading history:", error);
+        document.getElementById("historyBody").innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger">
+                        Error loading history
+                    </td>
+                </tr>
+            `;
+      });
+  }
+
+  function viewCompletion(completionId) {
+    fetch(`/api/callsheets/history/${completionId}`)
+      .then((response) => response.json())
+      .then((result) => {
+        if (!result.success) {
+          alert("Error loading completion details");
+          return;
+        }
+
+        const data = result.data;
+
+        document.getElementById("completionModalTitle").textContent = `${
+          data.callsheet_name
+        } - ${formatDate(data.completed_date)}`;
+
+        const entries = data.entries
+          .map(
+            (entry) => `
+                <tr class="status-${entry.call_status}">
+                    <td>${entry.customer_account}</td>
+                    <td>${entry.customer_name}</td>
+                    <td>${formatStatus(entry.call_status)}</td>
+                    <td>${entry.called_by || "-"}</td>
+                    <td>${entry.person_spoken_to || "-"}</td>
+                    <td>${entry.callback_time || "-"}</td>
+                    <td>${entry.notes || "-"}</td>
+                </tr>
+            `
+          )
+          .join("");
+
+        document.getElementById("completionModalBody").innerHTML = `
+                <div class="mb-3">
+                    <strong>Completed by:</strong> ${data.completed_by}<br>
+                    <strong>Date:</strong> ${formatDate(data.completed_date)}
+                </div>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Customer</th>
+                            <th>Status</th>
+                            <th>Called By</th>
+                            <th>Person Spoken To</th>
+                            <th>Callback</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${entries}
+                    </tbody>
+                </table>
+            `;
+
+        viewCompletionModal.show();
+      })
+      .catch((error) => {
+        console.error("Error viewing completion:", error);
+        alert("Error loading completion details");
+      });
+  }
+
+  function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString("en-GB", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatStatus(status) {
+    const statusMap = {
+      not_called: "Not Called",
+      no_answer: "No Answer",
+      declined: "Declined",
+      ordered: "Ordered",
+      callback: "Callback",
+    };
+    return statusMap[status] || status;
+  }
+</script>
+
+<style>
+  .status-ordered {
+    background-color: #d1e7dd !important;
+  }
+  .status-declined,
+  .status-no_answer {
+    background-color: #f8d7da !important;
+  }
+  .status-callback {
+    background-color: #fff3cd !important;
+  }
+</style>
+{% endblock %}

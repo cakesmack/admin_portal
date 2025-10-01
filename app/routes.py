@@ -550,26 +550,10 @@ def get_recent_forms():
 @main.route('/callsheets')
 @login_required
 def callsheets():
-    """Main callsheets page with improved query efficiency"""
-    now = datetime.now()
-    current_month = request.args.get('month', default=now.month, type=int)
-    current_year = request.args.get('year', default=now.year, type=int)
+    """Main callsheets page - shows all permanent callsheets"""
     
-    # Calculate previous and next month/year for navigation
-    if current_month == 1:
-        prev_month, prev_year = 12, current_year - 1
-    else:
-        prev_month, prev_year = current_month - 1, current_year
-    
-    if current_month == 12:
-        next_month, next_year = 1, current_year + 1
-    else:
-        next_month, next_year = current_month + 1, current_year
-    
-    # Efficient query with eager loading
+    # Get ALL active callsheets (no month/year filtering)
     callsheets = Callsheet.query.filter_by(
-        month=current_month,
-        year=current_year,
         is_active=True
     ).options(
         joinedload(Callsheet.entries).joinedload(CallsheetEntry.customer)
@@ -606,13 +590,6 @@ def callsheets():
         title='Call Sheets',
         callsheets_by_day=callsheets_by_day,
         days_of_week=days_of_week,
-        current_month=current_month,
-        current_year=current_year,
-        month_name=calendar.month_name[current_month],
-        prev_month=prev_month,
-        prev_year=prev_year,
-        next_month=next_month,
-        next_year=next_year,
         all_customers=all_customers,
         current_user=current_user
     )
@@ -621,7 +598,7 @@ def callsheets():
 @main.route('/api/callsheet/create', methods=['POST'])
 @login_required
 def create_callsheet():
-    """Create new callsheet with duplicate name checking"""
+    """Create new permanent callsheet"""
     data = request.json
     
     try:
@@ -629,8 +606,6 @@ def create_callsheet():
         existing = Callsheet.query.filter_by(
             name=data['name'],
             day_of_week=data['day_of_week'],
-            month=data['month'],
-            year=data['year'],
             is_active=True
         ).first()
         
@@ -643,8 +618,9 @@ def create_callsheet():
         callsheet = Callsheet(
             name=data['name'],
             day_of_week=data['day_of_week'],
-            month=data['month'],
-            year=data['year'],
+            month=1,  # Dummy value
+            year=2025,  # Dummy value
+            is_active=True,
             created_by=current_user.id
         )
         db.session.add(callsheet)
@@ -658,7 +634,6 @@ def create_callsheet():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/callsheet/<int:callsheet_id>/update', methods=['POST'])
 @login_required
@@ -746,11 +721,26 @@ def add_customer_to_callsheet(callsheet_id):
         db.session.add(entry)
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Customer added successfully'})
+        # Get customer details to return
+        customer = Customer.query.get(data['customer_id'])
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Customer added successfully',
+            'entry': {
+                'id': entry.id,
+                'customer': {
+                    'id': customer.id,
+                    'name': customer.name,
+                    'account_number': customer.account_number,
+                    'phone': customer.phone,
+                    'callsheet_notes': customer.callsheet_notes
+                }
+            }
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/callsheet-entry/<int:entry_id>/update-status', methods=['POST'])
 @login_required
@@ -792,6 +782,7 @@ def update_callsheet_entry_status(entry_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
 
 
 @main.route('/api/callsheet-entry/<int:entry_id>/update-notes', methods=['POST'])
@@ -997,6 +988,109 @@ def archive_callsheets():
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
+@main.route('/api/callsheet/<int:callsheet_id>/complete', methods=['POST'])
+@login_required
+def complete_callsheet(callsheet_id):
+    """Complete a callsheet - save snapshot and reset for next use"""
+    callsheet = Callsheet.query.get_or_404(callsheet_id)
+    
+    try:
+        # Get all entries for this callsheet
+        entries = CallsheetEntry.query.filter_by(callsheet_id=callsheet_id).all()
+        
+        # Create snapshot data
+        snapshot_data = {
+            'callsheet_name': callsheet.name,
+            'day_of_week': callsheet.day_of_week,
+            'completed_date': datetime.now().isoformat(),
+            'completed_by': current_user.username,
+            'entries': [
+                {
+                    'customer_id': entry.customer_id,
+                    'customer_name': entry.customer.name,
+                    'customer_account': entry.customer.account_number,
+                    'call_status': entry.call_status,
+                    'called_by': entry.called_by,
+                    'person_spoken_to': entry.person_spoken_to,
+                    'callback_time': entry.callback_time,
+                    'notes': entry.customer.callsheet_notes
+                } for entry in entries
+            ]
+        }
+        
+        # Save snapshot
+        completion = CallsheetArchive(
+            month=datetime.now().month,
+            year=datetime.now().year,
+            data=json.dumps(snapshot_data),
+            archived_by=current_user.id
+        )
+        db.session.add(completion)
+        
+        # Reset all entries
+        for entry in entries:
+            entry.call_status = 'not_called'
+            entry.called_by = None
+            entry.call_date = None
+            entry.person_spoken_to = None
+            entry.callback_time = None
+            entry.updated_at = datetime.now()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'{callsheet.name} completed and reset successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/callsheets/history')
+@login_required
+def callsheet_history_page():
+    """Callsheet history page"""
+    return render_template(
+        'callsheet_history.html',
+        title='Callsheet History'
+    )
+
+
+@main.route('/api/callsheets/history')
+@login_required
+def callsheet_history():
+    """Get completion history"""
+    completions = CallsheetArchive.query.order_by(
+        CallsheetArchive.archived_at.desc()
+    ).limit(50).all()
+    
+    history = []
+    for completion in completions:
+        data = json.loads(completion.data)
+        history.append({
+            'id': completion.id,
+            'callsheet_name': data.get('callsheet_name', 'Unknown'),
+            'day_of_week': data.get('day_of_week', 'Unknown'),
+            'completed_date': data.get('completed_date'),
+            'completed_by': data.get('completed_by'),
+            'archived_at': completion.archived_at.isoformat()
+        })
+    
+    return jsonify(history)
+
+
+@main.route('/api/callsheets/history/<int:completion_id>')
+@login_required
+def view_callsheet_completion(completion_id):
+    """View a specific completion"""
+    completion = CallsheetArchive.query.get_or_404(completion_id)
+    data = json.loads(completion.data)
+    
+    return jsonify({
+        'success': True,
+        'data': data
+    })
 
 @main.route('/callsheets/archive/<int:month>/<int:year>')
 @login_required

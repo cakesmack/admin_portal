@@ -16,21 +16,20 @@ table.table tbody tr.callsheet-row.status-ordered td {
     color: #0f5132 !important;
 }
 
-/* RED - Customer declined or no answer */
-table.table tbody tr.callsheet-row.status-no_answer,
-table.table tbody tr.callsheet-row.status-no_answer td,
+/* RED - Customer declined r no answer */
 table.table tbody tr.callsheet-row.status-declined,
 table.table tbody tr.callsheet-row.status-declined td {
     background-color: #f8d7da !important;
     color: #842029 !important;
 }
 
-/* BLUE - Callback scheduled */
-table.table tbody tr.callsheet-row.status-callback,
-table.table tbody tr.callsheet-row.status-callback td {
-    background-color: #fff3cd !important;
-    color: #856404 !important;
+/* BLUE - No Answer */
+table.table tbody tr.callsheet-row.status-no_answer,
+table.table tbody tr.callsheet-row.status-no_answer td {
+    background-color: #cfe2ff !important;
+    color: #084298 !important;
 }
+
 
 /* WHITE - Not yet called */
 table.table tbody tr.callsheet-row.status-not_called,
@@ -105,12 +104,6 @@ table.table tbody tr.callsheet-row:hover td {
     white-space: nowrap;
 }
 
-.month-nav {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
 /* Loading spinner */
 .spinner-overlay {
     position: fixed;
@@ -150,25 +143,13 @@ table.table tbody tr.callsheet-row:hover td {
 </style>
 
 <div class="container-fluid">
-    <!-- Header with month navigation -->
+    <!-- Header - REMOVED MONTH NAVIGATION -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <div class="month-nav">
-            <a href="?month={{ prev_month }}&year={{ prev_year }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-chevron-left"></i> Previous
-            </a>
-            <h2 class="mb-0">Call Sheets - {{ month_name }} {{ current_year }}</h2>
-            <a href="?month={{ next_month }}&year={{ next_year }}" class="btn btn-outline-secondary btn-sm">
-                Next <i class="bi bi-chevron-right"></i>
-            </a>
-        </div>
+        <h2 class="mb-0">Call Sheets</h2>
         <div>
-            <button class="btn btn-warning me-2" onclick="resetWeek()" title="Reset all callsheets to 'Not Called' status">
-                <i class="bi bi-arrow-clockwise"></i> Reset Week
+            <button class="btn btn-info me-2" onclick="viewHistory()">
+                <i class="bi bi-clock-history"></i> View History
             </button>
-            <button class="btn btn-secondary me-2" onclick="archiveMonth()">
-                <i class="bi bi-archive"></i> Archive Month
-            </button>
-            
             <button class="btn btn-success" onclick="showAddCallsheetModal()">
                 <i class="bi bi-plus-circle"></i> Add Callsheet
             </button>
@@ -231,10 +212,16 @@ table.table tbody tr.callsheet-row:hover td {
                     <div class="card">
                         <div class="card-header callsheet-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">{{ callsheet.name }} - {{ day }}</h5>
-                            <button class="btn btn-sm btn-primary" 
-                                    onclick="showAddCustomerModal({{ callsheet.id }})">
-                                <i class="bi bi-person-plus"></i> Add Customer
-                            </button>
+                            <div>
+                                <button class="btn btn-sm btn-primary me-2" 
+                                        onclick="completeCallsheet({{ callsheet.id }}, '{{ callsheet.name }}')">
+                                    <i class="bi bi-check-circle"></i> Complete
+                                </button>
+                                <button class="btn btn-sm btn-success" 
+                                        onclick="showAddCustomerModal({{ callsheet.id }})">
+                                    <i class="bi bi-person-plus"></i> Add Customer
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
@@ -269,15 +256,13 @@ table.table tbody tr.callsheet-row:hover td {
                                                     <option value="no_answer" {% if entry.call_status == 'no_answer' %}selected{% endif %}>No Answer</option>
                                                     <option value="declined" {% if entry.call_status == 'declined' %}selected{% endif %}>Declined</option>
                                                     <option value="ordered" {% if entry.call_status == 'ordered' %}selected{% endif %}>Ordered</option>
-                                                    <option value="callback" {% if entry.call_status == 'callback' %}selected{% endif %}>Callback</option>
+                                                    
                                                 </select>
                                             </td>
                                             <td><small>{{ entry.called_by or '-' }}</small></td>
                                             <td>
                                                 <small>{{ entry.person_spoken_to or '-' }}</small>
-                                                {% if entry.callback_time %}
-                                                    <br><span class="badge bg-info">{{ entry.callback_time }}</span>
-                                                {% endif %}
+                                                
                                             </td>
                                             <td>
                                                 <div class="d-flex align-items-center">
@@ -313,7 +298,7 @@ table.table tbody tr.callsheet-row:hover td {
                                         {% if callsheet.paused_entries %}
                                         <!-- Paused Customers Section -->
                                         <tr class="table-secondary">
-                                            <td colspan="7" class="text-center py-2">
+                                            <td colspan="8" class="text-center py-2">
                                                 <strong><i class="bi bi-pause-circle"></i> Paused Customers (Seasonal)</strong>
                                             </td>
                                         </tr>
@@ -325,7 +310,7 @@ table.table tbody tr.callsheet-row:hover td {
                                             </td>
                                             <td><strong>{{ entry.customer.name }}<br />
                                             {{ entry.customer.account_number }}</strong></td>
-                                            <td colspan="4">
+                                            <td colspan="5">
                                                 <span class="badge bg-secondary">Paused</span>
                                                 <small class="text-muted ms-2">This customer is temporarily inactive</small>
                                             </td>
@@ -432,14 +417,7 @@ table.table tbody tr.callsheet-row:hover td {
                     <small class="text-muted">Record who you spoke to for any status</small>
                 </div>
                 
-                <!-- Show for callback status -->
-                <div id="callbackDetails" style="display:none;">
-                    <div class="mb-3">
-                        <label class="form-label">Callback Time</label>
-                        <input type="text" class="form-control" id="callbackTime" 
-                               placeholder="e.g., Tomorrow 2PM, Monday morning">
-                    </div>
-                </div>
+                
                 
                 <div class="alert alert-info">
                     <small><i class="bi bi-info-circle"></i> Use the Notes section below to add any additional details about this call.</small>
@@ -510,28 +488,6 @@ table.table tbody tr.callsheet-row:hover td {
     </div>
 </div>
 
-<!-- Manage Customers Modal -->
-<div class="modal fade" id="manageCustomersModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Manage Customers</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <a href="/customers/import" class="btn btn-info">
-                        <i class="bi bi-upload"></i> Import Customers from File
-                    </a>
-                </div>
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Full customer management coming soon. Use import feature to add customers in bulk.
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Include jQuery, Select2, and SortableJS -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -539,7 +495,7 @@ table.table tbody tr.callsheet-row:hover td {
 
 <script>
 // Initialize modals
-let callsheetModal, statusModal, notesModal, addCustomerModal, manageCustomersModal;
+let callsheetModal, statusModal, notesModal, addCustomerModal;
 let selectedCustomerId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -547,9 +503,8 @@ document.addEventListener('DOMContentLoaded', function() {
     statusModal = new bootstrap.Modal(document.getElementById('statusModal'));
     notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
     addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
-    manageCustomersModal = new bootstrap.Modal(document.getElementById('manageCustomersModal'));
     
-    // Initialize Select2 for customer search with dropdownParent fix
+    // Initialize Select2 for customer search
     $('#customerSearchSelect').select2({
         theme: 'bootstrap-5',
         placeholder: 'Search by account number or name',
@@ -582,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('selectedCustomerInfo').style.display = 'block';
     });
     
-    // Initialize drag-and-drop for all sortable lists
+    // Initialize drag-and-drop
     document.querySelectorAll('.sortable-list').forEach(list => {
         new Sortable(list, {
             animation: 150,
@@ -661,9 +616,7 @@ async function saveCallsheet() {
     
     try {
         const url = id ? `/api/callsheet/${id}/update` : '/api/callsheet/create';
-        const body = id ? 
-            { name: name, day_of_week: day } : 
-            { name: name, day_of_week: day, month: {{ current_month }}, year: {{ current_year }} };
+        const body = { name: name, day_of_week: day };
         
         const response = await fetch(url, {
             method: 'POST',
@@ -717,32 +670,56 @@ function deleteCallsheet(event, callsheetId) {
     });
 }
 
+// Complete callsheet
+function completeCallsheet(callsheetId, callsheetName) {
+    if (!confirm(`Complete "${callsheetName}"? This will save the current state and reset all entries to "Not Called".`)) {
+        return;
+    }
+    
+    showLoading();
+    
+    fetch(`/api/callsheet/${callsheetId}/complete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showToast(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showToast('Error: ' + error.message, 'danger');
+    });
+}
+
+// View history
+function viewHistory() {
+    window.location.href = '/callsheets/history';
+}
+
 // Call Status Management
 function confirmStatusChange(selectElement, entryId) {
     const newStatus = selectElement.value;
     const oldStatus = selectElement.dataset.currentStatus;
     
-    // If reverting to not_called, just do it directly
     if (newStatus === 'not_called') {
         saveCallStatusDirect(entryId, newStatus, selectElement);
         return;
     }
     
-    // For other statuses, show confirmation modal
     document.getElementById('statusEntryId').value = entryId;
     document.getElementById('statusValue').value = newStatus;
     
-    // Reset fields
-    document.getElementById('callbackDetails').style.display = 'none';
     document.getElementById('personSpokenTo').value = '';
-    document.getElementById('callbackTime').value = '';
     
-    // Set modal title based on status
     if (newStatus === 'ordered') {
         document.getElementById('statusModalTitle').textContent = 'Record Order';
-    } else if (newStatus === 'callback') {
-        document.getElementById('callbackDetails').style.display = 'block';
-        document.getElementById('statusModalTitle').textContent = 'Schedule Callback';
     } else if (newStatus === 'no_answer') {
         document.getElementById('statusModalTitle').textContent = 'No Answer';
     } else if (newStatus === 'declined') {
@@ -751,7 +728,6 @@ function confirmStatusChange(selectElement, entryId) {
     
     statusModal.show();
     
-    // Reset select if user cancels
     document.getElementById('statusModal').addEventListener('hidden.bs.modal', function handler() {
         if (selectElement.value !== selectElement.dataset.currentStatus && 
             document.getElementById('statusEntryId').value == entryId) {
@@ -767,16 +743,12 @@ async function saveCallStatus() {
     
     let data = { call_status: status };
     
-    // Always include person_spoken_to if filled (for any status)
     const personSpokenTo = document.getElementById('personSpokenTo').value;
     if (personSpokenTo) {
         data.person_spoken_to = personSpokenTo;
     }
     
-    // Add callback time if applicable
-    if (status === 'callback') {
-        data.callback_time = document.getElementById('callbackTime').value;
-    }
+    
     
     showLoading();
     
@@ -792,8 +764,29 @@ async function saveCallStatus() {
         
         if (result.success) {
             statusModal.hide();
+            
+            // Update the row directly instead of reloading
+            const row = document.querySelector(`tr[data-entry-id="${entryId}"]`);
+            if (row) {
+                // Update status class
+                row.className = `callsheet-row status-${status}`;
+                
+                // Update select element
+                const select = row.querySelector('.status-select');
+                select.dataset.currentStatus = status;
+                
+                // Update person spoken to
+                if (personSpokenTo) {
+                    row.querySelector('td:nth-child(6) small').textContent = personSpokenTo;
+                }
+                
+                
+                
+                // Update called by column
+                row.querySelector('td:nth-child(5) small').textContent = '{{ current_user.username }}';
+            }
+            
             showToast(result.message, 'success');
-            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(result.message, 'danger');
         }
@@ -818,8 +811,22 @@ async function saveCallStatusDirect(entryId, status, selectElement) {
         
         if (result.success) {
             selectElement.dataset.currentStatus = status;
+            
+            // Update row class
+            const row = selectElement.closest('tr');
+            row.className = `callsheet-row status-${status}`;
+            
+            // Update called by if changed to not_called, clear it
+            if (status === 'not_called') {
+                row.querySelector('td:nth-child(5) small').textContent = '-';
+                row.querySelector('td:nth-child(6) small').textContent = '-';
+                const badge = row.querySelector('td:nth-child(6) .badge');
+                if (badge) badge.remove();
+            } else {
+                row.querySelector('td:nth-child(5) small').textContent = '{{ current_user.username }}';
+            }
+            
             showToast(result.message, 'success');
-            setTimeout(() => location.reload(), 1000);
         } else {
             selectElement.value = selectElement.dataset.currentStatus;
             showToast(result.message, 'danger');
@@ -857,8 +864,33 @@ async function saveNotes() {
         
         if (result.success) {
             notesModal.hide();
+            
+            // Update notes display in the row
+            const row = document.querySelector(`tr[data-entry-id="${entryId}"]`);
+            if (row) {
+                const notesPreview = row.querySelector('.notes-preview');
+                if (notes) {
+                    notesPreview.classList.add('notes-has-content');
+                    notesPreview.textContent = notes.length > 50 ? notes.substring(0, 50) + '...' : notes;
+                } else {
+                    notesPreview.classList.remove('notes-has-content');
+                    notesPreview.innerHTML = '<span>Click to add notes</span>';
+                }
+                
+                // Update icon
+                const icon = row.querySelector('.bi-chat-dots, .bi-chat-dots-fill');
+                if (icon) {
+                    if (notes) {
+                        icon.classList.remove('bi-chat-dots');
+                        icon.classList.add('bi-chat-dots-fill');
+                    } else {
+                        icon.classList.remove('bi-chat-dots-fill');
+                        icon.classList.add('bi-chat-dots');
+                    }
+                }
+            }
+            
             showToast(result.message, 'success');
-            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(result.message, 'danger');
         }
@@ -879,7 +911,6 @@ function clearNotes() {
 function showAddCustomerModal(callsheetId) {
     document.getElementById('addCallsheetId').value = callsheetId;
     
-    // Clear and reset Select2
     const $select = $('#customerSearchSelect');
     $select.val(null).trigger('change');
     $select.empty().append('<option></option>');
@@ -911,8 +942,73 @@ async function addCustomerToCallsheet() {
         
         if (data.success) {
             addCustomerModal.hide();
+            
+            // Find the correct tbody for this callsheet
+            const tbody = document.querySelector(`tbody[data-callsheet-id="${callsheetId}"]`);
+            
+            if (tbody) {
+                const customer = data.entry.customer;
+                const entryId = data.entry.id;
+                
+                // Create new row HTML
+                const newRow = `
+                    <tr class="callsheet-row status-not_called" data-entry-id="${entryId}">
+                        <td class="text-center">
+                            <i class="bi bi-grip-vertical drag-handle"></i>
+                        </td>
+                        <td><strong>${customer.name}<br />${customer.account_number}</strong></td>
+                        <td><strong>${customer.phone || '-'}</strong></td>
+                        <td>
+                            <select class="form-select form-select-sm status-select" 
+                                    onchange="confirmStatusChange(this, ${entryId})"
+                                    data-current-status="not_called">
+                                <option value="not_called" selected>Not Called</option>
+                                <option value="no_answer">No Answer</option>
+                                <option value="declined">Declined</option>
+                                <option value="ordered">Ordered</option>
+                            </select>
+                        </td>
+                        <td><small>-</small></td>
+                        <td><small>-</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="notes-preview ${customer.callsheet_notes ? 'notes-has-content' : ''}" 
+                                     onclick="showNotesModal(${entryId}, ${customer.id}, \`${customer.callsheet_notes || ''}\`)">
+                                    ${customer.callsheet_notes ? 
+                                        (customer.callsheet_notes.substring(0, 50) + (customer.callsheet_notes.length > 50 ? '...' : '')) : 
+                                        '<span>Click to add notes</span>'}
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" 
+                                        onclick="showNotesModal(${entryId}, ${customer.id}, \`${customer.callsheet_notes || ''}\`)">
+                                    <i class="bi bi-chat-dots${customer.callsheet_notes ? '-fill' : ''}"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="action-buttons">
+                            <button class="btn btn-sm btn-warning" 
+                                    onclick="togglePauseCustomer(${entryId})"
+                                    title="Pause customer (seasonal)">
+                                <i class="bi bi-pause-circle"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" 
+                                    onclick="removeCustomer(${entryId})"
+                                    title="Remove from callsheet">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                
+                // Add row before paused customers section if it exists, otherwise at the end
+                const pausedSection = tbody.querySelector('tr.table-secondary');
+                if (pausedSection) {
+                    pausedSection.insertAdjacentHTML('beforebegin', newRow);
+                } else {
+                    tbody.insertAdjacentHTML('beforeend', newRow);
+                }
+            }
+            
             showToast(data.message, 'success');
-            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(data.message, 'danger');
         }
@@ -921,8 +1017,6 @@ async function addCustomerToCallsheet() {
         showToast('Error: ' + error.message, 'danger');
     }
 }
-
-
 
 function removeCustomer(entryId) {
     if (!confirm('Remove this customer from the callsheet?')) {
@@ -939,8 +1033,12 @@ function removeCustomer(entryId) {
     .then(data => {
         hideLoading();
         if (data.success) {
+            // Remove the row from DOM
+            const row = document.querySelector(`tr[data-entry-id="${entryId}"]`);
+            if (row) {
+                row.remove();
+            }
             showToast(data.message, 'success');
-            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(data.message, 'danger');
         }
@@ -951,7 +1049,6 @@ function removeCustomer(entryId) {
     });
 }
 
-// Pause/Resume customer
 async function togglePauseCustomer(entryId) {
     showLoading();
     
@@ -966,7 +1063,8 @@ async function togglePauseCustomer(entryId) {
         
         if (data.success) {
             showToast(data.message, 'success');
-            setTimeout(() => location.reload(), 1000);
+            // This one needs reload to move between active/paused sections
+            setTimeout(() => location.reload(), 500);
         } else {
             showToast(data.message, 'danger');
         }
@@ -976,7 +1074,6 @@ async function togglePauseCustomer(entryId) {
     }
 }
 
-// Drag and drop reordering
 async function updateEntryPosition(entryId, newPosition) {
     try {
         const response = await fetch(`/api/callsheet-entry/${entryId}/reorder`, {
@@ -997,74 +1094,7 @@ async function updateEntryPosition(entryId, newPosition) {
         location.reload();
     }
 }
-
-// Week/Month Management
-function resetWeek() {
-    if (!confirm('Reset all callsheets to "Not Called" status? Customer notes will be preserved.')) {
-        return;
-    }
-    
-    showLoading();
-    
-    fetch('/api/callsheets/reset-week', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            month: {{ current_month }},
-            year: {{ current_year }}
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading();
-        if (data.success) {
-            showToast(data.message, 'success');
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            showToast(data.message, 'danger');
-        }
-    })
-    .catch(error => {
-        hideLoading();
-        showToast('Error: ' + error.message, 'danger');
-    });
-}
-
-function archiveMonth() {
-    if (!confirm('Archive all callsheets for {{ month_name }} {{ current_year }}? This will mark them as inactive.')) {
-        return;
-    }
-    
-    showLoading();
-    
-    fetch('/api/callsheets/archive', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            month: {{ current_month }},
-            year: {{ current_year }}
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoading();
-        if (data.success) {
-            showToast(data.message, 'success');
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            showToast(data.message, 'danger');
-        }
-    })
-    .catch(error => {
-        hideLoading();
-        showToast('Error: ' + error.message, 'danger');
-    });
-}
-
-function viewArchivedCallsheets() {
-    // Simple navigation to archive page
-    window.location.href = `/callsheets/archive/{{ current_month }}/{{ current_year }}`;
-}
 </script>
+
 
 {% endblock %}
