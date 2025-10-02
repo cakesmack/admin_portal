@@ -203,10 +203,9 @@
   async function searchProducts(searchValue, inputElement) {
     try {
       const response = await fetch(
-        `/api/products?q=${encodeURIComponent(searchValue)}`
+        `/api/products/search?q=${encodeURIComponent(searchValue)}`
       );
       const products = await response.json();
-
       showProductDropdown(products, inputElement);
     } catch (error) {
       console.error("Error searching products:", error);
