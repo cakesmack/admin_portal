@@ -1989,6 +1989,129 @@ def new_standing_order():
     customers = Customer.query.order_by(Customer.name).all()
     return render_template('standing_order_form.html', customers=customers)
 
+@main.route('/standing-orders/<int:order_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_standing_order(order_id):
+    order = StandingOrder.query.get_or_404(order_id)
+    
+    if request.method == 'POST':
+        data = request.json
+        
+        try:
+            # Track changes for logging
+            changes = {}
+            
+            # Validate delivery days (no weekends)
+            delivery_days = data.get('delivery_days', [])
+            weekend_days = [day for day in delivery_days if int(day) >= 5]
+            if weekend_days:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Weekend deliveries are not supported. Please select Monday through Friday only.'
+                }), 400
+            
+            # Update delivery days if changed
+            new_delivery_days = ','.join([day for day in data['delivery_days'] if int(day) < 5])
+            if order.delivery_days != new_delivery_days:
+                changes['delivery_days'] = {
+                    'old': order.delivery_days,
+                    'new': new_delivery_days
+                }
+                order.delivery_days = new_delivery_days
+            
+            # Update end date if changed
+            new_end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None
+            if order.end_date != new_end_date:
+                changes['end_date'] = {
+                    'old': str(order.end_date) if order.end_date else None,
+                    'new': str(new_end_date) if new_end_date else None
+                }
+                order.end_date = new_end_date
+            
+            # Update special instructions if changed
+            new_instructions = data.get('special_instructions', '')
+            if order.special_instructions != new_instructions:
+                changes['special_instructions'] = {
+                    'old': order.special_instructions,
+                    'new': new_instructions
+                }
+                order.special_instructions = new_instructions
+            
+            # Handle items - delete existing and add new ones
+            existing_items_data = {item.id: {
+                'product_code': item.product_code,
+                'product_name': item.product_name,
+                'quantity': item.quantity,
+                'unit_type': item.unit_type,
+                'special_notes': item.special_notes
+            } for item in order.items}
+            
+            # Delete all existing items
+            for item in order.items:
+                db.session.delete(item)
+            
+            # Add new items
+            new_items_data = []
+            for item in data['items']:
+                order_item = StandingOrderItem(
+                    standing_order_id=order.id,
+                    product_code=item['product_code'],
+                    product_name=item['product_name'],
+                    quantity=item['quantity'],
+                    unit_type=item.get('unit_type', 'units'),
+                    special_notes=item.get('notes', '')
+                )
+                db.session.add(order_item)
+                new_items_data.append({
+                    'product_code': item['product_code'],
+                    'product_name': item['product_name'],
+                    'quantity': item['quantity']
+                })
+            
+            if existing_items_data or new_items_data:
+                changes['items'] = {
+                    'old': list(existing_items_data.values()),
+                    'new': new_items_data
+                }
+            
+            # Update timestamp
+            order.updated_at = datetime.now()
+            
+            # Log the modification
+            log = StandingOrderLog(
+                standing_order_id=order.id,
+                action_type='modified',
+                action_details=json.dumps(changes),
+                performed_by=current_user.id
+            )
+            db.session.add(log)
+            
+            # Regenerate schedules if delivery days changed and order is active
+            if 'delivery_days' in changes and order.status == 'active':
+                # Delete future pending schedules
+                future_schedules = StandingOrderSchedule.query.filter(
+                    StandingOrderSchedule.standing_order_id == order.id,
+                    StandingOrderSchedule.scheduled_date > date.today(),
+                    StandingOrderSchedule.status == 'pending'
+                ).all()
+                
+                for schedule in future_schedules:
+                    db.session.delete(schedule)
+                
+                # Generate new schedules
+                generate_schedules_for_order(order.id)
+            
+            db.session.commit()
+            
+            return jsonify({'success': True, 'id': order.id})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 400
+    
+    # GET request - show form
+    customers = Customer.query.order_by(Customer.name).all()
+    return render_template('standing_order_edit.html', order=order, customers=customers)
 
 @main.route('/standing-orders/<int:order_id>')
 @login_required

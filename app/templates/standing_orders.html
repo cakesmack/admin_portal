@@ -200,6 +200,13 @@
                 >
                   <i class="bi bi-eye"></i>
                 </a>
+                <a
+                  href="{{ url_for('main.edit_standing_order', order_id=order.id) }}"
+      class="btn btn-dark"
+      title="Edit"
+    >
+      <i class="bi bi-pencil"></i>
+    </a>
                 {% if order.status == 'active' %}
                 <button
                   class="btn btn-warning"
