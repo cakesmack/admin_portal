@@ -149,11 +149,11 @@
               <strong>{{ order.customer.name }}</strong>
             </td>
             <td>
-              <code>{{ order.customer.account_number }}</code>
+              {{ order.customer.account_number }}
             </td>
             <td>
               {% for day in order.get_delivery_days_names() %}
-              <span class="badge bg-info">{{ day }}</span>
+              <span>{{ day }}</span>
               {% endfor %}
             </td>
             <td>

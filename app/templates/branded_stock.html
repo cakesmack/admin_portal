@@ -2,139 +2,6 @@
 {% block content %}
 <h2>Customer Stock Order Form</h2>
 <p class="text-muted">Process customer orders from their held inventory</p>
-
-<!-- Available Stock Items Table -->
-<div class="card mb-4">
-  <div class="card-header">
-    <h5>Available Customer Stock</h5>
-  </div>
-  <div class="card-body">
-    {% if stock_items and stock_items|length > 0 %}
-    <div class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            <th>Product Code</th>
-            <th>Product Name</th>
-            <th>Available Stock</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in stock_items %}
-          <tr>
-            <td>{{ item.customer.name }}</td>
-            <td>{{ item.product_code or 'N/A' }}</td>
-            <td>{{ item.product_name }}</td>
-            <td>
-              <span class="badge {% if item.current_stock == 0 %}bg-danger{% elif item.current_stock <= item.reorder_level %}bg-warning{% else %}bg-success{% endif %}">
-                {{ item.current_stock }} {{ item.unit_type }}
-              </span>
-            </td>
-            <td>
-              <button 
-                class="btn btn-sm btn-primary" 
-                onclick="quickSelectItem({{ item.id }}, '{{ item.customer.account_number }}', '{{ item.customer.name }}', '{{ item.product_code or 'N/A' }}', '{{ item.product_name }}', {{ item.current_stock }}, '{{ item.unit_type }}')"
-                {% if item.current_stock == 0 %}disabled{% endif %}>
-                <i class="bi bi-cart-plus"></i> Create Order
-              </button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-muted">No customer stock items found. Add stock items in the Customer Stock page first.</p>
-    {% endif %}
-  </div>
-</div>
-
-<!-- Order Form Modal -->
-<div class="modal fade" id="orderModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Create Stock Order</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form method="POST" id="orderForm">
-          {{ form.hidden_tag() }}
-          
-          <input type="hidden" name="stock_item_id" id="modalStockItemId" />
-          <input type="hidden" name="customer_id" id="modalCustomerId" />
-          <input type="hidden" name="customer_account" id="modalCustomerAccount" />
-          <input type="hidden" name="customer_name" id="modalCustomerName" />
-          <input type="hidden" name="product_code" id="modalProductCode" />
-          <input type="hidden" name="product_name" id="modalProductName" />
-
-          <div class="alert alert-info">
-            <strong>Customer:</strong> <span id="modalCustomerDisplay"></span><br>
-            <strong>Product:</strong> <span id="modalProductDisplay"></span><br>
-            <strong>Available Stock:</strong> <span id="modalAvailableStock"></span>
-          </div>
-
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <label class="form-label">Quantity to Order *</label>
-              <input
-                type="number"
-                class="form-control"
-                name="quantity_delivered"
-                id="modalQuantity"
-                min="1"
-                required
-              />
-              <small class="text-muted">Maximum: <span id="modalMaxQty"></span></small>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">New Stock Level</label>
-              <input
-                type="number"
-                class="form-control"
-                name="current_stock"
-                id="modalNewStock"
-                readonly
-                style="background-color: #f8f9fa"
-              />
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Order Reference</label>
-            <input
-              type="text"
-              class="form-control"
-              name="order_reference"
-              id="modalReference"
-              placeholder="Order number, invoice etc."
-            />
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Order Notes</label>
-            <textarea
-              class="form-control"
-              name="order_notes"
-              id="modalNotes"
-              rows="3"
-              placeholder="Additional notes about this order"
-            ></textarea>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="submitOrder()">
-          <i class="bi bi-check-circle"></i> Process Order
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="card mt-4">
   <div class="card-body">
     <form method="POST">
@@ -268,6 +135,138 @@
     </form>
   </div>
 </div>
+<!-- Available Stock Items Table -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5>Available Customer Stock</h5>
+  </div>
+  <div class="card-body">
+    {% if stock_items and stock_items|length > 0 %}
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Product Code</th>
+            <th>Product Name</th>
+            <th>Available Stock</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in stock_items %}
+          <tr>
+            <td>{{ item.customer.name }}</td>
+            <td>{{ item.product_code or 'N/A' }}</td>
+            <td>{{ item.product_name }}</td>
+            <td>
+              <span class="badge {% if item.current_stock == 0 %}bg-danger{% elif item.current_stock <= item.reorder_level %}bg-warning{% else %}bg-success{% endif %}">
+                {{ item.current_stock }} {{ item.unit_type }}
+              </span>
+            </td>
+            <td>
+              <button 
+                class="btn btn-sm btn-primary" 
+                onclick="quickSelectItem({{ item.id }}, '{{ item.customer.account_number }}', '{{ item.customer.name }}', '{{ item.product_code or 'N/A' }}', '{{ item.product_name }}', {{ item.current_stock }}, '{{ item.unit_type }}')"
+                {% if item.current_stock == 0 %}disabled{% endif %}>
+                <i class="bi bi-cart-plus"></i> Create Order
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No customer stock items found. Add stock items in the Customer Stock page first.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Order Form Modal -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create Stock Order</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form method="POST" id="orderForm">
+          {{ form.hidden_tag() }}
+          
+          <input type="hidden" name="stock_item_id" id="modalStockItemId" />
+          <input type="hidden" name="customer_id" id="modalCustomerId" />
+          <input type="hidden" name="customer_account" id="modalCustomerAccount" />
+          <input type="hidden" name="customer_name" id="modalCustomerName" />
+          <input type="hidden" name="product_code" id="modalProductCode" />
+          <input type="hidden" name="product_name" id="modalProductName" />
+
+          <div class="alert alert-info">
+            <strong>Customer:</strong> <span id="modalCustomerDisplay"></span><br>
+            <strong>Product:</strong> <span id="modalProductDisplay"></span><br>
+            <strong>Available Stock:</strong> <span id="modalAvailableStock"></span>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Quantity to Order *</label>
+              <input
+                type="number"
+                class="form-control"
+                name="quantity_delivered"
+                id="modalQuantity"
+                min="1"
+                required
+              />
+              <small class="text-muted">Maximum: <span id="modalMaxQty"></span></small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">New Stock Level</label>
+              <input
+                type="number"
+                class="form-control"
+                name="current_stock"
+                id="modalNewStock"
+                readonly
+                style="background-color: #f8f9fa"
+              />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Order Reference</label>
+            <input
+              type="text"
+              class="form-control"
+              name="order_reference"
+              id="modalReference"
+              placeholder="Order number, invoice etc."
+            />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Order Notes</label>
+            <textarea
+              class="form-control"
+              name="order_notes"
+              id="modalNotes"
+              rows="3"
+              placeholder="Additional notes about this order"
+            ></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitOrder()">
+          <i class="bi bi-check-circle"></i> Process Order
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- Recent Stock Orders -->
 <div class="card mt-4">

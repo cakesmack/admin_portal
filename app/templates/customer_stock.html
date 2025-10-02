@@ -156,13 +156,7 @@
                 >
                   <i class="bi bi-plus-circle"></i>
                 </button>
-                <button
-                  class="btn btn-sm btn-warning"
-                  onclick="showStockOutModal({{ item.id }}, '{{ item.customer.name }}', '{{ item.product_name }}', {{ item.current_stock }})"
-                  title="Remove Stock"
-                >
-                  <i class="bi bi-dash-circle"></i>
-                </button>
+
                 <button
                   class="btn btn-sm btn-info"
                   onclick="showStockHistory({{ item.id }})"
@@ -376,65 +370,6 @@
   </div>
 </div>
 
-<!-- Stock Out Modal -->
-<div class="modal fade" id="stockOutModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Stock Out</h5>
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="modal"
-        ></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="stockOutItemId" />
-        <div class="alert alert-info">
-          <strong>Customer:</strong> <span id="stockOutCustomer"></span><br />
-          <strong>Product:</strong> <span id="stockOutProduct"></span><br />
-          <strong>Available:</strong> <span id="stockOutAvailable"></span> units
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Quantity Taken *</label>
-          <input
-            type="number"
-            class="form-control"
-            id="stockOutQuantity"
-            min="1"
-            required
-          />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Invoice Number</label>
-          <input
-            type="text"
-            class="form-control"
-            id="stockOutInvoiceNumber"
-            placeholder="Invoice number"
-          />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Notes</label>
-          <textarea class="form-control" id="stockOutNotes" rows="2"></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="btn btn-warning"
-          onclick="processStockOut()"
-        >
-          Remove from Stock
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Stock History Modal -->
 <div class="modal fade" id="stockHistoryModal" tabindex="-1">
   <div class="modal-dialog modal-xl">
@@ -489,7 +424,6 @@
               <label class="form-label">Transaction Type</label>
               <select class="form-select" id="quickTransactionType">
                 <option value="stock_in">Stock In</option>
-                <option value="stock_out">Stock Out</option>
                 <option value="adjustment">Adjustment</option>
               </select>
             </div>
@@ -526,20 +460,14 @@
 
 {% endblock %} {% block scripts %}
 <script>
-  let addStockModal,
-    stockInModal,
-    stockOutModal,
-    stockHistoryModal,
-    quickTransactionModal;
+  let addStockModal, stockInModal, stockHistoryModal, quickTransactionModal;
 
   document.addEventListener("DOMContentLoaded", function () {
     addStockModal = new bootstrap.Modal(
       document.getElementById("addStockModal")
     );
     stockInModal = new bootstrap.Modal(document.getElementById("stockInModal"));
-    stockOutModal = new bootstrap.Modal(
-      document.getElementById("stockOutModal")
-    );
+
     stockHistoryModal = new bootstrap.Modal(
       document.getElementById("stockHistoryModal")
     );
@@ -641,66 +569,6 @@
       const result = await response.json();
       if (result.success) {
         stockInModal.hide();
-        location.reload();
-      } else {
-        alert("Error: " + result.message);
-      }
-    } catch (error) {
-      alert("Error: " + error.message);
-    }
-  }
-
-  function showStockOutModal(itemId, customer, product, available) {
-    document.getElementById("stockOutItemId").value = itemId;
-    document.getElementById("stockOutCustomer").textContent = customer;
-    document.getElementById("stockOutProduct").textContent = product;
-    document.getElementById("stockOutAvailable").textContent = available;
-    document.getElementById("stockOutQuantity").value = "";
-    document.getElementById("stockOutQuantity").max = available;
-    document.getElementById("stockOutInvoiceNumber").value = "";
-    document.getElementById("stockOutNotes").value = "";
-    stockOutModal.show();
-  }
-
-  async function processStockOut() {
-    const itemId = document.getElementById("stockOutItemId").value;
-    const quantity = parseInt(
-      document.getElementById("stockOutQuantity").value
-    );
-    const available = parseInt(
-      document.getElementById("stockOutAvailable").textContent
-    );
-
-    if (!quantity || quantity < 1) {
-      alert("Please enter a valid quantity");
-      return;
-    }
-
-    if (quantity > available) {
-      alert("Cannot take more stock than available");
-      return;
-    }
-
-    const data = {
-      transaction_type: "stock_out",
-      quantity: quantity,
-      reference: document.getElementById("stockOutInvoiceNumber").value,
-      notes: document.getElementById("stockOutNotes").value,
-    };
-
-    try {
-      const response = await fetch(
-        `/api/customer-stock/${itemId}/transaction`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      );
-
-      const result = await response.json();
-      if (result.success) {
-        stockOutModal.hide();
         location.reload();
       } else {
         alert("Error: " + result.message);

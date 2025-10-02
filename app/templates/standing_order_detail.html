@@ -234,7 +234,7 @@
   <div class="card-body">
     {% if logs %}
     <div class="table-responsive">
-      <table class="table table-sm">
+      <table class="table table-sm table-striped">
         <thead>
           <tr>
             <th>Date/Time</th>
@@ -253,9 +253,19 @@
               >
             </td>
             <td>
-              {% if log.action_details %}
-              <small>{{ log.action_details }}</small>
-              {% else %} - {% endif %}
+              {% if log.action_type == 'created' %}
+              <small>Standing order created</small>
+              {% elif log.action_type == 'modified' %}
+              <small>Standing order updated</small>
+              {% elif log.action_type == 'paused' %}
+              <small>Standing order paused</small>
+              {% elif log.action_type == 'resumed' %}
+              <small>Standing order resumed</small>
+              {% elif log.action_type == 'ended' %}
+              <small>Standing order ended</small>
+              {% else %}
+              <small>-</small>
+              {% endif %}
             </td>
             <td>{{ log.user.username }}</td>
           </tr>
