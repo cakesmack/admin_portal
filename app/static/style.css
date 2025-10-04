@@ -1185,3 +1185,25 @@ td .small {
 small {
   color: var(--primary-blue);
 }
+
+.search-container {
+  position: relative;
+}
+
+.dropdown-results {
+  border: 2px solid var(--border-color, #ddd) !important;
+  background: var(--dark-card, white) !important;
+}
+
+.dropdown-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-results::-webkit-scrollbar-track {
+  background: var(--dark-bg, #f1f1f1);
+}
+
+.dropdown-results::-webkit-scrollbar-thumb {
+  background: var(--primary-blue, #007bff);
+  border-radius: 3px;
+}

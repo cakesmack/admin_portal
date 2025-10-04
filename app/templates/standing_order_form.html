@@ -182,87 +182,315 @@
 </template>
 
 {% endblock %} {% block scripts %}
-<script>
+<script type="module">
+  import {
+    extractProductCode,
+    debounce,
+    generateUniqueId,
+  } from "/static/js/script.js";
+
   let searchTimeout;
+  let customerId = null;
 
   document.addEventListener("DOMContentLoaded", function () {
-    // Setup search for customer fields (exactly like returns form)
     setupCustomerSearch();
+    addProductRow();
 
-    // Setup product search for initial product row
-    setupInitialProductSearch();
-
-    // Close dropdowns when clicking outside
     document.addEventListener("click", function (e) {
       if (!e.target.closest(".search-container")) {
         hideAllDropdowns();
       }
     });
-  });
 
-  function setupInitialProductSearch() {
-    console.log("Setting up initial product search...");
-    // This will be called after the first product row is added
-    setTimeout(() => {
-      const firstProductCodeInput = document.querySelector(".product-code");
-      console.log("Found first product code input:", firstProductCodeInput);
-      if (firstProductCodeInput) {
-        setupProductSearch(firstProductCodeInput);
-      } else {
-        console.error("No product code input found!");
-      }
-    }, 100);
-  }
+    document
+      .querySelectorAll('input[name="deliveryDays"]')
+      .forEach((checkbox) => {
+        checkbox.addEventListener("change", function () {
+          const label = this.parentElement;
+          if (this.checked) {
+            label.classList.remove("btn-outline-primary");
+            label.classList.add("btn-primary");
+          } else {
+            label.classList.remove("btn-primary");
+            label.classList.add("btn-outline-primary");
+          }
+        });
+      });
 
-  function setupProductSearch(input) {
-    console.log("Setting up product search for:", input);
+    document
+      .getElementById("standingOrderForm")
+      .addEventListener("submit", async function (e) {
+        e.preventDefault();
 
-    if (input) {
-      input.addEventListener("input", function () {
-        clearTimeout(searchTimeout);
-        const searchValue = this.value.trim();
-
-        console.log(`Product input event: "${searchValue}"`);
-
-        if (searchValue.length < 2) {
-          hideDropdown(input);
+        if (!customerId) {
+          alert("Please select a customer");
           return;
         }
 
-        searchTimeout = setTimeout(() => {
-          console.log(`Starting product search for: "${searchValue}"`);
-          searchProducts(searchValue, input);
-        }, 300);
-      });
+        const deliveryDays = [];
+        document
+          .querySelectorAll('input[name="deliveryDays"]:checked')
+          .forEach((checkbox) => {
+            deliveryDays.push(checkbox.value);
+          });
 
-      input.addEventListener("blur", function () {
-        setTimeout(() => {
-          if (!document.querySelector(".dropdown-results:hover")) {
-            hideDropdown(input);
+        if (deliveryDays.length === 0) {
+          alert("Please select at least one delivery day");
+          return;
+        }
+
+        const hasWeekend = deliveryDays.some((day) => parseInt(day) >= 5);
+        if (hasWeekend) {
+          alert(
+            "Weekend deliveries are not supported. Please select Monday through Friday only."
+          );
+          return;
+        }
+
+        const products = [];
+        document.querySelectorAll(".product-row").forEach((row) => {
+          const codeInput = row.querySelector(".product-code");
+          const nameInput = row.querySelector(".product-name");
+          const quantityInput = row.querySelector(".product-quantity");
+
+          if (codeInput && nameInput && quantityInput) {
+            const product = {
+              product_code: codeInput.value,
+              product_name: nameInput.value,
+              quantity: parseInt(quantityInput.value),
+              unit_type: "units",
+              notes: "",
+            };
+
+            if (
+              product.product_code &&
+              product.product_name &&
+              product.quantity
+            ) {
+              products.push(product);
+            }
           }
-        }, 200);
+        });
+
+        if (products.length === 0) {
+          alert("Please add at least one product");
+          return;
+        }
+
+        const customerName = document.getElementById("customerName").value;
+
+        const data = {
+          customer_id: customerId,
+          customer_name: customerName,
+          delivery_days: deliveryDays,
+          end_date: document.getElementById("endDate").value,
+          special_instructions: document.getElementById("specialInstructions")
+            .value,
+          items: products,
+        };
+
+        try {
+          const response = await fetch("/standing-orders/new", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            window.location.href = `/standing-orders/${result.id}`;
+          } else {
+            alert("Error: " + result.message);
+          }
+        } catch (error) {
+          console.error("Error creating standing order:", error);
+          alert("Error creating standing order: " + error.message);
+        }
       });
-    } else {
-      console.error("Product input element not found for search setup");
+  });
+
+  function setupCustomerSearch() {
+    const accountInput = document.getElementById("customerAccount");
+    const nameInput = document.getElementById("customerName");
+
+    if (accountInput) {
+      setupSearchField(accountInput, "customer", "account");
+    }
+
+    if (nameInput) {
+      setupSearchField(nameInput, "customer", "name");
     }
   }
 
-  async function searchProducts(searchValue, inputElement) {
-    console.log(`Searching products for: "${searchValue}"`);
+  function setupSearchField(input, type, field) {
+    input.addEventListener("input", function () {
+      clearTimeout(searchTimeout);
+      const searchValue = this.value.trim();
 
-    try {
-      const url = `/api/products/search?q=${encodeURIComponent(searchValue)}`;
-      console.log(`Fetching: ${url}`);
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (searchValue.length < 2) {
+        hideDropdown(input);
+        if (type === "customer") {
+          clearOtherCustomerFields(field);
+        }
+        return;
       }
 
-      const products = await response.json();
-      console.log(`Found ${products.length} products:`, products);
+      searchTimeout = setTimeout(() => {
+        if (type === "customer") {
+          searchCustomers(searchValue, input, field);
+        }
+      }, 300);
+    });
 
+    input.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (!document.querySelector(".dropdown-results:hover")) {
+          hideDropdown(input);
+        }
+      }, 200);
+    });
+  }
+
+  async function searchCustomers(searchValue, inputElement, fieldType) {
+    try {
+      const response = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+      );
+      const customers = await response.json();
+      showCustomerDropdown(customers, inputElement, fieldType);
+    } catch (error) {
+      console.error("Error searching customers:", error);
+      hideDropdown(inputElement);
+    }
+  }
+
+  function showCustomerDropdown(customers, inputElement, fieldType) {
+    hideDropdown(inputElement);
+
+    if (customers.length === 0) {
+      inputElement.style.borderColor = "#dc3545";
+      return;
+    }
+
+    const dropdown = createDropdown();
+
+    customers.forEach((customer) => {
+      const item = createDropdownItem(
+        `${customer.account_number} - ${customer.name}`,
+        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
+      );
+
+      item.addEventListener("click", function () {
+        selectCustomer(customer);
+        hideAllDropdowns();
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+    inputElement.style.borderColor = "#28a745";
+  }
+
+  function selectCustomer(customer) {
+    customerId = customer.id;
+
+    const accountInput = document.getElementById("customerAccount");
+    const nameInput = document.getElementById("customerName");
+    const addressInput = document.getElementById("customerAddress");
+
+    if (accountInput) {
+      accountInput.value = customer.account_number;
+      accountInput.style.borderColor = "#28a745";
+    }
+
+    if (nameInput) {
+      nameInput.value = customer.name;
+      nameInput.style.borderColor = "#28a745";
+    }
+
+    if (addressInput && customer.address) {
+      addressInput.value = customer.address;
+    }
+
+    document.getElementById("customerId").value = customer.id;
+    showCustomerInfo(customer);
+  }
+
+  function clearOtherCustomerFields(fieldType) {
+    hideCustomerInfo();
+    customerId = null;
+
+    if (fieldType === "account") {
+      const nameInput = document.getElementById("customerName");
+      if (nameInput) {
+        nameInput.value = "";
+        nameInput.style.borderColor = "";
+      }
+    } else {
+      const accountInput = document.getElementById("customerAccount");
+      if (accountInput) {
+        accountInput.value = "";
+        accountInput.style.borderColor = "";
+      }
+    }
+  }
+
+  function showCustomerInfo(customer) {
+    const customerInfo = document.getElementById("customerInfo");
+    if (customerInfo) {
+      customerInfo.innerHTML = `
+      <strong>Selected:</strong> ${customer.account_number} - ${
+        customer.name
+      }<br>
+      ${customer.contact_name ? `Contact: ${customer.contact_name}<br>` : ""}
+      ${customer.phone ? `Phone: ${customer.phone}<br>` : ""}
+      ${customer.address ? `Address: ${customer.address}` : ""}
+    `;
+      customerInfo.style.display = "block";
+    }
+  }
+
+  function hideCustomerInfo() {
+    const customerInfo = document.getElementById("customerInfo");
+    if (customerInfo) {
+      customerInfo.style.display = "none";
+    }
+  }
+
+  function setupProductSearch(input) {
+    if (!input) return;
+
+    input.addEventListener("input", function () {
+      clearTimeout(searchTimeout);
+      const searchValue = this.value.trim();
+
+      if (searchValue.length < 2) {
+        hideDropdown(input);
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        searchProducts(searchValue, input);
+      }, 300);
+    });
+
+    input.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (!document.querySelector(".dropdown-results:hover")) {
+          hideDropdown(input);
+        }
+      }, 200);
+    });
+  }
+
+  async function searchProducts(searchValue, inputElement) {
+    try {
+      const response = await fetch(
+        `/api/products/search?q=${encodeURIComponent(searchValue)}`
+      );
+      const products = await response.json();
       showProductDropdown(products, inputElement);
     } catch (error) {
       console.error("Error searching products:", error);
@@ -310,122 +538,22 @@
     }
   }
 
-  function setupCustomerSearch() {
-    const accountInput = document.getElementById("customerAccount");
-    const nameInput = document.getElementById("customerName");
-
-    if (accountInput) {
-      setupSearchField(accountInput, "customer", "account");
-    }
-
-    if (nameInput) {
-      setupSearchField(nameInput, "customer", "name");
-    }
-  }
-
-  function setupSearchField(input, type, field) {
-    console.log(
-      `Setting up search for: ${input.id}, type: ${type}, field: ${field}`
-    );
-
-    input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      console.log(`Input event fired for ${this.id}, value: "${searchValue}"`);
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        if (type === "customer") {
-          clearOtherCustomerFields(field);
-        }
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        console.log(`Starting search for: "${searchValue}"`);
-        if (type === "customer") {
-          searchCustomers(searchValue, input, field);
-        }
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchCustomers(searchValue, inputElement, fieldType) {
-    console.log(`Searching customers for: "${searchValue}"`);
-
-    try {
-      const url = `/api/customers/search?q=${encodeURIComponent(searchValue)}`;
-      console.log(`Fetching: ${url}`);
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const customers = await response.json();
-      console.log(`Found ${customers.length} customers:`, customers);
-
-      showCustomerDropdown(customers, inputElement, fieldType);
-    } catch (error) {
-      console.error("Error searching customers:", error);
-      hideDropdown(inputElement);
-    }
-  }
-
-  function showCustomerDropdown(customers, inputElement, fieldType) {
-    hideDropdown(inputElement);
-
-    if (customers.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = createDropdown();
-
-    customers.forEach((customer) => {
-      const item = createDropdownItem(
-        `${customer.account_number} - ${customer.name}`,
-        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
-      );
-
-      item.addEventListener("click", function () {
-        selectCustomer(customer);
-        hideAllDropdowns();
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
-  }
-
   function createDropdown() {
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
     dropdown.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: var(--dark-card);
-        border: 2px solid var(--border-color);
-        border-radius: 12px;
-        max-height: 200px;
-        overflow-y: auto;
-        z-index: 1000;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    `;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--dark-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  `;
     return dropdown;
   }
 
@@ -433,21 +561,21 @@
     const item = document.createElement("div");
     item.className = "dropdown-item-custom";
     item.style.cssText = `
-        padding: 12px 16px;
-        cursor: pointer;
-        border-bottom: 1px solid var(--border-color);
-        transition: background-color 0.2s;
-        color: var(--text-light);
-    `;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+    color: var(--text-light);
+  `;
 
     item.innerHTML = `
-        <div style="font-weight: 600;">${title}</div>
-        ${
-          subtitle
-            ? `<small style="color: var(--text-muted);">${subtitle}</small>`
-            : ""
-        }
-    `;
+    <div style="font-weight: 600;">${title}</div>
+    ${
+      subtitle
+        ? `<small style="color: var(--text-muted);">${subtitle}</small>`
+        : ""
+    }
+  `;
 
     item.addEventListener("mouseenter", function () {
       this.style.backgroundColor = "var(--primary-blue)";
@@ -458,86 +586,6 @@
     });
 
     return item;
-  }
-
-  function selectCustomer(customer) {
-    const accountInput = document.getElementById("customerAccount");
-    const nameInput = document.getElementById("customerName");
-    const addressInput = document.getElementById("customerAddress");
-    const customerIdInput = document.getElementById("customerId");
-
-    if (accountInput) {
-      accountInput.value = customer.account_number;
-      accountInput.style.borderColor = "#28a745";
-    }
-
-    if (nameInput) {
-      nameInput.value = customer.name;
-      nameInput.style.borderColor = "#28a745";
-    }
-
-    if (addressInput && customer.address) {
-      addressInput.value = customer.address;
-    }
-
-    if (customerIdInput) {
-      customerIdInput.value = customer.id;
-    }
-
-    updateCustomerInfo(customer);
-  }
-
-  function clearOtherCustomerFields(fieldType) {
-    if (fieldType === "account") {
-      const nameInput = document.getElementById("customerName");
-      if (nameInput) {
-        nameInput.value = "";
-        nameInput.style.borderColor = "";
-      }
-    } else {
-      const accountInput = document.getElementById("customerAccount");
-      if (accountInput) {
-        accountInput.value = "";
-        accountInput.style.borderColor = "";
-      }
-    }
-
-    // Clear address and customer ID when searching
-    const addressInput = document.getElementById("customerAddress");
-    const customerIdInput = document.getElementById("customerId");
-
-    if (addressInput) {
-      addressInput.value = "";
-    }
-
-    if (customerIdInput) {
-      customerIdInput.value = "";
-    }
-
-    hideCustomerInfo();
-  }
-
-  function updateCustomerInfo(customer) {
-    const customerInfo = document.getElementById("customerInfo");
-    const customerDetails = document.getElementById("customerDetails");
-
-    if (customerInfo && customerDetails) {
-      customerDetails.innerHTML = `
-        Account: ${customer.account_number}<br>
-        Name: ${customer.name}<br>
-        ${customer.contact_name ? `Contact: ${customer.contact_name}<br>` : ""}
-        ${customer.phone ? `Phone: ${customer.phone}<br>` : ""}
-        ${customer.address ? `Address: ${customer.address}` : ""}
-      `;
-      customerInfo.style.display = "block";
-    }
-  }
-
-  function hideCustomerInfo() {
-    const customerInfo = document.getElementById("customerInfo");
-    if (customerInfo) {
-      customerInfo.style.display = "none";
-    }
   }
 
   function hideDropdown(inputElement) {
@@ -554,29 +602,11 @@
     });
   }
 
-  // Toggle delivery day buttons
-  document
-    .querySelectorAll('input[name="deliveryDays"]')
-    .forEach((checkbox) => {
-      checkbox.addEventListener("change", function () {
-        const label = this.parentElement;
-        if (this.checked) {
-          label.classList.remove("btn-outline-primary");
-          label.classList.add("btn-primary");
-        } else {
-          label.classList.remove("btn-primary");
-          label.classList.add("btn-outline-primary");
-        }
-      });
-    });
-
-  // Add product row
-  function addProductRow() {
+  window.addProductRow = function () {
     const template = document.getElementById("productRowTemplate");
     const clone = template.content.cloneNode(true);
     document.getElementById("productsContainer").appendChild(clone);
 
-    // Set up product search for the newly added row
     const newProductRows = document.querySelectorAll(".product-row");
     const latestRow = newProductRows[newProductRows.length - 1];
     const newProductCodeInput = latestRow.querySelector(".product-code");
@@ -584,151 +614,11 @@
     if (newProductCodeInput) {
       setupProductSearch(newProductCodeInput);
     }
-  }
+  };
 
-  // Remove product row
-  function removeProductRow(button) {
+  window.removeProductRow = function (button) {
     button.closest(".product-row").remove();
-  }
-
-  // Initialize with one product row
-  console.log("Initializing with first product row...");
-  addProductRow();
-
-  // Form submission
-  document
-    .getElementById("standingOrderForm")
-    .addEventListener("submit", async function (e) {
-      e.preventDefault();
-
-      console.log("Form submission started...");
-
-      // Validate customer selection
-      const customerId = document.getElementById("customerId").value;
-      console.log("Customer ID:", customerId);
-
-      if (!customerId) {
-        alert("Please select a customer from the search dropdown");
-        return;
-      }
-
-      // Validate at least one delivery day is selected (and no weekends)
-      const deliveryDays = Array.from(
-        document.querySelectorAll('input[name="deliveryDays"]:checked')
-      ).map((cb) => cb.value);
-
-      console.log("Delivery days:", deliveryDays);
-
-      if (deliveryDays.length === 0) {
-        alert("Please select at least one delivery day");
-        return;
-      }
-
-      // Check for weekend days (5=Saturday, 6=Sunday)
-      const weekendDays = deliveryDays.filter((day) => parseInt(day) >= 5);
-      if (weekendDays.length > 0) {
-        alert(
-          "Weekend deliveries are not supported. Please select Monday through Friday only."
-        );
-        return;
-      }
-
-      // Collect product data
-      // Collect product data
-      const products = [];
-      document.querySelectorAll(".product-row").forEach((row) => {
-        const codeInput = row.querySelector(".product-code");
-        const nameInput = row.querySelector(".product-name");
-        const quantityInput = row.querySelector(".product-quantity");
-
-        if (codeInput && nameInput && quantityInput) {
-          const product = {
-            product_code: codeInput.value,
-            product_name: nameInput.value,
-            quantity: parseInt(quantityInput.value),
-            unit_type: "units", // Default value
-            notes: "", // Default empty
-          };
-
-          if (
-            product.product_code &&
-            product.product_name &&
-            product.quantity
-          ) {
-            products.push(product);
-          }
-        }
-      });
-
-      if (products.length === 0) {
-        alert("Please add at least one product");
-        return;
-      }
-
-      // Prepare data
-      const customerName = document.getElementById("customerName").value;
-      console.log("Customer name:", customerName);
-
-      const data = {
-        customer_id: customerId,
-        customer_name: customerName,
-        delivery_days: deliveryDays,
-        end_date: document.getElementById("endDate").value,
-        special_instructions: document.getElementById("specialInstructions")
-          .value,
-
-        items: products,
-      };
-
-      console.log("Data to submit:", data);
-
-      try {
-        console.log("Making API call...");
-        const response = await fetch("/standing-orders/new", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-
-        console.log("Response received:", response);
-
-        const result = await response.json();
-        console.log("Result:", result);
-
-        if (result.success) {
-          console.log("Success! Redirecting...");
-          window.location.href = `/standing-orders/${result.id}`;
-        } else {
-          alert("Error: " + result.message);
-        }
-      } catch (error) {
-        console.error("Error creating standing order:", error);
-        alert("Error creating standing order: " + error.message);
-      }
-    });
+  };
 </script>
 
-<style>
-  .search-container {
-    position: relative;
-  }
-
-  .dropdown-results {
-    border: 2px solid var(--border-color, #ddd) !important;
-    background: var(--dark-card, white) !important;
-  }
-
-  .dropdown-results::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .dropdown-results::-webkit-scrollbar-track {
-    background: var(--dark-bg, #f1f1f1);
-  }
-
-  .dropdown-results::-webkit-scrollbar-thumb {
-    background: var(--primary-blue, #007bff);
-    border-radius: 3px;
-  }
-</style>
 {% endblock %}

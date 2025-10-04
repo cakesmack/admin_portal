@@ -107,13 +107,20 @@
 </div>
 
 {% block scripts %}
-<script>
+<script type="module">
+  import {
+    extractProductCode,
+    formatProductWithCode,
+    debounce,
+    generateUniqueId,
+  } from "/static/js/script.js";
+
   let searchTimeout;
   let additionalProducts = [];
 
   document.addEventListener("DOMContentLoaded", function () {
-    // Setup search for customer fields
-    setupCustomerSearch();
+    // Setup search for customer fields using API
+    setupCustomerSearchAPI();
 
     // Setup search for main product field
     setupProductSearch(document.querySelector('input[name="product_code"]'));
@@ -126,15 +133,55 @@
     });
 
     // Update hidden field before form submission
-    document
-      .getElementById("returnsForm")
-      .addEventListener("submit", function () {
+    const form = document.getElementById("returnsForm");
+    if (form) {
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        // Update additional products
+        updateAdditionalProducts();
         document.getElementById("additional_products").value =
           JSON.stringify(additionalProducts);
+
+        // Get form data
+        const formData = new FormData(form);
+
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: formData,
+          });
+
+          const responseText = await response.text();
+
+          if (response.ok) {
+            try {
+              const data = JSON.parse(responseText);
+              if (data.success && data.form_id) {
+                window.open(`/print-form/${data.form_id}`, "_blank");
+                window.location.href = "/dashboard";
+              }
+            } catch (e) {
+              // Backward compatibility for script response
+              const tempDiv = document.createElement("div");
+              tempDiv.innerHTML = responseText;
+              const scripts = tempDiv.getElementsByTagName("script");
+              for (let script of scripts) {
+                eval(script.innerHTML);
+              }
+            }
+          } else {
+            alert("Error submitting form. Please try again.");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error submitting form. Please try again.");
+        }
       });
+    }
   });
 
-  function setupCustomerSearch() {
+  function setupCustomerSearchAPI() {
     const accountInput = document.querySelector(
       'input[name="customer_account"]'
     );
@@ -192,7 +239,6 @@
         `/api/customers/search?q=${encodeURIComponent(searchValue)}`
       );
       const customers = await response.json();
-
       showCustomerDropdown(customers, inputElement, fieldType);
     } catch (error) {
       console.error("Error searching customers:", error);
@@ -270,18 +316,18 @@
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
     dropdown.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: var(--dark-card);
-        border: 2px solid var(--border-color);
-        border-radius: 12px;
-        max-height: 200px;
-        overflow-y: auto;
-        z-index: 1000;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    `;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--dark-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  `;
     return dropdown;
   }
 
@@ -289,21 +335,21 @@
     const item = document.createElement("div");
     item.className = "dropdown-item-custom";
     item.style.cssText = `
-        padding: 12px 16px;
-        cursor: pointer;
-        border-bottom: 1px solid var(--border-color);
-        transition: background-color 0.2s;
-        color: var(--text-light);
-    `;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+    color: var(--text-light);
+  `;
 
     item.innerHTML = `
-        <div style="font-weight: 600;">${title}</div>
-        ${
-          subtitle
-            ? `<small style="color: var(--text-muted);">${subtitle}</small>`
-            : ""
-        }
-    `;
+    <div style="font-weight: 600;">${title}</div>
+    ${
+      subtitle
+        ? `<small style="color: var(--text-muted);">${subtitle}</small>`
+        : ""
+    }
+  `;
 
     item.addEventListener("mouseenter", function () {
       this.style.backgroundColor = "var(--primary-blue)";
@@ -344,7 +390,6 @@
     const isMainProduct = inputElement.name === "product_code";
 
     if (isMainProduct) {
-      // Main product fields
       inputElement.value = product.code;
       inputElement.style.borderColor = "#28a745";
 
@@ -353,7 +398,6 @@
         nameInput.value = product.name;
       }
     } else {
-      // Additional product
       const productRow = inputElement.closest(".additional-product-row");
       const codeInput = productRow.querySelector(".additional-product-code");
       const nameInput = productRow.querySelector(".additional-product-name");
@@ -403,7 +447,7 @@
 
   let productCounter = 0;
 
-  function addProduct() {
+  window.addProduct = function () {
     const container = document.getElementById("additional-products-container");
     const productId = `additional-product-${productCounter}`;
 
@@ -412,29 +456,29 @@
     newRow.style.backgroundColor = "rgba(255, 255, 255, 0.02)";
 
     newRow.innerHTML = `
-        <div class="col-md-4">
-            <div class="search-container position-relative">
-                <label class="form-label">Product Code</label>
-                <input class="form-control additional-product-code" 
-                       placeholder="Start typing product code..." type="text">
-            </div>
-        </div>
-        <div class="col-md-5">
-            <label class="form-label">Product Name</label>
-            <input class="form-control additional-product-name" 
-                   placeholder="Product description" type="text">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label">Quantity</label>
-            <input class="form-control additional-product-quantity" 
-                   type="number" min="1" placeholder="Qty">
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-            <button type="button" class="btn btn-danger btn-sm" onclick="removeProduct(this)">
-                <i class="bi bi-trash"></i>
-            </button>
-        </div>
-    `;
+    <div class="col-md-4">
+      <div class="search-container position-relative">
+        <label class="form-label">Product Code</label>
+        <input class="form-control additional-product-code" 
+               placeholder="Start typing product code..." type="text">
+      </div>
+    </div>
+    <div class="col-md-5">
+      <label class="form-label">Product Name</label>
+      <input class="form-control additional-product-name" 
+             placeholder="Product description" type="text">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Quantity</label>
+      <input class="form-control additional-product-quantity" 
+             type="number" min="1" placeholder="Qty">
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+      <button type="button" class="btn btn-danger btn-sm" onclick="removeProduct(this)">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  `;
 
     container.appendChild(newRow);
 
@@ -443,12 +487,12 @@
     setupProductSearch(newCodeInput);
 
     productCounter++;
-  }
+  };
 
-  function removeProduct(button) {
+  window.removeProduct = function (button) {
     button.closest(".additional-product-row").remove();
     updateAdditionalProducts();
-  }
+  };
 
   function updateAdditionalProducts() {
     additionalProducts = [];
@@ -467,67 +511,5 @@
       }
     });
   }
-
-  // Update additional products before form submission
-  document.addEventListener("DOMContentLoaded", function () {
-    const form = document.getElementById("returnsForm");
-
-    if (form) {
-      // Remove any existing submit listeners and add the AJAX one
-      form.addEventListener("submit", async function (e) {
-        e.preventDefault(); // Prevent normal form submission
-
-        // Update additional products
-        updateAdditionalProducts();
-        document.getElementById("additional_products").value =
-          JSON.stringify(additionalProducts);
-
-        // Get form data
-        const formData = new FormData(form);
-
-        try {
-          // Submit via AJAX
-          const response = await fetch(form.action, {
-            method: "POST",
-            body: formData,
-          });
-
-          const responseText = await response.text();
-
-          // Check if response contains form ID (successful submission)
-          // The Flask route will return JSON with the form_id
-          if (response.ok) {
-            // Parse the response to get form_id
-            // The backend should return JSON like: {"success": true, "form_id": 123}
-            try {
-              const data = JSON.parse(responseText);
-              if (data.success && data.form_id) {
-                // Open print window
-                window.open(`/print-form/${data.form_id}`, "_blank");
-                // Redirect to dashboard
-                window.location.href = "/dashboard";
-              }
-            } catch (e) {
-              // If response is not JSON, try to execute it as HTML/JavaScript
-              // (for backward compatibility if the route returns the script directly)
-              const tempDiv = document.createElement("div");
-              tempDiv.innerHTML = responseText;
-              const scripts = tempDiv.getElementsByTagName("script");
-              for (let script of scripts) {
-                eval(script.innerHTML);
-              }
-            }
-          } else {
-            // Show error
-            alert("Error submitting form. Please try again.");
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Error submitting form. Please try again.");
-        }
-      });
-    }
-  });
 </script>
-
 {% endblock %} {% endblock %}

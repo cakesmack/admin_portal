@@ -1590,5 +1590,10 @@
     </script>
 
     {% block scripts %}{% endblock %}
+    <!-- Add in the <head> section or before closing </body> -->
+    <script
+      type="module"
+      src="{{ url_for('static', filename='js/script.js') }}"
+    ></script>
   </body>
 </html>
