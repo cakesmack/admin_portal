@@ -1222,12 +1222,10 @@
 
       async function showCustomerDetails(customerId, clickedElement = null) {
         try {
-          // Remove active class from all items
           document.querySelectorAll(".customer-item").forEach((item) => {
             item.classList.remove("active");
           });
 
-          // Add active class to clicked item
           if (clickedElement) {
             clickedElement.classList.add("active");
           }
@@ -1235,114 +1233,106 @@
           const response = await fetch(`/api/customer/${customerId}`);
           const customer = await response.json();
 
+          // Normalize customer to have addresses array
+          if (!customer.addresses || customer.addresses.length === 0) {
+            customer.addresses = [
+              {
+                label: "Primary",
+                phone: "",
+                street: customer.address || "",
+                city: "",
+                zip: "",
+              },
+            ];
+          }
+
+          const addressesHtml = customer.addresses
+            .map(
+              (addr, index) => `
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <h6 class="mb-1"><i class="bi bi-geo-alt"></i> ${addr.label}</h6>
+            ${
+              customer.addresses.length > 1
+                ? `<span class="badge bg-primary">Location ${index + 1}</span>`
+                : ""
+            }
+          </div>
+          ${
+            addr.phone
+              ? `<p class="mb-1"><i class="bi bi-telephone"></i> ${addr.phone}</p>`
+              : ""
+          }
+          <p class="mb-0 text-muted">
+            ${addr.street ? addr.street + "<br>" : ""}
+            ${addr.city ? addr.city + ", " : ""}${addr.zip || ""}
+          </p>
+        </div>
+      </div>
+    `
+            )
+            .join("");
+
           const detailsDiv = document.getElementById("customerDetails");
           detailsDiv.innerHTML = `
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-building"></i> ${customer.name}</h5>
-          <button class="btn btn-outline-primary btn-sm" onclick="showEditCustomerForm(${
+          <h5 class="mb-0">${customer.name}</h5>
+          <button class="btn btn-sm btn-primary" onclick="showEditCustomerForm(${
             customer.id
           })">
             <i class="bi bi-pencil"></i> Edit
           </button>
         </div>
         <div class="card-body">
-          <div class="row">
+          <div class="row mb-3">
             <div class="col-md-6">
-              <div class="mb-3">
-                <strong><i class="bi bi-hash"></i> Account Number:</strong><br>
-                <span class="text-muted">${customer.account_number}</span>
-              </div>
-              
-              <div class="mb-3">
-                <strong><i class="bi bi-building-fill"></i> Company Name:</strong><br>
-                <span class="text-muted">${customer.name}</span>
-              </div>
-              
-              ${
-                customer.contact_name
-                  ? `
-              <div class="mb-3">
-                <strong><i class="bi bi-person-fill"></i> Contact Person:</strong><br>
-                <span class="text-muted">${customer.contact_name}</span>
-              </div>
-              `
-                  : '<div class="mb-3"><span class="text-warning">No contact person on file</span></div>'
-              }
+              <p><strong>Account Number:</strong><br>${
+                customer.account_number
+              }</p>
             </div>
-            
             <div class="col-md-6">
-              ${
-                customer.phone
-                  ? `
-              <div class="mb-3">
-                <strong><i class="bi bi-telephone-fill"></i> Phone:</strong><br>
-                <a href="tel:${customer.phone}" class="text-decoration-none">${customer.phone}</a>
-              </div>
-              `
-                  : '<div class="mb-3"><span class="text-warning">No phone number on file</span></div>'
-              }
-              
-              ${
-                customer.email
-                  ? `
-              <div class="mb-3">
-                <strong><i class="bi bi-envelope-fill"></i> Email:</strong><br>
-                <a href="mailto:${customer.email}" class="text-decoration-none">${customer.email}</a>
-              </div>
-              `
-                  : ""
-              }
-              
-              ${
-                customer.address
-                  ? `
-              <div class="mb-3">
-                <strong><i class="bi bi-geo-alt-fill"></i> Address:</strong><br>
-                <span class="text-muted">${customer.address}</span>
-              </div>
-              `
-                  : ""
-              }
+              <p><strong>Main Phone:</strong><br>${
+                customer.phone || "Not specified"
+              }</p>
             </div>
           </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <p><strong>Contact Person:</strong><br>${
+                customer.contact_name || "Not specified"
+              }</p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>Email:</strong><br>${
+                customer.email || "Not specified"
+              }</p>
+            </div>
+          </div>
+          
+          <hr>
+          <h6 class="mb-3">Delivery Locations (${
+            customer.addresses.length
+          })</h6>
+          ${addressesHtml}
           
           ${
             customer.notes
               ? `
           <hr>
-          <div class="mb-3">
-            <strong><i class="bi bi-chat-square-text-fill"></i> Notes:</strong><br>
-            <span class="text-muted">${customer.notes}</span>
+          <div class="alert alert-info mb-0">
+            <strong>Notes:</strong><br>${customer.notes}
           </div>
           `
               : ""
           }
-          
-          <div class="d-flex gap-2 mt-3">
-            <button class="btn btn-primary btn-sm" onclick="copyToClipboard('${
-              customer.account_number
-            }')">
-              <i class="bi bi-clipboard"></i> Copy Account #
-            </button>
-            <button class="btn btn-success btn-sm" onclick="copyToClipboard('${
-              customer.phone || ""
-            }')">
-              <i class="bi bi-clipboard"></i> Copy Phone
-            </button>
-          </div>
         </div>
       </div>
     `;
         } catch (error) {
-          console.error("Error loading customer details:", error);
-          const detailsDiv = document.getElementById("customerDetails");
-          detailsDiv.innerHTML = `
-      <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle"></i>
-        Error loading customer details. Please try again.
-      </div>
-    `;
+          console.error("Error loading customer:", error);
+          alert("Error loading customer details");
         }
       }
 
@@ -1351,44 +1341,91 @@
         detailsDiv.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Add New Customer</h5>
+        <h5 class="mb-0"><i class="bi bi-plus"></i> Add New Customer</h5>
       </div>
       <div class="card-body">
-        <form id="addCustomerForm">
+        <form id="newCustomerForm">
+          <h6 class="mb-3">Basic Information</h6>
           <div class="row">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label">Account Number *</label>
-                <input type="text" class="form-control" id="newAccountNumber" required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Company Name *</label>
-                <input type="text" class="form-control" id="newCompanyName" required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Contact Person</label>
-                <input type="text" class="form-control" id="newContactName">
-              </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Account Number *</label>
+              <input type="text" class="form-control" id="newAccountNumber" required>
             </div>
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label">Phone Number</label>
-                <input type="tel" class="form-control" id="newPhone">
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input type="email" class="form-control" id="newEmail">
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Address</label>
-                <textarea class="form-control" id="newAddress" rows="3"></textarea>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Company Name *</label>
+              <input type="text" class="form-control" id="newCompanyName" required>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Contact Person</label>
+              <input type="text" class="form-control" id="newContactName">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Main Phone Number</label>
+              <input type="text" class="form-control" id="newPhone">
+              <small class="text-muted">Primary contact number for this account</small>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-12 mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" id="newEmail">
+            </div>
+          </div>
+          
+          <hr>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Delivery Locations</h6>
+            <button type="button" class="btn btn-sm btn-success" onclick="addAddressField()">
+              <i class="bi bi-plus"></i> Add Location
+            </button>
+          </div>
+          
+          <div id="addressesContainer">
+            <div class="address-block card mb-3" data-address-index="0">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0">Location 1</h6>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Location Name *</label>
+                  <input type="text" class="form-control address-label" placeholder="e.g., Morangie House, Mansfield Castle" required>
+                  <small class="text-muted">This name will appear on callsheets and forms</small>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Phone Number</label>
+                  <input type="text" class="form-control address-phone" placeholder="Phone for this location">
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Street Address</label>
+                  <input type="text" class="form-control address-street" placeholder="123 Main Street">
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">City/Town</label>
+                    <input type="text" class="form-control address-city" placeholder="Inverness">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Postcode</label>
+                    <input type="text" class="form-control address-zip" placeholder="IV1 1XX">
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+          
           <div class="mb-3">
             <label class="form-label">Notes</label>
-            <textarea class="form-control" id="newNotes" rows="2"></textarea>
+            <textarea class="form-control" id="newNotes" rows="3"></textarea>
           </div>
+
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-success" onclick="saveNewCustomer()">
               <i class="bi bi-check"></i> Save Customer
@@ -1403,6 +1440,63 @@
   `;
       }
 
+      async function saveEditedCustomer() {
+        const customerId = document.getElementById("editCustomerId").value;
+
+        // Collect addresses
+        const addresses = [];
+        document.querySelectorAll(".address-block").forEach((block) => {
+          const label = block.querySelector(".address-label").value.trim();
+          if (!label) {
+            alert("Please provide a location name for all addresses");
+            throw new Error("Missing address label");
+          }
+
+          addresses.push({
+            label: label,
+            street: block.querySelector(".address-street").value,
+            city: block.querySelector(".address-city").value,
+            state: block.querySelector(".address-state").value,
+            zip: block.querySelector(".address-zip").value,
+            country: block.querySelector(".address-country").value,
+          });
+        });
+
+        if (addresses.length === 0) {
+          alert("Please add at least one address");
+          return;
+        }
+
+        const data = {
+          account_number: document.getElementById("editAccountNumber").value,
+          name: document.getElementById("editCompanyName").value,
+          contact_name: document.getElementById("editContactName").value,
+          phone: document.getElementById("editPhone").value,
+          email: document.getElementById("editEmail").value,
+          addresses: addresses,
+          notes: document.getElementById("editNotes").value,
+        };
+
+        try {
+          const response = await fetch(`/api/customer/${customerId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            alert("Customer updated successfully");
+            showCustomerDetails(customerId);
+            loadCustomerList();
+          } else {
+            alert("Error: " + result.message);
+          }
+        } catch (error) {
+          alert("Error updating customer: " + error.message);
+        }
+      }
+
       async function showEditCustomerForm(customerId) {
         try {
           const response = await fetch(`/api/customer/${customerId}`);
@@ -1411,6 +1505,19 @@
           }
 
           const customer = await response.json();
+
+          // Normalize customer to have addresses array
+          if (!customer.addresses || customer.addresses.length === 0) {
+            customer.addresses = [
+              {
+                label: "Primary",
+                phone: "",
+                street: customer.address || "",
+                city: "",
+                zip: "",
+              },
+            ];
+          }
 
           const detailsDiv = document.getElementById("customerDetails");
           detailsDiv.innerHTML = `
@@ -1421,57 +1528,128 @@
         <div class="card-body">
           <form id="editCustomerForm">
             <input type="hidden" id="editCustomerId" value="${customer.id}">
+            
+            <h6 class="mb-3">Basic Information</h6>
             <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Account Number *</label>
-                  <input type="text" class="form-control" id="editAccountNumber" value="${
-                    customer.account_number
-                  }" required>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Company Name *</label>
-                  <input type="text" class="form-control" id="editCompanyName" value="${
-                    customer.name
-                  }" required>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Contact Person</label>
-                  <input type="text" class="form-control" id="editContactName" value="${
-                    customer.contact_name || ""
-                  }">
-                </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Account Number *</label>
+                <input type="text" class="form-control" id="editAccountNumber" value="${
+                  customer.account_number
+                }" required>
               </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="form-label">Phone Number</label>
-                  <input type="tel" class="form-control" id="editPhone" value="${
-                    customer.phone || ""
-                  }">
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Email</label>
-                  <input type="email" class="form-control" id="editEmail" value="${
-                    customer.email || ""
-                  }">
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Address</label>
-                  <textarea class="form-control" id="editAddress" rows="3">${
-                    customer.address || ""
-                  }</textarea>
-                </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Company Name *</label>
+                <input type="text" class="form-control" id="editCompanyName" value="${
+                  customer.name
+                }" required>
               </div>
             </div>
+            
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Contact Person</label>
+                <input type="text" class="form-control" id="editContactName" value="${
+                  customer.contact_name || ""
+                }">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Main Phone Number</label>
+                <input type="text" class="form-control" id="editPhone" value="${
+                  customer.phone || ""
+                }">
+                <small class="text-muted">Primary contact number for this account</small>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" id="editEmail" value="${
+                  customer.email || ""
+                }">
+              </div>
+            </div>
+            
+            <hr>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="mb-0">Delivery Locations</h6>
+              <button type="button" class="btn btn-sm btn-success" onclick="addAddressField()">
+                <i class="bi bi-plus"></i> Add Location
+              </button>
+            </div>
+            
+            <div id="addressesContainer">
+              ${customer.addresses
+                .map(
+                  (addr, index) => `
+                <div class="address-block card mb-3" data-address-index="${index}">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Location ${index + 1}</h6>
+                      ${
+                        customer.addresses.length > 1
+                          ? `
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeAddressField(this)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      `
+                          : ""
+                      }
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label">Location Name *</label>
+                      <input type="text" class="form-control address-label" value="${
+                        addr.label
+                      }" placeholder="e.g., Morangie House, Mansfield Castle" required>
+                      <small class="text-muted">This name will appear on callsheets and forms</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label">Phone Number</label>
+                      <input type="text" class="form-control address-phone" value="${
+                        addr.phone || ""
+                      }" placeholder="Phone for this location">
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label">Street Address</label>
+                      <input type="text" class="form-control address-street" value="${
+                        addr.street || ""
+                      }" placeholder="123 Main Street">
+                    </div>
+                    
+                    <div class="row">
+                      <div class="col-md-6 mb-3">
+                        <label class="form-label">City/Town</label>
+                        <input type="text" class="form-control address-city" value="${
+                          addr.city || ""
+                        }" placeholder="Inverness">
+                      </div>
+                      <div class="col-md-6 mb-3">
+                        <label class="form-label">Postcode</label>
+                        <input type="text" class="form-control address-zip" value="${
+                          addr.zip || ""
+                        }" placeholder="IV1 1XX">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+            
             <div class="mb-3">
               <label class="form-label">Notes</label>
-              <textarea class="form-control" id="editNotes" rows="2">${
+              <textarea class="form-control" id="editNotes" rows="3">${
                 customer.notes || ""
               }</textarea>
             </div>
+
             <div class="d-flex gap-2">
-              <button type="button" class="btn btn-success" onclick="saveEditCustomer()">
-                <i class="bi bi-check"></i> Update Customer
+              <button type="button" class="btn btn-success" onclick="saveEditedCustomer()">
+                <i class="bi bi-check"></i> Save Changes
               </button>
               <button type="button" class="btn btn-secondary" onclick="showCustomerDetails(${
                 customer.id
@@ -1485,81 +1663,122 @@
     `;
         } catch (error) {
           console.error("Error loading customer for edit:", error);
-          alert("Error loading customer data for editing. Please try again.");
+          alert("Error loading customer data");
         }
       }
 
       async function saveNewCustomer() {
-        const customerData = {
+        // Collect addresses
+        const addresses = [];
+        document.querySelectorAll(".address-block").forEach((block) => {
+          const label = block.querySelector(".address-label").value.trim();
+          if (!label) {
+            alert("Please provide a location name for all addresses");
+            throw new Error("Missing address label");
+          }
+
+          addresses.push({
+            label: label,
+            phone: block.querySelector(".address-phone").value,
+            street: block.querySelector(".address-street").value,
+            city: block.querySelector(".address-city").value,
+            zip: block.querySelector(".address-zip").value,
+          });
+        });
+
+        if (addresses.length === 0) {
+          alert("Please add at least one location");
+          return;
+        }
+
+        const data = {
           account_number: document.getElementById("newAccountNumber").value,
           name: document.getElementById("newCompanyName").value,
           contact_name: document.getElementById("newContactName").value,
           phone: document.getElementById("newPhone").value,
           email: document.getElementById("newEmail").value,
-          address: document.getElementById("newAddress").value,
+          addresses: addresses,
           notes: document.getElementById("newNotes").value,
         };
 
+        if (!data.account_number || !data.name) {
+          alert("Please fill in account number and company name");
+          return;
+        }
+
         try {
-          const response = await fetch("/api/customer/create", {
+          const response = await fetch("/api/customers", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(customerData),
+            body: JSON.stringify(data),
           });
 
           const result = await response.json();
           if (result.success) {
-            alert("Customer created successfully!");
+            alert("Customer created successfully");
             loadCustomerList();
-            showCustomerDetails(result.customer.id);
+            showCustomerDirectory();
           } else {
             alert("Error: " + result.message);
           }
         } catch (error) {
-          alert("Error saving customer");
+          alert("Error creating customer: " + error.message);
         }
       }
 
-      async function saveEditCustomer() {
+      async function saveEditedCustomer() {
         const customerId = document.getElementById("editCustomerId").value;
-        const customerData = {
+
+        // Collect addresses
+        const addresses = [];
+        document.querySelectorAll(".address-block").forEach((block) => {
+          const label = block.querySelector(".address-label").value.trim();
+          if (!label) {
+            alert("Please provide a location name for all addresses");
+            throw new Error("Missing address label");
+          }
+
+          addresses.push({
+            label: label,
+            phone: block.querySelector(".address-phone").value,
+            street: block.querySelector(".address-street").value,
+            city: block.querySelector(".address-city").value,
+            zip: block.querySelector(".address-zip").value,
+          });
+        });
+
+        if (addresses.length === 0) {
+          alert("Please add at least one location");
+          return;
+        }
+
+        const data = {
           account_number: document.getElementById("editAccountNumber").value,
           name: document.getElementById("editCompanyName").value,
           contact_name: document.getElementById("editContactName").value,
           phone: document.getElementById("editPhone").value,
           email: document.getElementById("editEmail").value,
-          address: document.getElementById("editAddress").value,
+          addresses: addresses,
           notes: document.getElementById("editNotes").value,
         };
 
-        // Basic validation
-        if (!customerData.account_number || !customerData.name) {
-          alert("Account Number and Company Name are required");
-          return;
-        }
-
         try {
-          const response = await fetch(`/api/customer/${customerId}/update`, {
-            method: "POST",
+          const response = await fetch(`/api/customer/${customerId}`, {
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(customerData),
+            body: JSON.stringify(data),
           });
-
-          if (!response.ok) {
-            throw new Error("Failed to update customer");
-          }
 
           const result = await response.json();
           if (result.success) {
-            alert("Customer updated successfully!");
+            alert("Customer updated successfully");
+            showCustomerDetails(customerId);
             loadCustomerList();
-            showCustomerDetails(parseInt(customerId));
           } else {
             alert("Error: " + result.message);
           }
         } catch (error) {
-          console.error("Error updating customer:", error);
-          alert("Error updating customer. Please try again.");
+          alert("Error updating customer: " + error.message);
         }
       }
 
@@ -1586,6 +1805,64 @@
             }, 2000);
           });
         }
+      }
+
+      function addAddressField() {
+        const container = document.getElementById("addressesContainer");
+        const index = container.querySelectorAll(".address-block").length;
+
+        const addressHtml = `
+    <div class="address-block card mb-3" data-address-index="${index}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Location ${index + 1}</h6>
+          <button type="button" class="btn btn-sm btn-danger" onclick="removeAddressField(this)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Location Name *</label>
+          <input type="text" class="form-control address-label" placeholder="e.g., Morangie House, Mansfield Castle" required>
+          <small class="text-muted">This name will appear on callsheets and forms</small>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Phone Number</label>
+          <input type="text" class="form-control address-phone" placeholder="Phone for this location">
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Street Address</label>
+          <input type="text" class="form-control address-street" placeholder="123 Main Street">
+        </div>
+        
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">City/Town</label>
+            <input type="text" class="form-control address-city" placeholder="Inverness">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Postcode</label>
+            <input type="text" class="form-control address-zip" placeholder="IV1 1XX">
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+        container.insertAdjacentHTML("beforeend", addressHtml);
+      }
+
+      function removeAddressField(button) {
+        const addressBlock = button.closest(".address-block");
+        addressBlock.remove();
+
+        // Renumber remaining addresses
+        document.querySelectorAll(".address-block").forEach((block, index) => {
+          block.dataset.addressIndex = index;
+          block.querySelector("h6").textContent = `Location ${index + 1}`;
+        });
       }
     </script>
 

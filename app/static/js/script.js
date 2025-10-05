@@ -529,3 +529,122 @@ export function capitalizeWords(str) {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 }
+
+// Add this function to script.js for form address selection
+
+/**
+ * Sets up address selection for forms after customer is selected
+ * @param {Object} customer - Customer object from API
+ * @param {HTMLElement} container - Container element to insert address selector
+ * @param {Function} onAddressSelected - Callback when address is selected (address, addressLabel)
+ */
+export async function setupAddressSelector(
+  customer,
+  container,
+  onAddressSelected
+) {
+  // Fetch customer addresses
+  try {
+    const response = await fetch(`/api/customer/${customer.id}/addresses`);
+    const addresses = await response.json();
+
+    // Remove any existing address selector
+    const existingSelector = container.querySelector(
+      ".address-selector-container"
+    );
+    if (existingSelector) {
+      existingSelector.remove();
+    }
+
+    if (!addresses || addresses.length === 0) {
+      // No addresses
+      if (onAddressSelected) onAddressSelected(null, null);
+      return;
+    }
+
+    if (addresses.length === 1) {
+      // Single address - auto-select
+      if (onAddressSelected)
+        onAddressSelected(addresses[0], addresses[0].label);
+      return;
+    }
+
+    // Multiple addresses - show selector
+    const selectorHtml = `
+      <div class="address-selector-container mb-3">
+        <label class="form-label">Select Location *</label>
+        <select class="form-select address-location-select" required>
+          <option value="">Choose delivery location...</option>
+          ${addresses
+            .map(
+              (addr, idx) => `
+            <option value="${idx}" data-label="${addr.label}">
+              ${addr.label}${addr.phone ? " - " + addr.phone : ""}
+            </option>
+          `
+            )
+            .join("")}
+        </select>
+        <small class="text-muted">This customer has multiple delivery locations</small>
+      </div>
+    `;
+
+    container.insertAdjacentHTML("afterbegin", selectorHtml);
+
+    // Handle address selection
+    const select = container.querySelector(".address-location-select");
+    select.addEventListener("change", function () {
+      const selectedIndex = this.value;
+      if (selectedIndex !== "") {
+        const selectedAddress = addresses[selectedIndex];
+        const selectedOption = this.options[this.selectedIndex];
+        const addressLabel = selectedOption.dataset.label;
+
+        if (onAddressSelected) {
+          onAddressSelected(selectedAddress, addressLabel);
+        }
+      }
+    });
+
+    // Store addresses for later access
+    container.dataset.customerAddresses = JSON.stringify(addresses);
+  } catch (error) {
+    console.error("Error loading addresses:", error);
+  }
+}
+
+/**
+ * Gets the selected address from a container
+ * @param {HTMLElement} container - Container with address selector
+ * @returns {Object} Object with address and label
+ */
+export function getSelectedAddress(container) {
+  const select = container.querySelector(".address-location-select");
+
+  if (!select) {
+    // No selector means single address or no addresses
+    const addressesData = container.dataset.customerAddresses;
+    if (addressesData) {
+      const addresses = JSON.parse(addressesData);
+      return addresses.length === 1
+        ? {
+            address: addresses[0],
+            label: addresses[0].label,
+          }
+        : null;
+    }
+    return null;
+  }
+
+  const selectedIndex = select.value;
+  if (selectedIndex === "") return null;
+
+  const addresses = JSON.parse(container.dataset.customerAddresses);
+  const selectedAddress = addresses[selectedIndex];
+  const selectedOption = select.options[select.selectedIndex];
+
+  return {
+    address: selectedAddress,
+    label: selectedOption.dataset.label,
+  };
+}

@@ -204,27 +204,93 @@ class Customer(db.Model):
     account_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     contact_name = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
+    phone = db.Column(db.String(20))  # Main phone number for the account
     email = db.Column(db.String(100))
-    address = db.Column(db.String(200))
-    notes = db.Column(db.Text)
     
-    # NEW: Persistent callsheet notes
+    # DEPRECATED: Keep for backward compatibility, but use addresses relationship instead
+    address = db.Column(db.String(200))
+    
+    notes = db.Column(db.Text)
     callsheet_notes = db.Column(db.Text)  # Persistent across all callsheets
     
-    callsheet_entries = db.relationship('CallsheetEntry', backref='customer', lazy=True)
+    # Relationships
+    addresses = db.relationship('CustomerAddress', backref='customer', lazy=True, cascade='all, delete-orphan')
+    # callsheet_entries and stock_items backrefs are created by their respective models
     
     def to_dict(self):
+        """Convert customer to dictionary with addresses"""
+        # Get addresses or create default from legacy address field
+        addresses_list = []
+        if self.addresses:
+            addresses_list = [addr.to_dict() for addr in self.addresses]
+        elif self.address:
+            # Backward compatibility: convert old single address to new format
+            addresses_list = [{
+                'id': None,
+                'label': 'Primary',
+                'phone': '',
+                'street': self.address,
+                'city': '',
+                'zip': '',
+                'is_primary': True
+            }]
+        
         return {
             'id': self.id,
             'account_number': self.account_number,
             'name': self.name,
             'contact_name': self.contact_name,
-            'phone': self.phone,
+            'phone': self.phone,  # Main phone number
             'email': self.email,
-            'address': self.address,
+            'address': self.address,  # Legacy field
+            'addresses': addresses_list,  # New multi-address support
             'notes': self.notes,
             'callsheet_notes': self.callsheet_notes
+        }
+    
+    def get_primary_address(self):
+        """Get the primary address or the first address"""
+        if not self.addresses:
+            return None
+        
+        # Try to find primary address
+        for addr in self.addresses:
+            if addr.is_primary:
+                return addr
+        
+        # Return first address if no primary is set
+        return self.addresses[0] if self.addresses else None
+    
+    def get_address_by_label(self, label):
+        """Get address by its label"""
+        for addr in self.addresses:
+            if addr.label == label:
+                return addr
+        return None
+
+class CustomerAddress(db.Model):
+    """Model for customer addresses - allows multiple addresses per customer"""
+    __tablename__ = 'customer_address'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    label = db.Column(db.String(100), nullable=False)  # e.g., "Morangie House", "Mansfield Castle"
+    phone = db.Column(db.String(20))  # Phone number specific to this location
+    street = db.Column(db.String(200))
+    city = db.Column(db.String(100))
+    zip = db.Column(db.String(20))  # Postcode
+    is_primary = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'label': self.label,
+            'phone': self.phone,
+            'street': self.street,
+            'city': self.city,
+            'zip': self.zip,
+            'is_primary': self.is_primary
         }
 
 class Product(db.Model):
@@ -250,35 +316,33 @@ class Callsheet(db.Model):
 class CallsheetEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     callsheet_id = db.Column(db.Integer, db.ForeignKey('callsheet.id'), nullable=False)
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id', name='fk_customer_address_customer'), nullable=False)
     
-    # Call status: 'not_called', 'no_answer', 'declined', 'ordered', 'callback'
+    # NEW: Store which address/location this entry is for
+    address_id = db.Column(db.Integer, db.ForeignKey('customer_address.id', name='fk_callsheet_entry_address'), nullable=True)
+    address_label = db.Column(db.String(100), nullable=True)
+    customer = db.relationship('Customer', backref='callsheet_entries')
+    address = db.relationship('CustomerAddress', foreign_keys=[address_id])
     call_status = db.Column(db.String(20), default='not_called')
     
-    # Track who made the call (automatically set from logged-in user)
     called_by = db.Column(db.String(100))  
     call_date = db.Column(db.DateTime)
     
-    # Order information - simplified
-    person_spoken_to = db.Column(db.String(100))  # Name of person who placed the order
+    person_spoken_to = db.Column(db.String(100))
     
-    # Callback information
-    callback_time = db.Column(db.String(50))  # When to call back
+    callback_time = db.Column(db.String(50))
     
-    # Tracking
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Position in the callsheet (for ordering)
     position = db.Column(db.Integer, default=0)
     
-    # Pause feature for seasonal customers
     is_paused = db.Column(db.Boolean, default=False)
     
-    # NOTE: call_notes removed - now using customer.callsheet_notes
+    # Relationship to address
+    address = db.relationship('CustomerAddress', foreign_keys=[address_id])
     
     def get_status_badge(self):
-        """Return HTML badge class for status"""
         status_badges = {
             'not_called': 'secondary',
             'no_answer': 'warning',
@@ -289,7 +353,6 @@ class CallsheetEntry(db.Model):
         return status_badges.get(self.call_status, 'secondary')
     
     def get_status_display(self):
-        """Return display text for status"""
         status_display = {
             'not_called': 'Not Called',
             'no_answer': 'No Answer',

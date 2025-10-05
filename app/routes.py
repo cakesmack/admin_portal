@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule, Product
+from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule, Product, CustomerAddress
 from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
 import json
 from datetime import datetime, date, timedelta
@@ -691,42 +691,52 @@ def delete_callsheet(callsheet_id):
 @main.route('/api/callsheet/<int:callsheet_id>/add-customer', methods=['POST'])
 @login_required
 def add_customer_to_callsheet(callsheet_id):
-    """Add customer to callsheet"""
+    """Add a customer to a callsheet with optional address selection"""
     data = request.json
+    customer_id = data.get('customer_id')
+    address_id = data.get('address_id')
+    address_label = data.get('address_label')
+    
+    if not customer_id:
+        return jsonify({'success': False, 'message': 'Customer ID required'}), 400
     
     try:
-        # Check if customer already exists in this callsheet
+        callsheet = Callsheet.query.get_or_404(callsheet_id)
+        customer = Customer.query.get_or_404(customer_id)
+        
+        # Check if this customer+address combo already exists on this callsheet
         existing = CallsheetEntry.query.filter_by(
             callsheet_id=callsheet_id,
-            customer_id=data['customer_id']
+            customer_id=customer_id,
+            address_label=address_label
         ).first()
         
         if existing:
             return jsonify({
                 'success': False, 
-                'message': 'Customer already in this callsheet'
+                'message': f'{customer.name} - {address_label or "Primary"} is already on this callsheet'
             }), 400
         
-        # Get the highest position in this callsheet
-        max_position = db.session.query(func.max(CallsheetEntry.position))\
+        # Get the highest position
+        max_position = db.session.query(db.func.max(CallsheetEntry.position))\
             .filter_by(callsheet_id=callsheet_id).scalar() or 0
         
+        # Create new entry
         entry = CallsheetEntry(
             callsheet_id=callsheet_id,
-            customer_id=data['customer_id'],
+            customer_id=customer_id,
+            address_id=address_id,
+            address_label=address_label,
             user_id=current_user.id,
-            position=max_position + 1,
-            call_status='not_called'
+            position=max_position + 1
         )
+        
         db.session.add(entry)
         db.session.commit()
         
-        # Get customer details to return
-        customer = Customer.query.get(data['customer_id'])
-        
         return jsonify({
-            'success': True, 
-            'message': 'Customer added successfully',
+            'success': True,
+            'message': 'Customer added to callsheet',
             'entry': {
                 'id': entry.id,
                 'customer': {
@@ -735,12 +745,15 @@ def add_customer_to_callsheet(callsheet_id):
                     'account_number': customer.account_number,
                     'phone': customer.phone,
                     'callsheet_notes': customer.callsheet_notes
-                }
+                },
+                'address_label': address_label
             }
         })
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
+
 
 @main.route('/api/callsheet-entry/<int:entry_id>/update-status', methods=['POST'])
 @login_required
@@ -1153,9 +1166,11 @@ def update_customer(customer_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@main.route('/api/customer/create', methods=['POST'])
+
+@main.route('/api/customers', methods=['POST'])
 @login_required
 def create_customer():
+    """Create a new customer"""
     data = request.json
     
     try:
@@ -1164,17 +1179,39 @@ def create_customer():
         if existing:
             return jsonify({'success': False, 'message': 'Account number already exists'}), 400
         
+        # Validate addresses
+        if 'addresses' not in data or len(data['addresses']) == 0:
+            return jsonify({'success': False, 'message': 'At least one address is required'}), 400
+        
+        # Create customer
         customer = Customer(
             account_number=data['account_number'],
             name=data['name'],
             contact_name=data.get('contact_name', ''),
-            phone=data.get('phone', ''),
+            phone=data.get('phone', ''),  # Main phone number
             email=data.get('email', ''),
-            address=data.get('address', ''),
             notes=data.get('notes', '')
         )
         
         db.session.add(customer)
+        db.session.flush()  # Get the customer ID
+        
+        # Add addresses
+        for idx, addr_data in enumerate(data['addresses']):
+            if not addr_data.get('label'):
+                return jsonify({'success': False, 'message': 'Each address must have a label'}), 400
+            
+            address = CustomerAddress(
+                customer_id=customer.id,
+                label=addr_data['label'],
+                phone=addr_data.get('phone', ''),
+                street=addr_data.get('street', ''),
+                city=addr_data.get('city', ''),
+                zip=addr_data.get('zip', ''),
+                is_primary=(idx == 0)  # First address is primary
+            )
+            db.session.add(address)
+        
         db.session.commit()
         
         return jsonify({
@@ -1182,9 +1219,91 @@ def create_customer():
             'message': 'Customer created successfully',
             'customer': customer.to_dict()
         })
+        
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
+@main.route('/api/customer/<int:customer_id>', methods=['GET', 'PUT'])
+@login_required
+def customer_detail(customer_id):
+    """Get or update customer details"""
+    customer = Customer.query.get_or_404(customer_id)
+    
+    if request.method == 'GET':
+        return jsonify(customer.to_dict())
+    
+    if request.method == 'PUT':
+        data = request.json
+        
+        try:
+            # Update basic customer fields
+            if 'account_number' in data:
+                existing = Customer.query.filter_by(account_number=data['account_number']).first()
+                if existing and existing.id != customer_id:
+                    return jsonify({'success': False, 'message': 'Account number already exists'}), 400
+                customer.account_number = data['account_number']
+            
+            if 'name' in data:
+                customer.name = data['name']
+            if 'contact_name' in data:
+                customer.contact_name = data['contact_name']
+            if 'phone' in data:
+                customer.phone = data['phone']
+            if 'email' in data:
+                customer.email = data['email']
+            if 'notes' in data:
+                customer.notes = data['notes']
+            
+            # Handle addresses
+            if 'addresses' in data:
+                # Remove old addresses
+                CustomerAddress.query.filter_by(customer_id=customer_id).delete()
+                
+                # Add new addresses
+                for idx, addr_data in enumerate(data['addresses']):
+                    if not addr_data.get('label'):
+                        return jsonify({'success': False, 'message': 'Each address must have a label'}), 400
+                    
+                    address = CustomerAddress(
+                        customer_id=customer_id,
+                        label=addr_data['label'],
+                        phone=addr_data.get('phone', ''),
+                        street=addr_data.get('street', ''),
+                        city=addr_data.get('city', ''),
+                        zip=addr_data.get('zip', ''),
+                        is_primary=(idx == 0)  # First address is primary
+                    )
+                    db.session.add(address)
+            
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Customer updated successfully', 'customer': customer.to_dict()})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 400
+
+
+@main.route('/api/customer/<int:customer_id>/addresses', methods=['GET'])
+@login_required
+def get_customer_addresses(customer_id):
+    """Get all addresses for a customer"""
+    customer = Customer.query.get_or_404(customer_id)
+    addresses = [addr.to_dict() for addr in customer.addresses]
+    
+    # If no addresses but has legacy address, return that
+    if not addresses and customer.address:
+        addresses = [{
+            'id': None,
+            'label': 'Primary',
+            'phone': '',
+            'street': customer.address,
+            'city': '',
+            'zip': '',
+            'is_primary': True
+        }]
+    
+    return jsonify(addresses)
 
 @main.route('/api/products/search')
 @login_required

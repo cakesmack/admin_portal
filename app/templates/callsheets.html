@@ -293,62 +293,81 @@ table.table tbody tr.callsheet-row:hover td {
                                         </tr>
                                     </thead>
                                     <tbody class="sortable-list" data-callsheet-id="{{ callsheet.id }}">
-                                        {% for entry in callsheet.entries %}
-                                        <tr class="callsheet-row status-{{ entry.call_status }}" 
-                                            data-entry-id="{{ entry.id }}">
-                                            <td class="text-center">
-                                                <i class="bi bi-grip-vertical drag-handle"></i>
-                                            </td>
-                                            <td><strong>{{ entry.customer.account_number }}<br />{{ entry.customer.name }}
-                                            </strong></td>
-                                            <td><strong>{{ entry.customer.phone }}</strong></td>
-                                            <td>
-                                                <select class="form-select form-select-sm status-select" 
-                                                        onchange="confirmStatusChange(this, {{ entry.id }})"
-                                                        data-current-status="{{ entry.call_status }}">
-                                                    <option value="not_called" {% if entry.call_status == 'not_called' %}selected{% endif %}>Not Called</option>
-                                                    <option value="no_answer" {% if entry.call_status == 'no_answer' %}selected{% endif %}>No Answer</option>
-                                                    <option value="declined" {% if entry.call_status == 'declined' %}selected{% endif %}>Declined</option>
-                                                    <option value="ordered" {% if entry.call_status == 'ordered' %}selected{% endif %}>Ordered</option>
-                                                    
-                                                </select>
-                                            </td>
-                                            <td><small>{{ entry.called_by or '-' }}</small></td>
-                                            <td>
-                                                <small>{{ entry.person_spoken_to or '-' }}</small>
-                                                
-                                            </td>
-                                            <td>
-                                                <div class="d-flex align-items-center">
-                                                    <div class="notes-preview {% if entry.customer.callsheet_notes %}notes-has-content{% endif %}" 
-                                                         onclick="showNotesModal({{ entry.id }}, {{ entry.customer.id }}, `{{ entry.customer.callsheet_notes|e|replace('\n', '\\n')|replace('`', '\\`') }}`)">
-                                                        {% if entry.customer.callsheet_notes %}
-                                                            {{ entry.customer.callsheet_notes[:50] }}{% if entry.customer.callsheet_notes|length > 50 %}...{% endif %}
-                                                        {% else %}
-                                                            <span >Click to add notes</span>
-                                                        {% endif %}
-                                                    </div>
-                                                    <button class="btn btn-sm btn-outline-secondary ms-2" 
-                                                            onclick="showNotesModal({{ entry.id }}, {{ entry.customer.id }}, `{{ entry.customer.callsheet_notes|e|replace('\n', '\\n')|replace('`', '\\`') }}`)">
-                                                        <i class="bi bi-chat-dots{% if entry.customer.callsheet_notes %}-fill{% endif %}"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                            <td class="action-buttons">
-                                                <button class="btn btn-sm btn-warning" 
-                                                        onclick="togglePauseCustomer({{ entry.id }})"
-                                                        title="Pause customer (seasonal)">
-                                                    <i class="bi bi-pause-circle"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-danger" 
-                                                        onclick="removeCustomer({{ entry.id }})"
-                                                        title="Remove from callsheet">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                        
+  {% for entry in callsheet.entries %}
+  <tr class="callsheet-row status-{{ entry.call_status }}" 
+      data-entry-id="{{ entry.id }}">
+    <td class="text-center">
+      <i class="bi bi-grip-vertical drag-handle"></i>
+    </td>
+    <td>
+      <strong>{{ entry.customer.account_number }}<br />{{ entry.customer.name }}</strong>
+      {% if entry.address_label %}
+      <br><small class="text-muted"><i class="bi bi-geo-alt"></i> {{ entry.address_label }}</small>
+      {% endif %}
+    </td>
+    <td>
+      <strong>
+        {% if entry.address and entry.address.phone %}
+          {{ entry.address.phone }}
+        {% elif entry.customer.phone %}
+          {{ entry.customer.phone }}
+        {% else %}
+          -
+        {% endif %}
+      </strong>
+    </td>
+    <td>
+      <select class="form-select form-select-sm status-select" 
+              onchange="confirmStatusChange(this, {{ entry.id }})"
+              data-current-status="{{ entry.call_status }}">
+        <option value="not_called" {% if entry.call_status == 'not_called' %}selected{% endif %}>Not Called</option>
+        <option value="no_answer" {% if entry.call_status == 'no_answer' %}selected{% endif %}>No Answer</option>
+        <option value="declined" {% if entry.call_status == 'declined' %}selected{% endif %}>Declined</option>
+        <option value="ordered" {% if entry.call_status == 'ordered' %}selected{% endif %}>Ordered</option>
+      </select>
+    </td>
+    <td>
+      {% if entry.called_by %}
+      <small>{{ entry.called_by }}</small>
+      {% else %}
+      <small>-</small>
+      {% endif %}
+    </td>
+    <td>
+      {% if entry.person_spoken_to %}
+      <small>{{ entry.person_spoken_to }}<br>
+        {% if entry.call_date %}
+        {{ entry.call_date.strftime('%H:%M') }}
+        {% endif %}
+      </small>
+      {% else %}
+      <small>-</small>
+      {% endif %}
+    </td>
+    <td>
+      <div class="d-flex align-items-center">
+        <div class="notes-preview {% if entry.customer.callsheet_notes %}has-notes{% endif %}" 
+             style="flex-grow: 1; cursor: pointer;" 
+             onclick="showNotesModal({{ entry.id }}, '{{ entry.customer.name }}')">
+          {% if entry.customer.callsheet_notes %}
+          <i class="bi bi-sticky-fill text-warning"></i> 
+          {{ entry.customer.callsheet_notes[:30] }}{% if entry.customer.callsheet_notes|length > 30 %}...{% endif %}
+          {% else %}
+          <i class="bi bi-sticky text-muted"></i> Click to add notes
+          {% endif %}
+        </div>
+      </div>
+    </td>
+    <td>
+      <button class="btn btn-sm btn-danger" 
+              onclick="removeCustomer({{ entry.id }})" 
+              title="Remove from callsheet">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>
+  </tr>
+  {% endfor %}
+</tbody>
                                         {% if callsheet.paused_entries %}
                                         <!-- Paused Customers Section -->
                                         <tr class="table-secondary">
@@ -529,6 +548,17 @@ table.table tbody tr.callsheet-row:hover td {
                         <option></option>
                     </select>
                 </div>
+                
+                <!-- Address Selection (shown when customer has multiple addresses) -->
+                <div id="addressSelectionContainer" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Select Location *</label>
+                        <select class="form-select" id="addressSelect">
+                            <option value="">Choose a location...</option>
+                        </select>
+                    </div>
+                </div>
+                
                 <div id="selectedCustomerInfo" class="alert alert-info" style="display:none;">
                     <strong>Selected Customer:</strong><br>
                     <span id="selectedCustomerDetails"></span>
@@ -551,6 +581,8 @@ table.table tbody tr.callsheet-row:hover td {
 // Initialize modals
 let callsheetModal, statusModal, notesModal, addCustomerModal;
 let selectedCustomerId = null;
+let selectedAddressId = null;
+let customerAddresses = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     callsheetModal = new bootstrap.Modal(document.getElementById('callsheetModal'));
@@ -560,36 +592,79 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize Select2 for customer search
     $('#customerSearchSelect').select2({
-        theme: 'bootstrap-5',
-        placeholder: 'Search by account number or name',
-        allowClear: true,
-        dropdownParent: $('#addCustomerModal'),
-        minimumInputLength: 2,
-        ajax: {
-            url: '/api/customers/search',
-            dataType: 'json',
-            delay: 250,
-            data: function(params) {
-                return { q: params.term };
-            },
-            processResults: function(data) {
-                return {
-                    results: data.map(customer => ({
-                        id: customer.id,
-                        text: `${customer.account_number} - ${customer.name}`,
-                        customer: customer
-                    }))
-                };
-            },
-            cache: true
+    theme: 'bootstrap-5',
+    placeholder: 'Search by account number or name',
+    allowClear: true,
+    dropdownParent: $('#addCustomerModal'),
+    minimumInputLength: 2,
+    ajax: {
+        url: '/api/customers/search',
+        dataType: 'json',
+        delay: 250,
+        data: function(params) {
+            return { q: params.term };
+        },
+        processResults: function(data) {
+            return {
+                results: data.map(c => ({
+                    id: c.id,
+                    text: `${c.account_number} - ${c.name}`,
+                    customer: c
+                }))
+            };
         }
-    }).on('select2:select', function(e) {
-        selectedCustomerId = e.params.data.id;
-        const customer = e.params.data.customer;
-        document.getElementById('selectedCustomerDetails').innerHTML = 
-            `${customer.account_number} - ${customer.name}`;
-        document.getElementById('selectedCustomerInfo').style.display = 'block';
-    });
+    }
+}).on('select2:select', async function(e) {
+    const customer = e.params.data.customer;
+    selectedCustomerId = customer.id;
+    
+    // Fetch customer addresses
+    await loadCustomerAddresses(customer.id);
+    
+    // Show customer info
+    $('#selectedCustomerInfo').show();
+    $('#selectedCustomerDetails').html(`
+        <strong>${customer.name}</strong> (${customer.account_number})<br>
+        Main Phone: ${customer.phone || 'Not specified'}
+    `);
+});
+
+async function loadCustomerAddresses(customerId) {
+    try {
+        const response = await fetch(`/api/customer/${customerId}/addresses`);
+        customerAddresses = await response.json();
+        
+        const addressSelect = document.getElementById('addressSelect');
+        const addressContainer = document.getElementById('addressSelectionContainer');
+        
+        if (customerAddresses.length > 1) {
+            // Multiple addresses - show selector
+            addressContainer.style.display = 'block';
+            addressSelect.innerHTML = '<option value="">Choose a location...</option>';
+            
+            customerAddresses.forEach(addr => {
+                const option = document.createElement('option');
+                option.value = addr.id || customerAddresses.indexOf(addr);
+                option.textContent = `${addr.label}${addr.phone ? ' - ' + addr.phone : ''}`;
+                addressSelect.appendChild(option);
+            });
+            
+            selectedAddressId = null; // Require selection
+        } else if (customerAddresses.length === 1) {
+            // Only one address - auto-select
+            addressContainer.style.display = 'none';
+            selectedAddressId = customerAddresses[0].id || 0;
+        } else {
+            // No addresses
+            addressContainer.style.display = 'none';
+            selectedAddressId = null;
+        }
+    } catch (error) {
+        console.error('Error loading addresses:', error);
+        showToast('Error loading customer addresses', 'danger');
+    }
+}
+
     
     // Initialize drag-and-drop
     document.querySelectorAll('.sortable-list').forEach(list => {
@@ -962,6 +1037,10 @@ function clearNotes() {
 }
 
 // Customer Management
+document.getElementById('addressSelect').addEventListener('change', function() {
+    selectedAddressId = this.value;
+});
+
 function showAddCustomerModal(callsheetId) {
     document.getElementById('addCallsheetId').value = callsheetId;
     
@@ -970,7 +1049,13 @@ function showAddCustomerModal(callsheetId) {
     $select.empty().append('<option></option>');
     
     $('#selectedCustomerInfo').hide();
+    $('#addressSelectionContainer').hide();
+    document.getElementById('addressSelect').innerHTML = '<option value="">Choose a location...</option>';
+    
     selectedCustomerId = null;
+    selectedAddressId = null;
+    customerAddresses = [];
+    
     addCustomerModal.show();
 }
 
@@ -982,13 +1067,32 @@ async function addCustomerToCallsheet() {
         return;
     }
     
+    // Check if address selection is required
+    if (customerAddresses.length > 1 && !selectedAddressId) {
+        showToast('Please select a location', 'warning');
+        return;
+    }
+    
+    // Get selected address info
+    let selectedAddress = null;
+    if (selectedAddressId !== null) {
+        selectedAddress = customerAddresses.find(a => 
+            (a.id && a.id == selectedAddressId) || 
+            customerAddresses.indexOf(a) == selectedAddressId
+        );
+    }
+    
     showLoading();
     
     try {
         const response = await fetch(`/api/callsheet/${callsheetId}/add-customer`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({customer_id: selectedCustomerId})
+            body: JSON.stringify({
+                customer_id: selectedCustomerId,
+                address_id: selectedAddressId,
+                address_label: selectedAddress ? selectedAddress.label : null
+            })
         });
         
         const data = await response.json();
@@ -1003,6 +1107,8 @@ async function addCustomerToCallsheet() {
             if (tbody) {
                 const customer = data.entry.customer;
                 const entryId = data.entry.id;
+                const addressLabel = selectedAddress ? selectedAddress.label : '';
+                const addressPhone = selectedAddress && selectedAddress.phone ? selectedAddress.phone : customer.phone;
                 
                 // Create new row HTML
                 const newRow = `
@@ -1010,8 +1116,11 @@ async function addCustomerToCallsheet() {
                         <td class="text-center">
                             <i class="bi bi-grip-vertical drag-handle"></i>
                         </td>
-                        <td><strong>${customer.name}<br />${customer.account_number}</strong></td>
-                        <td><strong>${customer.phone || '-'}</strong></td>
+                        <td>
+                            <strong>${customer.account_number}<br />${customer.name}</strong>
+                            ${addressLabel ? `<br><small class="text-muted"><i class="bi bi-geo-alt"></i> ${addressLabel}</small>` : ''}
+                        </td>
+                        <td><strong>${addressPhone || '-'}</strong></td>
                         <td>
                             <select class="form-select form-select-sm status-select" 
                                     onchange="confirmStatusChange(this, ${entryId})"
@@ -1026,26 +1135,20 @@ async function addCustomerToCallsheet() {
                         <td><small>-</small></td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <div class="notes-preview ${customer.callsheet_notes ? 'notes-has-content' : ''}" 
-                                     onclick="showNotesModal(${entryId}, ${customer.id}, \`${customer.callsheet_notes || ''}\`)">
+                                <div class="notes-preview ${customer.callsheet_notes ? 'has-notes' : ''}" 
+                                     style="flex-grow: 1; cursor: pointer;" 
+                                     onclick="showNotesModal(${entryId}, '${customer.name.replace(/'/g, "\\'")}')">
                                     ${customer.callsheet_notes ? 
-                                        (customer.callsheet_notes.substring(0, 50) + (customer.callsheet_notes.length > 50 ? '...' : '')) : 
-                                        '<span>Click to add notes</span>'}
+                                        '<i class="bi bi-sticky-fill text-warning"></i> ' + 
+                                        (customer.callsheet_notes.substring(0, 30) + '...') : 
+                                        '<i class="bi bi-sticky text-muted"></i> Click to add notes'
+                                    }
                                 </div>
-                                <button class="btn btn-sm btn-outline-secondary ms-2" 
-                                        onclick="showNotesModal(${entryId}, ${customer.id}, \`${customer.callsheet_notes || ''}\`)">
-                                    <i class="bi bi-chat-dots${customer.callsheet_notes ? '-fill' : ''}"></i>
-                                </button>
                             </div>
                         </td>
-                        <td class="action-buttons">
-                            <button class="btn btn-sm btn-warning" 
-                                    onclick="togglePauseCustomer(${entryId})"
-                                    title="Pause customer (seasonal)">
-                                <i class="bi bi-pause-circle"></i>
-                            </button>
+                        <td>
                             <button class="btn btn-sm btn-danger" 
-                                    onclick="removeCustomer(${entryId})"
+                                    onclick="removeCustomer(${entryId})" 
                                     title="Remove from callsheet">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -1053,22 +1156,16 @@ async function addCustomerToCallsheet() {
                     </tr>
                 `;
                 
-                // Add row before paused customers section if it exists, otherwise at the end
-                const pausedSection = tbody.querySelector('tr.table-secondary');
-                if (pausedSection) {
-                    pausedSection.insertAdjacentHTML('beforebegin', newRow);
-                } else {
-                    tbody.insertAdjacentHTML('beforeend', newRow);
-                }
+                tbody.insertAdjacentHTML('beforeend', newRow);
+                showToast('Customer added to callsheet', 'success');
             }
-            
-            showToast(data.message, 'success');
         } else {
-            showToast(data.message, 'danger');
+            showToast(data.message || 'Error adding customer', 'danger');
         }
     } catch (error) {
         hideLoading();
-        showToast('Error: ' + error.message, 'danger');
+        console.error('Error:', error);
+        showToast('Error adding customer to callsheet', 'danger');
     }
 }
 

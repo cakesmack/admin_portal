@@ -113,38 +113,51 @@
     formatProductWithCode,
     debounce,
     generateUniqueId,
+    setupAddressSelector,
+    getSelectedAddress,
   } from "/static/js/script.js";
 
   let searchTimeout;
   let additionalProducts = [];
+  let selectedCustomer = null;
 
   document.addEventListener("DOMContentLoaded", function () {
-    // Setup search for customer fields using API
     setupCustomerSearchAPI();
-
-    // Setup search for main product field
     setupProductSearch(document.querySelector('input[name="product_code"]'));
 
-    // Close dropdowns when clicking outside
     document.addEventListener("click", function (e) {
       if (!e.target.closest(".search-container")) {
         hideAllDropdowns();
       }
     });
 
-    // Update hidden field before form submission
     const form = document.getElementById("returnsForm");
     if (form) {
       form.addEventListener("submit", async function (e) {
         e.preventDefault();
 
-        // Update additional products
         updateAdditionalProducts();
         document.getElementById("additional_products").value =
           JSON.stringify(additionalProducts);
 
-        // Get form data
+        // Get selected address
+        const addressContainer = document.querySelector(
+          ".address-selection-area"
+        );
+        const selectedAddressData = addressContainer
+          ? getSelectedAddress(addressContainer)
+          : null;
+
+        // Add address label to form if available
+        let addressLabel = "";
+        if (selectedAddressData && selectedAddressData.label) {
+          addressLabel = selectedAddressData.label;
+        }
+
         const formData = new FormData(form);
+        if (addressLabel) {
+          formData.append("address_label", addressLabel);
+        }
 
         try {
           const response = await fetch(form.action, {
@@ -162,7 +175,6 @@
                 window.location.href = "/dashboard";
               }
             } catch (e) {
-              // Backward compatibility for script response
               const tempDiv = document.createElement("div");
               tempDiv.innerHTML = responseText;
               const scripts = tempDiv.getElementsByTagName("script");
@@ -362,7 +374,9 @@
     return item;
   }
 
-  function selectCustomer(customer) {
+  async function selectCustomer(customer) {
+    selectedCustomer = customer;
+
     const accountInput = document.querySelector(
       'input[name="customer_account"]'
     );
@@ -384,6 +398,29 @@
     if (addressInput && customer.address) {
       addressInput.value = customer.address;
     }
+
+    // Setup address selector
+    let addressContainer = document.querySelector(".address-selection-area");
+    if (!addressContainer) {
+      // Create container if it doesn't exist
+      addressContainer = document.createElement("div");
+      addressContainer.className = "address-selection-area col-md-12";
+
+      // Insert after customer address field
+      const addressFieldRow = addressInput.closest(".row");
+      addressFieldRow.insertAdjacentElement("afterend", addressContainer);
+    }
+
+    // Setup address selection with callback
+    await setupAddressSelector(customer, addressContainer, (address, label) => {
+      // Update address field with selected address
+      if (address && addressInput) {
+        addressInput.value =
+          `${address.street}, ${address.city}, ${address.zip}`
+            .replace(/, ,/g, ",")
+            .trim();
+      }
+    });
   }
 
   function selectProduct(product, inputElement) {
@@ -428,6 +465,12 @@
         accountInput.value = "";
         accountInput.style.borderColor = "";
       }
+    }
+
+    // Clear address selector
+    const addressContainer = document.querySelector(".address-selection-area");
+    if (addressContainer) {
+      addressContainer.innerHTML = "";
     }
   }
 
@@ -482,7 +525,6 @@
 
     container.appendChild(newRow);
 
-    // Setup search for the new product code input
     const newCodeInput = newRow.querySelector(".additional-product-code");
     setupProductSearch(newCodeInput);
 
