@@ -22,8 +22,6 @@ main = Blueprint('main', __name__)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 MAX_IMAGE_SIZE = 2 * 1024 * 1024  # 2MB
 
-
-
 # Sample data for demonstration
 SAMPLE_CUSTOMERS = [
     {'account_number': 'CUST001', 'name': 'Highland Hotel', 'contact_name': 'John Smith', 'phone': '01463 123456'},
@@ -37,6 +35,167 @@ SAMPLE_PRODUCTS = [
     {'code': 'CAT001', 'name': 'Disposable Plates'},
     {'code': 'CAT002', 'name': 'Plastic Cutlery Pack'},
 ]
+
+
+def validate_standing_order_data(data):
+    """Validate standing order input data"""
+    errors = []
+    
+    # Required fields
+    if not data.get('customer_id'):
+        errors.append('Customer is required')
+    
+    if not data.get('delivery_days') or len(data.get('delivery_days', [])) == 0:
+        errors.append('At least one delivery day must be selected')
+
+    is_valid, error_msg = StandingOrder.validate_delivery_days(data.get('delivery_days', []))
+    if not is_valid:
+        errors.append(error_msg)
+    
+    # Validate delivery days are weekdays only
+    try:
+        delivery_days = [int(d) for d in data.get('delivery_days', [])]
+        if any(d >= 5 or d < 0 for d in delivery_days):
+            errors.append('Invalid delivery days - only Monday-Friday allowed')
+    except (ValueError, TypeError):
+        errors.append('Invalid delivery days format')
+    
+    # Validate items
+    items = data.get('items', [])
+    if not items or len(items) == 0:
+        errors.append('At least one product must be added')
+    
+    for i, item in enumerate(items):
+        if not item.get('product_code'):
+            errors.append(f'Product {i+1}: Product code is required')
+        if not item.get('product_name'):
+            errors.append(f'Product {i+1}: Product name is required')
+        
+        # Validate quantity
+        try:
+            qty = int(item.get('quantity', 0))
+            if qty <= 0:
+                errors.append(f'Product {i+1}: Quantity must be greater than 0')
+            if qty > 10000:
+                errors.append(f'Product {i+1}: Quantity seems unreasonably high (max 10,000)')
+        except (ValueError, TypeError):
+            errors.append(f'Product {i+1}: Invalid quantity')
+        
+        # Validate string lengths
+        if len(str(item.get('product_code', ''))) > 50:
+            errors.append(f'Product {i+1}: Product code too long (max 50 characters)')
+        if len(str(item.get('product_name', ''))) > 100:
+            errors.append(f'Product {i+1}: Product name too long (max 100 characters)')
+    
+    # Validate special instructions length
+    if data.get('special_instructions') and len(str(data['special_instructions'])) > 500:
+        errors.append('Special instructions too long (max 500 characters)')
+    
+    # Validate end date if provided
+    if data.get('end_date'):
+        try:
+            end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+            if end_date < date.today():
+                errors.append('End date cannot be in the past')
+        except ValueError:
+            errors.append('Invalid end date format')
+    
+    return errors
+
+def validate_stock_transaction(data, stock_item):
+    """Validate stock transaction input"""
+    errors = []
+    
+    # Required fields
+    if not data.get('transaction_type'):
+        errors.append('Transaction type is required')
+    
+    if data.get('transaction_type') not in ['stock_in', 'stock_out', 'adjustment']:
+        errors.append('Invalid transaction type')
+    
+    # Validate quantity
+    try:
+        quantity = int(data.get('quantity', 0))
+        if quantity == 0:
+            errors.append('Quantity cannot be zero')
+        if abs(quantity) > 10000:
+            errors.append('Quantity seems unreasonably high (max 10,000)')
+        
+        # Check stock availability for stock_out
+        if data.get('transaction_type') == 'stock_out' and quantity > stock_item.current_stock:
+            errors.append(f'Insufficient stock (available: {stock_item.current_stock})')
+        
+    except (ValueError, TypeError):
+        errors.append('Invalid quantity - must be a number')
+    
+    # Validate reference length
+    if data.get('reference') and len(str(data['reference'])) > 100:
+        errors.append('Reference too long (max 100 characters)')
+    
+    # Validate notes length
+    if data.get('notes') and len(str(data['notes'])) > 500:
+        errors.append('Notes too long (max 500 characters)')
+    
+    return errors
+
+def validate_company_update(data):
+    """Validate company update input"""
+    errors = []
+    
+    # Required fields
+    if not data.get('title') or not data.get('title').strip():
+        errors.append('Title is required')
+    
+    if not data.get('message') or not data.get('message').strip():
+        errors.append('Message is required')
+    
+    # Length validation
+    if len(str(data.get('title', ''))) > 100:
+        errors.append('Title too long (max 100 characters)')
+    
+    if len(str(data.get('message', ''))) > 5000:
+        errors.append('Message too long (max 5000 characters)')
+    
+    # Validate priority
+    if data.get('priority') and data['priority'] not in ['normal', 'important', 'urgent']:
+        errors.append('Invalid priority level')
+    
+    return errors
+
+def validate_customer_data(data):
+    """Validate customer input data"""
+    errors = []
+    
+    # Required fields
+    if not data.get('account_number') or not data.get('account_number').strip():
+        errors.append('Account number is required')
+    
+    if not data.get('name') or not data.get('name').strip():
+        errors.append('Customer name is required')
+    
+    # Length validation
+    if len(str(data.get('account_number', ''))) > 50:
+        errors.append('Account number too long (max 50 characters)')
+    
+    if len(str(data.get('name', ''))) > 100:
+        errors.append('Customer name too long (max 100 characters)')
+    
+    if data.get('contact_name') and len(str(data['contact_name'])) > 100:
+        errors.append('Contact name too long (max 100 characters)')
+    
+    if data.get('phone') and len(str(data['phone'])) > 20:
+        errors.append('Phone number too long (max 20 characters)')
+    
+    if data.get('email') and len(str(data['email'])) > 100:
+        errors.append('Email too long (max 100 characters)')
+    
+    # Email format validation (basic)
+    if data.get('email'):
+        email = str(data['email']).strip()
+        if email and '@' not in email:
+            errors.append('Invalid email format')
+    
+    return errors
 
 
 def sanitize_html_content(html_content):
@@ -291,16 +450,18 @@ def logout():
 @main.route('/api/staff-contacts')
 @login_required
 def get_staff_contacts():
-    """Get list of all active staff members for contacts"""
-    staff = User.query.filter_by(is_active=True).order_by(User.full_name).all()
-    
-    return jsonify([{
-        'id': user.id,
-        'full_name': user.full_name,
-        'email': user.email,
-        'job_title': user.job_title,
-        'role': user.role
-    } for user in staff])
+    try:
+        staff = User.query.filter_by(is_active=True).order_by(User.full_name).all()
+        
+        return jsonify([{
+            'id': user.id,
+            'full_name': user.full_name,
+            'email': user.email,
+            'job_title': user.job_title,
+            'role': user.role
+        } for user in staff])
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/api/users/<int:user_id>/contact-info')
 @login_required
@@ -325,18 +486,19 @@ def get_user_contact_info(user_id):
 @main.route('/api/customers/directory')
 @login_required
 def get_customers_directory():
-    """Get all customers for directory with contact details"""
-    customers = Customer.query.order_by(Customer.name).all()
-    
-    return jsonify([{
-        'id': customer.id,
-        'account_number': customer.account_number,
-        'name': customer.name,
-        'contact_name': customer.contact_name,
-        'phone': customer.phone,
-        'email': customer.email
-    } for customer in customers])
-
+    try:
+        customers = Customer.query.order_by(Customer.name).all()
+        
+        return jsonify([{
+            'id': customer.id,
+            'account_number': customer.account_number,
+            'name': customer.name,
+            'contact_name': customer.contact_name,
+            'phone': customer.phone,
+            'email': customer.email
+        } for customer in customers])
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/dashboard')
 @login_required
@@ -357,64 +519,82 @@ def dashboard():
 @main.route('/api/todos', methods=['GET'])
 @login_required
 def get_todos():
-    todos = TodoItem.query.filter_by(user_id=current_user.id).order_by(TodoItem.created_at.desc()).all()
-    return jsonify([{
-        'id': todo.id,
-        'text': todo.text,
-        'completed': todo.completed,
-        'created_at': todo.created_at.isoformat()
-    } for todo in todos])
+    try:
+        todos = TodoItem.query.filter_by(user_id=current_user.id).order_by(TodoItem.created_at.desc()).all()
+        return jsonify([{
+            'id': todo.id,
+            'text': todo.text,
+            'completed': todo.completed,
+            'created_at': todo.created_at.isoformat()
+        } for todo in todos])
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/api/todos', methods=['POST'])
 @login_required
 def create_todo():
-    data = request.json
-    todo = TodoItem(
-        text=data['text'],
-        user_id=current_user.id
-    )
-    db.session.add(todo)
-    db.session.commit()
-    return jsonify({'success': True, 'id': todo.id})
+    try:
+        data = request.json
+        todo = TodoItem(
+            text=data['text'],
+            user_id=current_user.id
+        )
+        db.session.add(todo)
+        db.session.commit()
+        return jsonify({'success': True, 'id': todo.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/api/todos/<int:todo_id>/toggle', methods=['POST'])
 @login_required
 def toggle_todo(todo_id):
-    todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
-    todo.completed = not todo.completed
-    db.session.commit()
-    return jsonify({'success': True})
+    try:
+        todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
+        todo.completed = not todo.completed
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/api/todos/<int:todo_id>', methods=['DELETE'])
 @login_required
 def delete_todo(todo_id):
-    todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
-    db.session.delete(todo)
-    db.session.commit()
-    return jsonify({'success': True})
+    try:
+        todo = TodoItem.query.filter_by(id=todo_id, user_id=current_user.id).first_or_404()
+        db.session.delete(todo)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
 
 # Company Updates API Routes
 @main.route('/api/company-updates', methods=['GET'])
 @login_required
 def get_company_updates():
-    updates = CompanyUpdate.query.join(User).order_by(
-        CompanyUpdate.sticky.desc(),
-        CompanyUpdate.created_at.desc()
-    ).limit(20).all()
-    
-    return jsonify([{
-        'id': update.id,
-        'title': update.title,
-        'message': update.message,
-        'category': getattr(update, 'category', 'general'),
-        'priority': update.priority,
-        'sticky': update.sticky,
-        'is_event': update.is_event,
-        'event_date': update.event_date.isoformat() if update.event_date else None,
-        'created_at': update.created_at.isoformat(),
-        'author_name': update.author.username,  # Fixed: use username instead of author
-        'can_delete': update.user_id == current_user.id
-    } for update in updates])
+    try:
+        updates = CompanyUpdate.query.join(User).order_by(
+            CompanyUpdate.sticky.desc(),
+            CompanyUpdate.created_at.desc()
+        ).limit(20).all()
+        
+        return jsonify([{
+            'id': update.id,
+            'title': update.title,
+            'message': update.message,
+            'category': getattr(update, 'category', 'general'),
+            'priority': update.priority,
+            'sticky': update.sticky,
+            'is_event': update.is_event,
+            'event_date': update.event_date.isoformat() if update.event_date else None,
+            'created_at': update.created_at.isoformat(),
+            'author_name': update.author.username,
+            'can_delete': update.user_id == current_user.id
+        } for update in updates])
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/api/company-updates/<int:update_id>', methods=['GET'])
 @login_required
@@ -478,6 +658,13 @@ def update_company_update(update_id):
     
     data = request.json
     
+    validation_errors = validate_company_update(data)
+    if validation_errors:
+        return jsonify({
+            'success': False, 
+            'message': 'Validation errors: ' + '; '.join(validation_errors)
+        }), 400
+
     try:
         # Validate required fields
         if not data.get('title') or not data.get('message'):
@@ -516,31 +703,37 @@ def update_company_update(update_id):
 @main.route('/api/company-updates/<int:update_id>', methods=['DELETE'])
 @login_required
 def delete_company_update(update_id):
-    update = CompanyUpdate.query.filter_by(id=update_id, user_id=current_user.id).first_or_404()
-    db.session.delete(update)
-    db.session.commit()
-    return jsonify({'success': True})
+    try:
+        update = CompanyUpdate.query.filter_by(id=update_id, user_id=current_user.id).first_or_404()
+        db.session.delete(update)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 400
 
-# Recent Forms API Route
 @main.route('/api/recent-forms', methods=['GET'])
 @login_required
 def get_recent_forms():
-    forms = Form.query.filter_by(is_archived=False).join(User, Form.user_id == User.id).order_by(Form.date_created.desc()).limit(5).all()
-    
-    result = []
-    for form in forms:
-        form_data = json.loads(form.data)
-        result.append({
-            'id': form.id,
-            'type': form.type.replace('_', ' ').title(),
-            'date_created': form.date_created.isoformat(),
-            'author': form.author.username,
-            'customer_account': form_data.get('customer_account', 'N/A'),
-            'customer_name': form_data.get('customer_name', 'N/A'),
-            'is_completed': form.is_completed
-        })
-    
-    return jsonify(result)
+    try:
+        forms = Form.query.filter_by(is_archived=False).join(User, Form.user_id == User.id).order_by(Form.date_created.desc()).limit(5).all()
+        
+        result = []
+        for form in forms:
+            form_data = json.loads(form.data)
+            result.append({
+                'id': form.id,
+                'type': form.type.replace('_', ' ').title(),
+                'date_created': form.date_created.isoformat(),
+                'author': form.author.username,
+                'customer_account': form_data.get('customer_account', 'N/A'),
+                'customer_name': form_data.get('customer_name', 'N/A'),
+                'is_completed': form.is_completed
+            })
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Callsheet Routes - Add these to your routes.py file
 # Replace existing callsheet routes with these updated versions
@@ -1158,6 +1351,13 @@ def update_customer(customer_id):
 def create_customer():
     """Create a new customer"""
     data = request.json
+
+    validation_errors = validate_customer_data(data)
+    if validation_errors:
+        return jsonify({
+            'success': False, 
+            'message': 'Validation errors: ' + '; '.join(validation_errors)
+        }), 400
     
     try:
         # Check if account number already exists
@@ -1272,53 +1472,53 @@ def customer_detail(customer_id):
 @main.route('/api/customer/<int:customer_id>/addresses', methods=['GET'])
 @login_required
 def get_customer_addresses(customer_id):
-    """Get all addresses for a customer"""
-    customer = Customer.query.get_or_404(customer_id)
-    addresses = [addr.to_dict() for addr in customer.addresses]
-    
-    # If no addresses but has legacy address, return that
-    if not addresses and customer.address:
-        addresses = [{
-            'id': None,
-            'label': 'Primary',
-            'phone': '',
-            'street': customer.address,
-            'city': '',
-            'zip': '',
-            'is_primary': True
-        }]
-    
-    return jsonify(addresses)
+    try:
+        customer = Customer.query.get_or_404(customer_id)
+        addresses = [addr.to_dict() for addr in customer.addresses]
+        
+        if not addresses and customer.address:
+            addresses = [{
+                'id': None,
+                'label': 'Primary',
+                'phone': '',
+                'street': customer.address,
+                'city': '',
+                'zip': '',
+                'is_primary': True
+            }]
+        
+        return jsonify(addresses)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/api/products/search')
 @login_required
 def search_products():
-    """Search products by code or description"""
-    query = request.args.get('q', '').strip()
-    
-    if len(query) < 2:
-        return jsonify([])
-    
-    # Search in both product code and name fields
-    products = Product.query.filter(
-        db.or_(
-            Product.code.ilike(f'%{query}%'),
-            Product.name.ilike(f'%{query}%'),
-            Product.description.ilike(f'%{query}%')
-        )
-    ).limit(20).all()
-    
-    results = []
-    for product in products:
-        results.append({
-            'id': product.id,
-            'code': product.code,
-            'name': product.name,
-            'description': product.description,
-            'display': f'{product.code} - {product.name}'
-        })
-    
-    return jsonify(results)
+    try:
+        query = request.args.get('q', '').strip()
+        
+        if len(query) < 2:
+            return jsonify([])
+        
+        products = Product.query.filter(
+            db.or_(
+                Product.code.ilike(f'%{query}%'),
+                Product.name.ilike(f'%{query}%'),
+                Product.description.ilike(f'%{query}%')
+            )
+        ).limit(20).all()
+        
+        results = []
+        for product in products:
+            results.append({
+                'id': product.id,
+                'code': product.code,
+                'name': product.name,
+            })
+        
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @main.route('/returns', methods=['GET', 'POST'])
 @login_required
@@ -1901,6 +2101,13 @@ def create_stock_transaction(stock_id):
     stock_item = CustomerStock.query.get_or_404(stock_id)
     data = request.json
     
+    validation_errors = validate_stock_transaction(data, stock_item)
+    if validation_errors:
+        return jsonify({
+            'success': False, 
+            'message': 'Validation errors: ' + '; '.join(validation_errors)
+        }), 400
+    
     try:
         transaction_type = data['transaction_type']
         quantity = int(data['quantity'])
@@ -2024,33 +2231,33 @@ def standing_orders():
                          paused_count=paused_count,
                          pending_this_week=pending_this_week)
 
-# Update your standing order creation route in routes.py
 @main.route('/standing-orders/new', methods=['GET', 'POST'])
 @login_required
 def new_standing_order():
     if request.method == 'POST':
         data = request.json
         
+        # VALIDATE INPUT FIRST
+        validation_errors = validate_standing_order_data(data)
+        if validation_errors:
+            return jsonify({
+                'success': False, 
+                'message': 'Validation errors: ' + '; '.join(validation_errors)
+            }), 400
+        
         try:
-            # Validate delivery days (no weekends)
-            delivery_days = data.get('delivery_days', [])
-            weekend_days = [day for day in delivery_days if int(day) >= 5]
-            if weekend_days:
-                return jsonify({
-                    'success': False, 
-                    'message': 'Weekend deliveries are not supported. Please select Monday through Friday only.'
-                }), 400
+            # USE MODEL'S CLEAN METHOD - No more manual filtering!
+            clean_days = StandingOrder.clean_delivery_days(data['delivery_days'])
             
             # Create standing order
             standing_order = StandingOrder(
-    customer_id=data['customer_id'],
-    delivery_days=','.join([day for day in data['delivery_days'] if int(day) < 5]),
-    # ADD THIS LINE:
-    start_date=date.today(),  # Use today as the start date
-    end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
-    special_instructions=data.get('special_instructions', ''),
-    created_by=current_user.id
-)
+                customer_id=data['customer_id'],
+                delivery_days=','.join([str(d) for d in clean_days]),  # Use cleaned days
+                start_date=date.today(),
+                end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date() if data.get('end_date') else None,
+                special_instructions=data.get('special_instructions', '')[:500],
+                created_by=current_user.id
+            )
             
             db.session.add(standing_order)
             db.session.flush()
@@ -2059,11 +2266,11 @@ def new_standing_order():
             for item in data['items']:
                 order_item = StandingOrderItem(
                     standing_order_id=standing_order.id,
-                    product_code=item['product_code'],
-                    product_name=item['product_name'],
-                    quantity=item['quantity'],
+                    product_code=item['product_code'][:50],  # Truncate to max length
+                    product_name=item['product_name'][:100],  # Truncate to max length
+                    quantity=int(item['quantity']),
                     unit_type=item.get('unit_type', 'units'),
-                    special_notes=item.get('notes', '')
+                    special_notes=item.get('notes', '')[:500]  # Truncate to max length
                 )
                 db.session.add(order_item)
             
@@ -2076,7 +2283,7 @@ def new_standing_order():
             )
             db.session.add(log)
             
-            # Generate initial schedules for the first month (weekdays only)
+            # Generate initial schedules
             generate_schedules_for_order(standing_order.id)
             
             db.session.commit()
@@ -2087,7 +2294,7 @@ def new_standing_order():
             db.session.rollback()
             return jsonify({'success': False, 'message': str(e)}), 400
     
-    # GET request - show form
+    # GET request
     customers = Customer.query.order_by(Customer.name).all()
     return render_template('standing_order_form.html', customers=customers)
 
@@ -2099,21 +2306,21 @@ def edit_standing_order(order_id):
     if request.method == 'POST':
         data = request.json
         
+        # VALIDATE INPUT FIRST
+        validation_errors = validate_standing_order_data(data)
+        if validation_errors:
+            return jsonify({
+                'success': False, 
+                'message': 'Validation errors: ' + '; '.join(validation_errors)
+            }), 400
+        
         try:
-            # Track changes for logging
             changes = {}
             
-            # Validate delivery days (no weekends)
-            delivery_days = data.get('delivery_days', [])
-            weekend_days = [day for day in delivery_days if int(day) >= 5]
-            if weekend_days:
-                return jsonify({
-                    'success': False, 
-                    'message': 'Weekend deliveries are not supported. Please select Monday through Friday only.'
-                }), 400
+            # USE MODEL'S CLEAN METHOD - No more manual filtering!
+            clean_days = StandingOrder.clean_delivery_days(data['delivery_days'])
+            new_delivery_days = ','.join([str(d) for d in clean_days])
             
-            # Update delivery days if changed
-            new_delivery_days = ','.join([day for day in data['delivery_days'] if int(day) < 5])
             if order.delivery_days != new_delivery_days:
                 changes['delivery_days'] = {
                     'old': order.delivery_days,
@@ -2324,6 +2531,7 @@ def end_standing_order(order_id):
         
         return jsonify({'success': True, 'message': 'Standing order ended'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/standing-orders/schedule/<int:schedule_id>/complete', methods=['POST'])
@@ -2342,6 +2550,7 @@ def complete_schedule(schedule_id):
         
         return jsonify({'success': True, 'message': 'Order marked as created'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/standing-orders/schedule/<int:schedule_id>/skip', methods=['POST'])
@@ -2357,6 +2566,7 @@ def skip_schedule(schedule_id):
         
         return jsonify({'success': True, 'message': 'Order skipped'})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @main.route('/standing-orders/generate-schedules', methods=['POST'])
@@ -2444,19 +2654,18 @@ def generate_schedules_for_order(order_id, months_ahead=1):
         end_date = order.end_date
     
     current_date = max(order.start_date, today)
+    
+    # USE MODEL'S METHOD - Already filters weekends!
     delivery_days = order.get_delivery_days_list()
     
-    # Filter out weekends (5=Saturday, 6=Sunday)
-    weekday_delivery_days = [day for day in delivery_days if day < 5]
-    
     while current_date <= end_date:
-        # Only check weekdays (0=Monday through 4=Friday)
-        if current_date.weekday() in weekday_delivery_days:
-            # Check if schedule already exists
+        # USE MODEL'S is_weekday METHOD
+        if StandingOrder.is_weekday(current_date) and current_date.weekday() in delivery_days:
+            # Check if schedule already exists with locking
             existing = StandingOrderSchedule.query.filter_by(
                 standing_order_id=order_id,
                 scheduled_date=current_date
-            ).first()
+            ).with_for_update().first()
             
             if not existing:
                 schedule = StandingOrderSchedule(
@@ -2631,6 +2840,13 @@ def upload_image():
 @login_required
 def create_company_update():
     data = request.json
+
+    validation_errors = validate_company_update(data)
+    if validation_errors:
+        return jsonify({
+            'success': False, 
+            'message': 'Validation errors: ' + '; '.join(validation_errors)
+        }), 400
     
     try:
         # Validate required fields

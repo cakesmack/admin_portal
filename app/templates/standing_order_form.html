@@ -239,7 +239,10 @@
           return;
         }
 
-        const hasWeekend = deliveryDays.some((day) => parseInt(day) >= 5);
+        const WEEKDAYS = [0, 1, 2, 3, 4]; // Must match StandingOrder.WEEKDAYS in models.py
+        const hasWeekend = deliveryDays.some(
+          (day) => !WEEKDAYS.includes(parseInt(day))
+        );
         if (hasWeekend) {
           alert(
             "Weekend deliveries are not supported. Please select Monday through Friday only."

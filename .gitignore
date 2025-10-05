@@ -2,4 +2,7 @@ venv/
 __pycache__/
 *.pyc
 .env
-instance/admin_portal.db
+instance/
+*.db
+logs/
+*.log

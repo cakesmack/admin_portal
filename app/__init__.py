@@ -2,6 +2,9 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+import logging
+from logging.handlers import RotatingFileHandler
+import os
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -49,5 +52,29 @@ def create_app():
             for header, value in headers.items():
                 response.headers[header] = value
             return response
+    
+    # ADD THIS SECTION - Logging Setup
+    if not app.debug:
+        # Create logs directory if it doesn't exist
+        if not os.path.exists('logs'):
+            os.mkdir('logs')
+        
+        # Set up file handler with rotation
+        file_handler = RotatingFileHandler(
+            'logs/app.log', 
+            maxBytes=10485760,  # 10MB
+            backupCount=10
+        )
+        
+        # Set logging format
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+        ))
+        
+        # Set logging level
+        file_handler.setLevel(logging.INFO)
+        app.logger.addHandler(file_handler)
+        app.logger.setLevel(logging.INFO)
+        app.logger.info('Application startup')
     
     return app

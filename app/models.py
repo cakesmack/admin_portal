@@ -206,7 +206,6 @@ class Customer(db.Model):
     contact_name = db.Column(db.String(100))
     phone = db.Column(db.String(20))  # Main phone number for the account
     email = db.Column(db.String(100))
-    
     # DEPRECATED: Keep for backward compatibility, but use addresses relationship instead
     address = db.Column(db.String(200))
     
@@ -216,7 +215,12 @@ class Customer(db.Model):
     # Relationships
     addresses = db.relationship('CustomerAddress', backref='customer', lazy=True, cascade='all, delete-orphan')
     # callsheet_entries and stock_items backrefs are created by their respective models
-    
+
+    __table_args__ = (
+        db.Index('idx_customer_account', 'account_number'),
+        db.Index('idx_customer_name', 'name'),
+    )
+
     def to_dict(self):
         """Convert customer to dictionary with addresses"""
         # Get addresses or create default from legacy address field
@@ -299,6 +303,11 @@ class Product(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
 
+    __table_args__ = (
+        db.Index('idx_product_code', 'code'),
+        db.Index('idx_product_name', 'name'),
+    )
+
 class Callsheet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)  
@@ -362,6 +371,11 @@ class CallsheetEntry(db.Model):
         }
         return status_display.get(self.call_status, 'Not Called')
 
+    __table_args__ = (
+        db.Index('idx_callsheet_position', 'callsheet_id', 'position'),
+        db.Index('idx_callsheet_status', 'callsheet_id', 'is_paused'),
+    )
+
 class CallsheetArchive(db.Model):
     """Store archived callsheet data for historical viewing"""
     id = db.Column(db.Integer, primary_key=True)
@@ -387,6 +401,12 @@ class Form(db.Model):
     
     # Define the completer relationship separately
     completer = db.relationship('User', foreign_keys=[completed_by], backref='completed_forms')
+
+    __table_args__ = (
+        db.Index('idx_form_user_date', 'user_id', 'date_created'),
+        db.Index('idx_form_status', 'is_completed', 'is_archived'),
+        db.Index('idx_form_type', 'type'),
+    )
 
 class CustomerStock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -453,12 +473,15 @@ class StandingOrder(db.Model):
     # Special instructions for this standing order
     special_instructions = db.Column(db.Text)
     
-
     # Tracking
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    WEEKDAYS = list(range(5))  # 0=Monday through 4=Friday
+    WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    WEEKEND_ERROR_MESSAGE = 'Weekend deliveries are not supported. Please select Monday through Friday only.'
+
     # Relationships
     customer = db.relationship('Customer', backref='standing_orders')
     created_by_user = db.relationship('User', backref='created_standing_orders')
@@ -466,28 +489,63 @@ class StandingOrder(db.Model):
     schedules = db.relationship('StandingOrderSchedule', backref='standing_order', cascade='all, delete-orphan')
     logs = db.relationship('StandingOrderLog', backref='standing_order', cascade='all, delete-orphan')
     
-    # Add these methods to your StandingOrder model in models.py
+    
 
     def get_delivery_days_list(self):
-        """Return list of day numbers (excluding weekends)"""
-        if self.delivery_days:
+        """Return list of day numbers (weekdays only)"""
+        if not self.delivery_days:
+            return []
+        
+        try:
             days = [int(d) for d in self.delivery_days.split(',')]
-            # Filter out weekends (5=Saturday, 6=Sunday)
-            return [d for d in days if d < 5]
-        return []
-
+            # Filter using WEEKDAYS constant
+            return [d for d in days if d in self.WEEKDAYS]
+        except (ValueError, AttributeError):
+            return []
+    
     def get_delivery_days_names(self):
         """Return readable day names (weekdays only)"""
-        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
         day_numbers = self.get_delivery_days_list()
-        return [days[d] for d in day_numbers if d < 5]
-
-    def validate_delivery_days(self):
-        """Validate that only weekdays are selected"""
-        day_numbers = self.get_delivery_days_list()
-        weekend_days = [d for d in day_numbers if d >= 5]
-        if weekend_days:
-            raise ValueError("Weekend deliveries are not supported. Please select Monday through Friday only.")
+        return [self.WEEKDAY_NAMES[d] for d in day_numbers if d < len(self.WEEKDAY_NAMES)]
+    
+    @classmethod
+    def validate_delivery_days(cls, delivery_days):
+        """
+        Validate that only weekdays are selected.
+        Returns (is_valid, error_message)
+        """
+        if not delivery_days:
+            return False, 'At least one delivery day must be selected'
+        
+        try:
+            days = [int(d) for d in delivery_days]
+            weekend_days = [d for d in days if d not in cls.WEEKDAYS]
+            
+            if weekend_days:
+                return False, cls.WEEKEND_ERROR_MESSAGE
+            
+            return True, None
+        except (ValueError, TypeError):
+            return False, 'Invalid delivery days format'
+    
+    @classmethod
+    def clean_delivery_days(cls, delivery_days):
+        """
+        Remove any weekend days and return cleaned list.
+        Use this when saving to database.
+        """
+        try:
+            days = [int(d) for d in delivery_days]
+            return [d for d in days if d in cls.WEEKDAYS]
+        except (ValueError, TypeError):
+            return []
+    
+    @classmethod
+    def is_weekday(cls, date_obj):
+        """Check if a given date is a weekday (Mon-Fri)"""
+        return date_obj.weekday() in cls.WEEKDAYS
+        
+   
 
 class StandingOrderItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -522,7 +580,10 @@ class StandingOrderSchedule(db.Model):
     created_by_user = db.relationship('User', backref='created_orders_from_standing')
     
     # Unique constraint to prevent duplicate schedules
-    __table_args__ = (db.UniqueConstraint('standing_order_id', 'scheduled_date'),)
+    __table_args__ = (
+        db.UniqueConstraint('standing_order_id', 'scheduled_date'),
+        db.Index('idx_schedule_date_status', 'scheduled_date', 'status'),
+    )
 
 class StandingOrderLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
