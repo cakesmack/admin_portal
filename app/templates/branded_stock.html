@@ -2,139 +2,7 @@
 {% block content %}
 <h2>Customer Stock Order Form</h2>
 <p class="text-muted">Process customer orders from their held inventory</p>
-<div class="card mt-4">
-  <div class="card-body">
-    <form method="POST">
-      {{ form.hidden_tag() }}
 
-      <!-- Step 1: Customer Selection -->
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <label class="form-label">Customer Account Number</label>
-          <div class="search-container position-relative">
-            <input
-              type="text"
-              class="form-control"
-              name="customer_account"
-              id="customerAccount"
-              placeholder="Search by account number or name"
-              required
-            />
-          </div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Customer Name</label>
-          <div class="search-container position-relative">
-            <input
-              type="text"
-              class="form-control"
-              name="customer_name"
-              id="customerName"
-              placeholder="Search by name or account"
-              required
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- Selected Customer Info -->
-      <div
-        id="selectedCustomerInfo"
-        class="alert alert-info mb-3"
-        style="display: none"
-      >
-        <strong>Selected Customer:</strong><br />
-        <span id="selectedCustomerDetails"></span>
-      </div>
-
-      <!-- Step 2: Available Stock Items -->
-      <div id="stockItemsSection" class="mb-4" style="display: none">
-        <h5>Available Stock Items:</h5>
-        <div id="availableStockItems" class="row">
-          <!-- Stock items will be populated here -->
-        </div>
-      </div>
-
-      <!-- Step 3: Order Details (Hidden until item selected) -->
-      <div id="orderDetailsSection" style="display: none">
-        <input type="hidden" name="stock_item_id" id="stockItemId" />
-        <input type="hidden" name="customer_id" id="customerId" />
-
-        <div class="alert alert-success mb-3">
-          <strong>Selected Item:</strong> <span id="selectedItemDisplay"></span
-          ><br />
-          <strong>Available Stock:</strong> <span id="availableStock"></span>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-4">
-            {{ form.product_code.label(class="form-label") }} {{
-            form.product_code(class="form-control", readonly=True) }}
-          </div>
-          <div class="col-md-8">
-            {{ form.product_name.label(class="form-label") }} {{
-            form.product_name(class="form-control", readonly=True) }}
-          </div>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-4">
-            <label class="form-label">Quantity Ordered *</label>
-            <input
-              type="number"
-              class="form-control"
-              name="quantity_delivered"
-              id="quantityOrdered"
-              min="1"
-              required
-              placeholder="Enter quantity"
-            />
-            <small class="form-text"
-              >Maximum available: <span id="maxQuantity"></span
-            ></small>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">New Stock Level</label>
-            <input
-              type="number"
-              class="form-control"
-              name="current_stock"
-              id="newStockLevel"
-              readonly
-              style="background-color: #f8f9fa"
-            />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Order Reference</label>
-            <input
-              type="text"
-              class="form-control"
-              name="order_reference"
-              id="orderReference"
-              placeholder="Order number, invoice etc."
-            />
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Order Notes</label>
-          <textarea
-            class="form-control"
-            name="order_notes"
-            id="orderNotes"
-            rows="3"
-            placeholder="Additional notes about this order"
-          ></textarea>
-        </div>
-
-        <div class="d-grid">
-          {{ form.submit(class="btn btn-primary", value="Process Stock Order")
-          }}
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
 <!-- Available Stock Items Table -->
 <div class="card mb-4">
   <div class="card-header">
@@ -167,7 +35,7 @@
             <td>
               <button 
                 class="btn btn-sm btn-primary" 
-                onclick="quickSelectItem({{ item.id }}, '{{ item.customer.account_number }}', '{{ item.customer.name }}', '{{ item.product_code or 'N/A' }}', '{{ item.product_name }}', {{ item.current_stock }}, '{{ item.unit_type }}')"
+                onclick="quickSelectItem({{ item.id }}, {{ item.customer_id }}, '{{ item.customer.account_number }}', '{{ item.customer.name }}', '{{ item.product_code or 'N/A' }}', '{{ item.product_name }}', {{ item.current_stock }}, '{{ item.unit_type }}')"
                 {% if item.current_stock == 0 %}disabled{% endif %}>
                 <i class="bi bi-cart-plus"></i> Create Order
               </button>
@@ -207,6 +75,9 @@
             <strong>Product:</strong> <span id="modalProductDisplay"></span><br>
             <strong>Available Stock:</strong> <span id="modalAvailableStock"></span>
           </div>
+
+          <!-- Address selection area -->
+          <div class="address-selection-area-modal col-md-12 mb-3"></div>
 
           <div class="row mb-3">
             <div class="col-md-6">
@@ -267,7 +138,6 @@
   </div>
 </div>
 
-
 <!-- Recent Stock Orders -->
 <div class="card mt-4">
   <div class="card-header">
@@ -318,382 +188,29 @@
 {% endblock %} 
 
 {% block scripts %}
-<script>
+<script type="module">
+  import {
+    setupAddressSelector,
+    getSelectedAddress,
+  } from "/static/js/script.js";
+
   let selectedStockItem = null;
-  let selectedCustomerId = null;
-  let customerSearchTimeout;
+  let selectedCustomerForAddress = null;
   let orderModal;
 
   document.addEventListener("DOMContentLoaded", function () {
-    setupCustomerSearch();
     orderModal = new bootstrap.Modal(document.getElementById("orderModal"));
     
     // Setup quantity calculation in modal
     document.getElementById("modalQuantity").addEventListener("input", calculateModalNewStock);
   });
 
-  function setupCustomerSearch() {
-    const accountInput = document.getElementById("customerAccount");
-    const nameInput = document.getElementById("customerName");
-
-    if (accountInput) setupSearchField(accountInput, "account");
-    if (nameInput) setupSearchField(nameInput, "name");
-  }
-
-  function setupSearchField(input, fieldType) {
-    input.addEventListener("input", function () {
-      clearTimeout(customerSearchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        clearCustomerSelection();
-        return;
-      }
-
-      customerSearchTimeout = setTimeout(() => {
-        searchCustomersWithStock(searchValue, input, fieldType);
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchCustomersWithStock(
-    searchValue,
-    inputElement,
-    fieldType
-  ) {
-    try {
-      const response = await fetch(
-        `/api/customer-stock/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const stockItems = await response.json();
-
-      // Group by customer to only show customers with stock
-      const customerMap = new Map();
-      stockItems.forEach((item) => {
-        if (!customerMap.has(item.customer_id)) {
-          customerMap.set(item.customer_id, {
-            id: item.customer_id,
-            name: item.customer_name,
-            account_number: item.customer_id,
-            stockCount: 0,
-          });
-        }
-        customerMap.get(item.customer_id).stockCount++;
-      });
-
-      const customers = Array.from(customerMap.values());
-      
-      // If no customers found, try searching by customer directly
-      if (customers.length === 0) {
-        const custResponse = await fetch(
-          `/api/customers/search?q=${encodeURIComponent(searchValue)}`
-        );
-        const allCustomers = await custResponse.json();
-        
-        // Filter to only show customers that have stock
-        for (const cust of allCustomers) {
-          const stockResp = await fetch(`/api/customer-stock/search?customer_id=${cust.id}`);
-          const custStock = await stockResp.json();
-          if (custStock.length > 0) {
-            customers.push({
-              id: cust.id,
-              name: cust.name,
-              account_number: cust.account_number,
-              stockCount: custStock.length
-            });
-          }
-        }
-      }
-      
-      showCustomerDropdown(customers, inputElement, fieldType);
-    } catch (error) {
-      console.error("Error searching customers:", error);
-      hideDropdown(inputElement);
-    }
-  }
-
-  function showCustomerDropdown(customers, inputElement, fieldType) {
-    hideDropdown(inputElement);
-
-    if (customers.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-    dropdown.style.cssText = `
-        position: fixed;
-        background: var(--dark-card);
-        border: 2px solid var(--border-color);
-        border-radius: 12px;
-        max-height: 300px;
-        overflow-y: auto;
-        z-index: 9999;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        min-width: 400px;
-    `;
-    
-    // Position dropdown below the input
-    const rect = inputElement.getBoundingClientRect();
-    dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-    dropdown.style.left = `${rect.left + window.scrollX}px`;
-
-    customers.forEach((customer) => {
-      const item = document.createElement("div");
-      item.style.cssText = `
-            padding: 12px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            transition: background-color 0.2s;
-            color: var(--text-light);
-        `;
-
-      item.innerHTML = `
-            <div style="font-weight: 600;">${customer.account_number} - ${customer.name}</div>
-            <small style="color: var(--text-muted);">
-                Stock items: ${customer.stockCount}
-            </small>
-        `;
-
-      item.addEventListener("mouseenter", function () {
-        this.style.backgroundColor = "var(--primary-blue)";
-      });
-
-      item.addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "transparent";
-      });
-
-      item.addEventListener("click", function () {
-        selectCustomer(customer);
-        hideAllDropdowns();
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    document.body.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
-  }
-
-  async function selectCustomer(customer) {
-    selectedCustomerId = customer.id;
-
-    // Fill customer fields
-    document.getElementById("customerAccount").value =
-      customer.account_number || customer.id;
-    document.getElementById("customerName").value = customer.name;
-    document.getElementById("customerId").value = customer.id;
-
-    // Style fields
-    document.getElementById("customerAccount").style.borderColor = "#28a745";
-    document.getElementById("customerName").style.borderColor = "#28a745";
-
-    // Show customer info
-    document.getElementById("selectedCustomerInfo").style.display = "block";
-    document.getElementById("selectedCustomerDetails").innerHTML = `
-        Name: ${customer.name}<br>
-        Stock Items: ${customer.stockCount}
-    `;
-
-    // Load and display stock items
-    await loadCustomerStockItems(customer.id);
-  }
-
-  async function loadCustomerStockItems(customerId) {
-    try {
-      const response = await fetch(
-        `/api/customer-stock/search?customer_id=${customerId}`
-      );
-      const stockItems = await response.json();
-
-      displayStockItems(stockItems);
-    } catch (error) {
-      console.error("Error loading stock items:", error);
-      alert("Error loading customer stock items");
-    }
-  }
-
-  function displayStockItems(stockItems) {
-    const itemsDiv = document.getElementById("availableStockItems");
-
-    if (stockItems.length === 0) {
-      itemsDiv.innerHTML =
-        '<div class="col-12"><div class="alert alert-warning">No stock items found for this customer</div></div>';
-      document.getElementById("stockItemsSection").style.display = "block";
-      return;
-    }
-
-    let html = "";
-    stockItems.forEach((item) => {
-      const statusClass =
-        item.current_stock === 0
-          ? "danger"
-          : item.current_stock <= item.reorder_level
-          ? "warning"
-          : "success";
-      
-      const productCode = item.product_code || 'N/A';
-      const unitType = item.unit_type || 'units';
-
-      html += `
-            <div class="col-md-4 mb-3">
-                <div class="card stock-item-card" style="cursor: pointer; transition: all 0.2s;">
-                    <div class="card-body">
-                        <h6 class="card-title">${productCode}</h6>
-                        <p class="card-text">${item.product_name}</p>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="badge bg-${statusClass}">${item.current_stock} ${unitType}</span>
-                            ${
-                              item.current_stock <= item.reorder_level
-                                ? '<small class="text-warning">Low stock!</small>'
-                                : ""
-                            }
-                        </div>
-                        <button class="btn btn-sm btn-primary w-100" ${item.current_stock === 0 ? 'disabled' : ''}>
-                            <i class="bi bi-cart-plus"></i> Create Order
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    itemsDiv.innerHTML = html;
-    document.getElementById("stockItemsSection").style.display = "block";
-
-    // Add click handlers to buttons after rendering
-    document.querySelectorAll('.stock-item-card button').forEach((button, index) => {
-      button.addEventListener('click', function() {
-        const item = stockItems[index];
-        const accountNumber = document.getElementById("customerAccount").value;
-        const customerName = document.getElementById("customerName").value;
-        const productCode = item.product_code || 'N/A';
-        const unitType = item.unit_type || 'units';
-        
-        quickSelectItem(item.id, accountNumber, customerName, productCode, item.product_name, item.current_stock, unitType);
-      });
-    });
-
-    // Add hover effects
-    document.querySelectorAll(".stock-item-card").forEach((card) => {
-      card.addEventListener("mouseenter", function () {
-        this.style.transform = "translateY(-2px)";
-        this.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
-        this.style.borderColor = "var(--primary-blue)";
-      });
-      card.addEventListener("mouseleave", function () {
-        this.style.transform = "translateY(0)";
-        this.style.boxShadow = "";
-        this.style.borderColor = "";
-      });
-    });
-  }
-
-  function selectStockItem(
-    itemId,
-    productCode,
-    productName,
-    currentStock
-  ) {
-    selectedStockItem = {
-      id: itemId,
-      product_code: productCode,
-      product_name: productName,
-      current_stock: currentStock
-    };
-
-    // Fill form fields
-    document.querySelector('input[name="product_code"]').value = productCode || 'N/A';
-    document.querySelector('input[name="product_name"]').value = productName;
-    document.getElementById("stockItemId").value = itemId;
-
-    // Update display
-    const displayCode = productCode && productCode !== 'N/A' ? productCode + ' - ' : '';
-    document.getElementById(
-      "selectedItemDisplay"
-    ).textContent = `${displayCode}${productName}`;
-    document.getElementById(
-      "availableStock"
-    ).textContent = `${currentStock} units`;
-    document.getElementById(
-      "maxQuantity"
-    ).textContent = `${currentStock} units`;
-    document.getElementById("quantityOrdered").max = currentStock;
-
-    // Show order details section
-    document.getElementById("orderDetailsSection").style.display = "block";
-
-    // Scroll to order section
-    document
-      .getElementById("orderDetailsSection")
-      .scrollIntoView({ behavior: "smooth" });
-  }
-
-  function setupQuantityCalculation() {
-    const quantityInput = document.getElementById("quantityOrdered");
-    if (quantityInput) {
-      quantityInput.addEventListener("input", function () {
-        calculateNewStockLevel();
-      });
-    }
-  }
-
-  function calculateNewStockLevel() {
-    const ordered =
-      parseInt(document.getElementById("quantityOrdered").value) || 0;
-    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
-    const newLevel = Math.max(0, available - ordered);
-
-    document.getElementById("newStockLevel").value = newLevel;
-
-    // Visual feedback
-    const input = document.getElementById("quantityOrdered");
-    if (ordered > available) {
-      input.style.borderColor = "#dc3545";
-    } else {
-      input.style.borderColor = "#28a745";
-    }
-  }
-
-  function clearCustomerSelection() {
-    selectedCustomerId = null;
-    selectedStockItem = null;
-    document.getElementById("selectedCustomerInfo").style.display = "none";
-    document.getElementById("stockItemsSection").style.display = "none";
-    document.getElementById("orderDetailsSection").style.display = "none";
-    document.getElementById("customerId").value = "";
-    document.getElementById("stockItemId").value = "";
-  }
-
-  function hideDropdown(inputElement) {
-    const existing =
-      inputElement.parentElement.querySelector(".dropdown-results");
-    if (existing) {
-      existing.remove();
-    }
-  }
-
-  function hideAllDropdowns() {
-    document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
-      dropdown.remove();
-    });
-  }
-
   // Quick select function from stock table
-  function quickSelectItem(itemId, accountNumber, customerName, productCode, productName, currentStock, unitType) {
+  window.quickSelectItem = async function(itemId, customerId, accountNumber, customerName, productCode, productName, currentStock, unitType) {
     // Set selected stock item
     selectedStockItem = {
       id: itemId,
+      customerId: customerId,
       account_number: accountNumber,
       customer_name: customerName,
       product_code: productCode,
@@ -704,7 +221,7 @@
     
     // Fill modal hidden fields
     document.getElementById("modalStockItemId").value = itemId;
-    document.getElementById("modalCustomerId").value = itemId;
+    document.getElementById("modalCustomerId").value = customerId;
     document.getElementById("modalCustomerAccount").value = accountNumber;
     document.getElementById("modalCustomerName").value = customerName;
     document.getElementById("modalProductCode").value = productCode;
@@ -724,6 +241,27 @@
     // Clear other fields
     document.getElementById("modalReference").value = "";
     document.getElementById("modalNotes").value = "";
+    
+    // Setup address selector for this customer
+    try {
+      const response = await fetch(`/api/customers/search?q=${accountNumber}`);
+      const customers = await response.json();
+      
+      if (customers.length > 0) {
+        selectedCustomerForAddress = customers[0];
+        const addressContainer = document.querySelector(".address-selection-area-modal");
+        
+        // Clear previous address selector
+        addressContainer.innerHTML = "";
+        
+        // Setup address selection
+        await setupAddressSelector(selectedCustomerForAddress, addressContainer, (address, label) => {
+          // Address is selected, we'll get it on submit
+        });
+      }
+    } catch (error) {
+      console.error("Error loading customer for address:", error);
+    }
     
     // Show modal
     orderModal.show();
@@ -747,7 +285,7 @@
     }
   }
   
-  function submitOrder() {
+  window.submitOrder = function() {
     const quantity = parseInt(document.getElementById("modalQuantity").value);
     const available = selectedStockItem ? selectedStockItem.current_stock : 0;
     
@@ -767,8 +305,21 @@
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
     
+    // Get selected address
+    const addressContainer = document.querySelector(".address-selection-area-modal");
+    const selectedAddressData = addressContainer ? getSelectedAddress(addressContainer) : null;
+
+    // Add address label to form if available
+    let addressLabel = "";
+    if (selectedAddressData && selectedAddressData.label) {
+      addressLabel = selectedAddressData.label;
+    }
+
     // Get form data
     const formData = new FormData(document.getElementById("orderForm"));
+    if (addressLabel) {
+      formData.append("address_label", addressLabel);
+    }
     
     // Submit via fetch
     fetch('{{ url_for("main.branded_stock") }}', {

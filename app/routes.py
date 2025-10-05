@@ -1444,6 +1444,7 @@ def branded_stock():
             form_data = {
                 'customer_account': request.form.get('customer_account'),
                 'customer_name': request.form.get('customer_name'),
+                'address_label': request.form.get('address_label', ''),
                 'product_code': request.form.get('product_code'),
                 'product_name': request.form.get('product_name'),
                 'quantity_delivered': quantity_ordered,
@@ -1539,6 +1540,7 @@ def invoice_correction():
             'customer_account': form.customer_account.data,
             'customer_name': form.customer_name.data,
             'customer_address': form.customer_address.data,
+            'address_label': request.form.get('address_label', ''),
             'contact_name': customer_contact,
             'products': products_data,
             'notes': form.notes.data
@@ -1565,6 +1567,8 @@ def invoice_correction():
         return redirect(url_for('main.dashboard'))
     
     return render_template('invoice_correction.html', title='Invoice Correction - Delivery Only', form=form)
+
+
 
 @main.route('/special-order', methods=['GET', 'POST'])
 @login_required
