@@ -354,7 +354,6 @@ def dashboard():
         current_date=current_date
     )
 
-# Todo API Routes
 @main.route('/api/todos', methods=['GET'])
 @login_required
 def get_todos():
@@ -446,7 +445,6 @@ def get_company_update(update_id):
         return jsonify({'error': 'Failed to fetch update'}), 500
 
 
-# Add this function to get category colors
 def get_category_config():
     """Get category configuration with colors"""
     return {
@@ -594,7 +592,6 @@ def callsheets():
         current_user=current_user
     )
 
-
 @main.route('/api/callsheet/create', methods=['POST'])
 @login_required
 def create_callsheet():
@@ -671,7 +668,6 @@ def update_callsheet(callsheet_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-
 @main.route('/api/callsheet/<int:callsheet_id>/delete', methods=['POST'])
 @login_required
 def delete_callsheet(callsheet_id):
@@ -686,7 +682,6 @@ def delete_callsheet(callsheet_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/callsheet/<int:callsheet_id>/add-customer', methods=['POST'])
 @login_required
@@ -754,7 +749,6 @@ def add_customer_to_callsheet(callsheet_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-
 @main.route('/api/callsheet-entry/<int:entry_id>/update-status', methods=['POST'])
 @login_required
 def update_callsheet_entry_status(entry_id):
@@ -795,8 +789,6 @@ def update_callsheet_entry_status(entry_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
-
-
 
 @main.route('/api/callsheet-entry/<int:entry_id>/update-notes', methods=['POST'])
 @login_required
@@ -900,7 +892,6 @@ def reorder_callsheet_entry(entry_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-
 @main.route('/api/callsheets/reset-week', methods=['POST'])
 @login_required
 def reset_week():
@@ -938,7 +929,6 @@ def reset_week():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/callsheets/archive', methods=['POST'])
 @login_required
@@ -1059,7 +1049,6 @@ def complete_callsheet(callsheet_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-
 @main.route('/callsheets/history')
 @login_required
 def callsheet_history_page():
@@ -1068,7 +1057,6 @@ def callsheet_history_page():
         'callsheet_history.html',
         title='Callsheet History'
     )
-
 
 @main.route('/api/callsheets/history')
 @login_required
@@ -1091,7 +1079,6 @@ def callsheet_history():
         })
     
     return jsonify(history)
-
 
 @main.route('/api/callsheets/history/<int:completion_id>')
 @login_required
@@ -1165,7 +1152,6 @@ def update_customer(customer_id):
         return jsonify({'success': True, 'message': 'Customer updated successfully'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/customers', methods=['POST'])
 @login_required
@@ -1282,7 +1268,6 @@ def customer_detail(customer_id):
         except Exception as e:
             db.session.rollback()
             return jsonify({'success': False, 'message': str(e)}), 400
-
 
 @main.route('/api/customer/<int:customer_id>/addresses', methods=['GET'])
 @login_required
@@ -1568,8 +1553,6 @@ def invoice_correction():
     
     return render_template('invoice_correction.html', title='Invoice Correction - Delivery Only', form=form)
 
-
-
 @main.route('/special-order', methods=['GET', 'POST'])
 @login_required
 def special_order():
@@ -1705,7 +1688,6 @@ def forms():
                              'show_archived': show_archived
                          })
 
-
 @main.route('/form/<int:form_id>')
 @login_required
 def view_form(form_id):
@@ -1724,7 +1706,6 @@ def view_form(form_id):
         form_id=form_id,
         datetime=datetime
     )
-
 
 @main.route('/api/form/<int:form_id>/complete', methods=['POST'])
 @login_required
@@ -1994,8 +1975,6 @@ def search_customer_stock():
     
     stock_items = stock_query.limit(20).all()
     return jsonify([item.to_dict() for item in stock_items])
-
-
 
 @main.route('/standing-orders')
 @login_required
@@ -2419,9 +2398,10 @@ def schedule_view():
         start_date = date(target_date.year, target_date.month, 1)
         end_date = date(target_date.year, target_date.month, calendar.monthrange(target_date.year, target_date.month)[1])
     
-    # Get schedules in date range
+    # Get schedules in date range - exclude paused orders
     schedules = StandingOrderSchedule.query.join(StandingOrder).join(Customer).filter(
-        StandingOrderSchedule.scheduled_date.between(start_date, end_date)
+        StandingOrderSchedule.scheduled_date.between(start_date, end_date),
+        StandingOrder.status != 'paused'
     ).order_by(StandingOrderSchedule.scheduled_date, Customer.name).all()
     
     # Group by date
@@ -2448,6 +2428,7 @@ def schedule_view():
                          completed=completed,
                          pending=pending,
                          skipped=skipped)
+
 
 def generate_schedules_for_order(order_id, months_ahead=1):
     """Generate schedule entries for a standing order (Monday-Friday only)"""
@@ -2535,9 +2516,10 @@ def print_schedule_view():
         start_date = date(target_date.year, target_date.month, 1)
         end_date = date(target_date.year, target_date.month, calendar.monthrange(target_date.year, target_date.month)[1])
     
-    # Get schedules in date range
+    # Get schedules in date range - exclude paused orders
     schedules = StandingOrderSchedule.query.join(StandingOrder).join(Customer).filter(
-        StandingOrderSchedule.scheduled_date.between(start_date, end_date)
+        StandingOrderSchedule.scheduled_date.between(start_date, end_date),
+        StandingOrder.status != 'paused'
     ).order_by(StandingOrderSchedule.scheduled_date, Customer.name).all()
     
     # Group by date
