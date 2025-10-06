@@ -364,6 +364,11 @@ table.table tbody tr.callsheet-row:hover td {
               title="Remove from callsheet">
         <i class="bi bi-trash"></i>
       </button>
+      <button class="btn btn-sm btn-warning" 
+              onclick="togglePauseCustomer({{ entry.id }})" 
+              title="Pause Customer">
+        <i class="bi bi-pause-fill"></i>
+      </button>
     </td>
   </tr>
   {% endfor %}

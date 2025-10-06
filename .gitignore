@@ -6,3 +6,4 @@ instance/
 *.db
 logs/
 *.log
+external_files/

@@ -208,13 +208,10 @@ class Customer(db.Model):
     email = db.Column(db.String(100))
     # DEPRECATED: Keep for backward compatibility, but use addresses relationship instead
     address = db.Column(db.String(200))
-    
     notes = db.Column(db.Text)
     callsheet_notes = db.Column(db.Text)  # Persistent across all callsheets
-    
     # Relationships
     addresses = db.relationship('CustomerAddress', backref='customer', lazy=True, cascade='all, delete-orphan')
-    # callsheet_entries and stock_items backrefs are created by their respective models
 
     __table_args__ = (
         db.Index('idx_customer_account', 'account_number'),
