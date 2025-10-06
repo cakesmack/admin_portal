@@ -121,77 +121,88 @@
   let additionalProducts = [];
   let selectedCustomer = null;
 
-  document.addEventListener("DOMContentLoaded", function () {
-    setupCustomerSearchAPI();
-    setupProductSearch(document.querySelector('input[name="product_code"]'));
+  document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+      setupCustomerSearchAPI();
+      setupProductSearch(document.querySelector('input[name="product_code"]'));
 
-    document.addEventListener("click", function (e) {
-      if (!e.target.closest(".search-container")) {
-        hideAllDropdowns();
-      }
-    });
-
-    const form = document.getElementById("returnsForm");
-    if (form) {
-      form.addEventListener("submit", async function (e) {
-        e.preventDefault();
-
-        updateAdditionalProducts();
-        document.getElementById("additional_products").value =
-          JSON.stringify(additionalProducts);
-
-        // Get selected address
-        const addressContainer = document.querySelector(
-          ".address-selection-area"
-        );
-        const selectedAddressData = addressContainer
-          ? getSelectedAddress(addressContainer)
-          : null;
-
-        // Add address label to form if available
-        let addressLabel = "";
-        if (selectedAddressData && selectedAddressData.label) {
-          addressLabel = selectedAddressData.label;
-        }
-
-        const formData = new FormData(form);
-        if (addressLabel) {
-          formData.append("address_label", addressLabel);
-        }
-
-        try {
-          const response = await fetch(form.action, {
-            method: "POST",
-            body: formData,
-          });
-
-          const responseText = await response.text();
-
-          if (response.ok) {
-            try {
-              const data = JSON.parse(responseText);
-              if (data.success && data.form_id) {
-                window.open(`/print-form/${data.form_id}`, "_blank");
-                window.location.href = "/dashboard";
-              }
-            } catch (e) {
-              const tempDiv = document.createElement("div");
-              tempDiv.innerHTML = responseText;
-              const scripts = tempDiv.getElementsByTagName("script");
-              for (let script of scripts) {
-                eval(script.innerHTML);
-              }
-            }
-          } else {
-            alert("Error submitting form. Please try again.");
-          }
-        } catch (error) {
-          console.error("Error:", error);
-          alert("Error submitting form. Please try again.");
+      document.addEventListener("click", function (e) {
+        if (!e.target.closest(".search-container")) {
+          hideAllDropdowns();
         }
       });
-    }
-  });
+
+      const form = document.getElementById("returnsForm");
+      if (form) {
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          // Prevent double submission
+          const submitBtn = form.querySelector(
+            'button[type="submit"], input[type="submit"]'
+          );
+          if (submitBtn.disabled) return;
+          submitBtn.disabled = true;
+
+          updateAdditionalProducts();
+          document.getElementById("additional_products").value =
+            JSON.stringify(additionalProducts);
+
+          const addressContainer = document.querySelector(
+            ".address-selection-area"
+          );
+          const selectedAddressData = addressContainer
+            ? getSelectedAddress(addressContainer)
+            : null;
+
+          let addressLabel = "";
+          if (selectedAddressData && selectedAddressData.label) {
+            addressLabel = selectedAddressData.label;
+          }
+
+          const formData = new FormData(form);
+          if (addressLabel) {
+            formData.append("address_label", addressLabel);
+          }
+
+          try {
+            const response = await fetch(form.action, {
+              method: "POST",
+              body: formData,
+            });
+
+            const responseText = await response.text();
+
+            if (response.ok) {
+              try {
+                const data = JSON.parse(responseText);
+                if (data.success && data.form_id) {
+                  window.open(`/print-form/${data.form_id}`, "_blank");
+                  window.location.href = "/dashboard";
+                }
+              } catch (e) {
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = responseText;
+                const scripts = tempDiv.getElementsByTagName("script");
+                for (let script of scripts) {
+                  eval(script.innerHTML);
+                }
+              }
+            } else {
+              alert("Error submitting form. Please try again.");
+              submitBtn.disabled = false;
+            }
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Error submitting form. Please try again.");
+            submitBtn.disabled = false;
+          }
+        });
+      }
+    },
+    { once: true }
+  );
 
   function setupCustomerSearchAPI() {
     const accountInput = document.querySelector(
@@ -200,39 +211,27 @@
     const nameInput = document.querySelector('input[name="customer_name"]');
 
     if (accountInput) {
-      setupSearchField(accountInput, "customer", "account");
+      setupSearchField(accountInput, "account");
     }
 
     if (nameInput) {
-      setupSearchField(nameInput, "customer", "name");
+      setupSearchField(nameInput, "name");
     }
   }
 
-  function setupProductSearch(input) {
-    if (input) {
-      setupSearchField(input, "product", "code");
-    }
-  }
-
-  function setupSearchField(input, type, field) {
+  function setupSearchField(input, fieldType) {
     input.addEventListener("input", function () {
       clearTimeout(searchTimeout);
       const searchValue = this.value.trim();
 
       if (searchValue.length < 2) {
         hideDropdown(input);
-        if (type === "customer") {
-          clearOtherCustomerFields(field);
-        }
+        clearOtherFields(fieldType);
         return;
       }
 
       searchTimeout = setTimeout(() => {
-        if (type === "customer") {
-          searchCustomers(searchValue, input, field);
-        } else {
-          searchProducts(searchValue, input);
-        }
+        searchCustomers(searchValue, input, fieldType);
       }, 300);
     });
 
@@ -251,227 +250,81 @@
         `/api/customers/search?q=${encodeURIComponent(searchValue)}`
       );
       const customers = await response.json();
-      showCustomerDropdown(customers, inputElement, fieldType);
+
+      if (customers.length === 0) {
+        hideDropdown(inputElement);
+        return;
+      }
+
+      showDropdown(customers, inputElement, fieldType);
     } catch (error) {
-      console.error("Error searching customers:", error);
-      hideDropdown(inputElement);
+      console.error("Search error:", error);
     }
   }
 
-  async function searchProducts(searchValue, inputElement) {
-    try {
-      const response = await fetch(
-        `/api/products/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const products = await response.json();
-      showProductDropdown(products, inputElement);
-    } catch (error) {
-      console.error("Error searching products:", error);
-      hideDropdown(inputElement);
-    }
-  }
-
-  function showCustomerDropdown(customers, inputElement, fieldType) {
+  function showDropdown(customers, inputElement, fieldType) {
     hideDropdown(inputElement);
 
-    if (customers.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = createDropdown();
-
-    customers.forEach((customer) => {
-      const item = createDropdownItem(
-        `${customer.account_number} - ${customer.name}`,
-        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
-      );
-
-      item.addEventListener("click", function () {
-        selectCustomer(customer);
-        hideAllDropdowns();
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
-  }
-
-  function showProductDropdown(products, inputElement) {
-    hideDropdown(inputElement);
-
-    if (products.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = createDropdown();
-
-    products.forEach((product) => {
-      const item = createDropdownItem(`${product.code}`, `${product.name}`);
-
-      item.addEventListener("click", function () {
-        selectProduct(product, inputElement);
-        hideAllDropdowns();
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
-  }
-
-  function createDropdown() {
     const dropdown = document.createElement("div");
     dropdown.className = "dropdown-results";
-    dropdown.style.cssText = `
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--dark-card);
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  `;
-    return dropdown;
-  }
 
-  function createDropdownItem(title, subtitle) {
-    const item = document.createElement("div");
-    item.className = "dropdown-item-custom";
-    item.style.cssText = `
-    padding: 12px 16px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s;
-    color: var(--text-light);
-  `;
+    customers.forEach((customer) => {
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
 
-    item.innerHTML = `
-    <div style="font-weight: 600;">${title}</div>
-    ${
-      subtitle
-        ? `<small style="color: var(--text-muted);">${subtitle}</small>`
-        : ""
-    }
-  `;
+      if (fieldType === "account") {
+        item.innerHTML = `
+          <strong>${customer.account_number}</strong>
+          <small class="text-muted d-block">${customer.name}</small>
+        `;
+      } else {
+        item.innerHTML = `
+          <strong>${customer.name}</strong>
+          <small class="text-muted d-block">${customer.account_number}</small>
+        `;
+      }
 
-    item.addEventListener("mouseenter", function () {
-      this.style.backgroundColor = "var(--primary-blue)";
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        selectCustomer(customer);
+      });
+
+      dropdown.appendChild(item);
     });
 
-    item.addEventListener("mouseleave", function () {
-      this.style.backgroundColor = "transparent";
-    });
-
-    return item;
+    inputElement.parentElement.appendChild(dropdown);
   }
 
-  async function selectCustomer(customer) {
+  function selectCustomer(customer) {
     selectedCustomer = customer;
 
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
-    const addressInput = document.querySelector(
-      'input[name="customer_address"]'
-    );
+    document.querySelector('input[name="customer_account"]').value =
+      customer.account_number;
+    document.querySelector('input[name="customer_name"]').value = customer.name;
+    document.querySelector('input[name="customer_address"]').value =
+      customer.address || "";
 
-    if (accountInput) {
-      accountInput.value = customer.account_number;
-      accountInput.style.borderColor = "#28a745";
-    }
+    hideAllDropdowns();
 
-    if (nameInput) {
-      nameInput.value = customer.name;
-      nameInput.style.borderColor = "#28a745";
-    }
-
-    if (addressInput && customer.address) {
-      addressInput.value = customer.address;
-    }
-
-    // Setup address selector
-    let addressContainer = document.querySelector(".address-selection-area");
-    if (!addressContainer) {
-      // Create container if it doesn't exist
-      addressContainer = document.createElement("div");
-      addressContainer.className = "address-selection-area col-md-12";
-
-      // Insert after customer address field
-      const addressFieldRow = addressInput.closest(".row");
-      addressFieldRow.insertAdjacentElement("afterend", addressContainer);
-    }
-
-    // Setup address selection with callback
-    await setupAddressSelector(customer, addressContainer, (address, label) => {
-      // Update address field with selected address
-      if (address && addressInput) {
-        addressInput.value =
-          `${address.street}, ${address.city}, ${address.zip}`
-            .replace(/, ,/g, ",")
-            .trim();
-      }
-    });
-  }
-
-  function selectProduct(product, inputElement) {
-    const isMainProduct = inputElement.name === "product_code";
-
-    if (isMainProduct) {
-      inputElement.value = product.code;
-      inputElement.style.borderColor = "#28a745";
-
-      const nameInput = document.querySelector('input[name="product_name"]');
-      if (nameInput) {
-        nameInput.value = product.name;
-      }
-    } else {
-      const productRow = inputElement.closest(".additional-product-row");
-      const codeInput = productRow.querySelector(".additional-product-code");
-      const nameInput = productRow.querySelector(".additional-product-name");
-
-      if (codeInput) {
-        codeInput.value = product.code;
-        codeInput.style.borderColor = "#28a745";
-      }
-
-      if (nameInput) {
-        nameInput.value = product.name;
-      }
-    }
-  }
-
-  function clearOtherCustomerFields(fieldType) {
-    if (fieldType === "account") {
-      const nameInput = document.querySelector('input[name="customer_name"]');
-      if (nameInput) {
-        nameInput.value = "";
-        nameInput.style.borderColor = "";
-      }
-    } else {
-      const accountInput = document.querySelector(
-        'input[name="customer_account"]'
+    if (customer.addresses && customer.addresses.length > 1) {
+      const addressContainer = document.querySelector(
+        ".address-selection-area"
       );
-      if (accountInput) {
-        accountInput.value = "";
-        accountInput.style.borderColor = "";
+      if (addressContainer) {
+        setupAddressSelector(addressContainer, customer.addresses);
       }
     }
+  }
 
-    // Clear address selector
-    const addressContainer = document.querySelector(".address-selection-area");
-    if (addressContainer) {
-      addressContainer.innerHTML = "";
+  function clearOtherFields(exceptField) {
+    if (exceptField !== "account") {
+      document.querySelector('input[name="customer_account"]').value = "";
     }
+    if (exceptField !== "name") {
+      document.querySelector('input[name="customer_name"]').value = "";
+    }
+    document.querySelector('input[name="customer_address"]').value = "";
+    selectedCustomer = null;
   }
 
   function hideDropdown(inputElement) {
@@ -488,23 +341,104 @@
     });
   }
 
+  function setupProductSearch(inputElement) {
+    if (!inputElement) return;
+
+    inputElement.addEventListener("input", function () {
+      clearTimeout(searchTimeout);
+      const searchValue = this.value.trim();
+
+      if (searchValue.length < 2) {
+        hideDropdown(inputElement);
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        searchProducts(searchValue, inputElement);
+      }, 300);
+    });
+
+    inputElement.addEventListener("blur", function () {
+      setTimeout(() => {
+        if (!document.querySelector(".dropdown-results:hover")) {
+          hideDropdown(inputElement);
+        }
+      }, 200);
+    });
+  }
+
+  async function searchProducts(searchValue, inputElement) {
+    try {
+      const response = await fetch(
+        `/api/products/search?q=${encodeURIComponent(searchValue)}`
+      );
+      const products = await response.json();
+
+      if (products.length === 0) {
+        hideDropdown(inputElement);
+        return;
+      }
+
+      showProductDropdown(products, inputElement);
+    } catch (error) {
+      console.error("Product search error:", error);
+    }
+  }
+
+  function showProductDropdown(products, inputElement) {
+    hideDropdown(inputElement);
+
+    const dropdown = document.createElement("div");
+    dropdown.className = "dropdown-results";
+
+    products.forEach((product) => {
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
+      item.innerHTML = `
+        <strong>${product.code}</strong>
+        <small class="text-muted d-block">${product.name}</small>
+      `;
+
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        selectProduct(product, inputElement);
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+  }
+
+  function selectProduct(product, inputElement) {
+    const isAdditionalProduct = inputElement.classList.contains(
+      "additional-product-code"
+    );
+
+    if (isAdditionalProduct) {
+      const row = inputElement.closest(".additional-product-row");
+      row.querySelector(".additional-product-code").value = product.code;
+      row.querySelector(".additional-product-name").value = product.name;
+    } else {
+      document.querySelector('input[name="product_code"]').value = product.code;
+      document.querySelector('input[name="product_name"]').value = product.name;
+    }
+
+    hideDropdown(inputElement);
+  }
+
   let productCounter = 0;
 
   window.addProduct = function () {
-    const container = document.getElementById("additional-products-container");
-    const productId = `additional-product-${productCounter}`;
+    const container = document.getElementById("additionalProductsContainer");
 
     const newRow = document.createElement("div");
-    newRow.className = "additional-product-row row mb-3 p-3 border rounded";
-    newRow.style.backgroundColor = "rgba(255, 255, 255, 0.02)";
-
+    newRow.className = "row mb-3 additional-product-row";
     newRow.innerHTML = `
     <div class="col-md-4">
-      <div class="search-container position-relative">
-        <label class="form-label">Product Code</label>
-        <input class="form-control additional-product-code" 
-               placeholder="Start typing product code..." type="text">
-      </div>
+      <label class="form-label">Product Code</label>
+      <input class="form-control additional-product-code" 
+             placeholder="Product code" type="text">
     </div>
     <div class="col-md-5">
       <label class="form-label">Product Name</label>

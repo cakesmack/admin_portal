@@ -183,347 +183,335 @@
 
 {% endblock %} {% block scripts %}
 <script type="module">
-  import {
-    extractProductCode,
-    debounce,
-    generateUniqueId,
-  } from "/static/js/script.js";
+  import { extractProductCode, debounce } from "/static/js/script.js";
 
-  let searchTimeout;
-  let customerId = null;
+  let productSearchTimeout;
 
-  document.addEventListener("DOMContentLoaded", function () {
-    setupCustomerSearch();
-    addProductRow();
+  document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+      setupCustomerSearch();
 
-    document.addEventListener("click", function (e) {
-      if (!e.target.closest(".search-container")) {
-        hideAllDropdowns();
-      }
-    });
-
-    document
-      .querySelectorAll('input[name="deliveryDays"]')
-      .forEach((checkbox) => {
-        checkbox.addEventListener("change", function () {
-          const label = this.parentElement;
-          if (this.checked) {
-            label.classList.remove("btn-outline-primary");
-            label.classList.add("btn-primary");
-          } else {
-            label.classList.remove("btn-primary");
-            label.classList.add("btn-outline-primary");
-          }
-        });
-      });
-
-    document
-      .getElementById("standingOrderForm")
-      .addEventListener("submit", async function (e) {
-        e.preventDefault();
-
-        if (!customerId) {
-          alert("Please select a customer");
-          return;
-        }
-
-        const deliveryDays = [];
-        document
-          .querySelectorAll('input[name="deliveryDays"]:checked')
-          .forEach((checkbox) => {
-            deliveryDays.push(checkbox.value);
-          });
-
-        if (deliveryDays.length === 0) {
-          alert("Please select at least one delivery day");
-          return;
-        }
-
-        const WEEKDAYS = [0, 1, 2, 3, 4]; // Must match StandingOrder.WEEKDAYS in models.py
-        const hasWeekend = deliveryDays.some(
-          (day) => !WEEKDAYS.includes(parseInt(day))
-        );
-        if (hasWeekend) {
-          alert(
-            "Weekend deliveries are not supported. Please select Monday through Friday only."
-          );
-          return;
-        }
-
-        const products = [];
-        document.querySelectorAll(".product-row").forEach((row) => {
-          const codeInput = row.querySelector(".product-code");
-          const nameInput = row.querySelector(".product-name");
-          const quantityInput = row.querySelector(".product-quantity");
-
-          if (codeInput && nameInput && quantityInput) {
-            const product = {
-              product_code: codeInput.value,
-              product_name: nameInput.value,
-              quantity: parseInt(quantityInput.value),
-              unit_type: "units",
-              notes: "",
-            };
-
-            if (
-              product.product_code &&
-              product.product_name &&
-              product.quantity
-            ) {
-              products.push(product);
+      document
+        .querySelectorAll('input[name="deliveryDays"]')
+        .forEach((checkbox) => {
+          checkbox.addEventListener("change", function () {
+            const label = this.parentElement;
+            if (this.checked) {
+              label.classList.remove("btn-outline-primary");
+              label.classList.add("btn-primary");
+            } else {
+              label.classList.remove("btn-primary");
+              label.classList.add("btn-outline-primary");
             }
-          }
+          });
         });
 
-        if (products.length === 0) {
-          alert("Please add at least one product");
-          return;
-        }
+      document
+        .getElementById("standingOrderForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
 
-        const customerName = document.getElementById("customerName").value;
+          // Prevent double submission
+          const submitBtn = this.querySelector('button[type="submit"]');
+          if (submitBtn.disabled) return;
+          submitBtn.disabled = true;
 
-        const data = {
-          customer_id: customerId,
-          customer_name: customerName,
-          delivery_days: deliveryDays,
-          end_date: document.getElementById("endDate").value,
-          special_instructions: document.getElementById("specialInstructions")
-            .value,
-          items: products,
-        };
+          const deliveryDays = Array.from(
+            document.querySelectorAll('input[name="deliveryDays"]:checked')
+          ).map((cb) => cb.value);
 
-        try {
-          const response = await fetch("/standing-orders/new", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
+          if (deliveryDays.length === 0) {
+            alert("Please select at least one delivery day");
+            submitBtn.disabled = false;
+            return;
+          }
+
+          const weekendDays = deliveryDays.filter((day) => parseInt(day) >= 5);
+          if (weekendDays.length > 0) {
+            alert(
+              "Weekend deliveries are not supported. Please select Monday through Friday only."
+            );
+            submitBtn.disabled = false;
+            return;
+          }
+
+          const productRows = document.querySelectorAll(".product-row");
+          if (productRows.length === 0) {
+            alert("Please add at least one product");
+            submitBtn.disabled = false;
+            return;
+          }
+
+          const products = [];
+          let hasError = false;
+
+          productRows.forEach((row) => {
+            const code = row.querySelector(".product-code").value.trim();
+            const name = row.querySelector(".product-name").value.trim();
+            const quantity = row.querySelector(".product-quantity").value;
+
+            if (!code || !name || !quantity) {
+              hasError = true;
+              return;
+            }
+
+            products.push({
+              product_code: code,
+              product_name: name,
+              quantity: parseInt(quantity),
+            });
           });
 
-          const result = await response.json();
-
-          if (result.success) {
-            window.location.href = `/standing-orders/${result.id}`;
-          } else {
-            alert("Error: " + result.message);
+          if (hasError) {
+            alert("Please fill in all product fields");
+            submitBtn.disabled = false;
+            return;
           }
-        } catch (error) {
-          console.error("Error creating standing order:", error);
-          alert("Error creating standing order: " + error.message);
-        }
-      });
-  });
+
+          const formData = {
+            customer_id: document.getElementById("customerId").value,
+            customer_account: document.getElementById("customerAccount").value,
+            customer_name: document.getElementById("customerName").value,
+            customer_address: document.getElementById("customerAddress").value,
+            delivery_days: deliveryDays.map((d) => parseInt(d)),
+            products: products,
+            special_instructions: document.getElementById("specialInstructions")
+              .value,
+          };
+
+          try {
+            const response = await fetch("/api/standing-orders", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(formData),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              window.location.href = "/standing-orders";
+            } else {
+              alert(data.message || "Error creating standing order");
+              submitBtn.disabled = false;
+            }
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Error creating standing order");
+            submitBtn.disabled = false;
+          }
+        });
+    },
+    { once: true }
+  );
 
   function setupCustomerSearch() {
     const accountInput = document.getElementById("customerAccount");
     const nameInput = document.getElementById("customerName");
 
     if (accountInput) {
-      setupSearchField(accountInput, "customer", "account");
+      accountInput.addEventListener(
+        "input",
+        debounce(function () {
+          if (this.value.length >= 2) {
+            searchCustomers(this.value, "account");
+          } else {
+            hideCustomerDropdown();
+          }
+        }, 300)
+      );
     }
 
     if (nameInput) {
-      setupSearchField(nameInput, "customer", "name");
+      nameInput.addEventListener(
+        "input",
+        debounce(function () {
+          if (this.value.length >= 2) {
+            searchCustomers(this.value, "name");
+          } else {
+            hideCustomerDropdown();
+          }
+        }, 300)
+      );
     }
-  }
 
-  function setupSearchField(input, type, field) {
-    input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        if (type === "customer") {
-          clearOtherCustomerFields(field);
-        }
-        return;
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest(".search-container")) {
+        hideCustomerDropdown();
       }
-
-      searchTimeout = setTimeout(() => {
-        if (type === "customer") {
-          searchCustomers(searchValue, input, field);
-        }
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
-        }
-      }, 200);
     });
   }
 
-  async function searchCustomers(searchValue, inputElement, fieldType) {
+  async function searchCustomers(query, searchType) {
     try {
       const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+        `/api/customers/search?q=${encodeURIComponent(query)}`
       );
       const customers = await response.json();
-      showCustomerDropdown(customers, inputElement, fieldType);
+
+      if (customers.length > 0) {
+        showCustomerDropdown(customers, searchType);
+      } else {
+        hideCustomerDropdown();
+      }
     } catch (error) {
       console.error("Error searching customers:", error);
-      hideDropdown(inputElement);
     }
   }
 
-  function showCustomerDropdown(customers, inputElement, fieldType) {
-    hideDropdown(inputElement);
+  function showCustomerDropdown(customers, searchType) {
+    hideCustomerDropdown();
 
-    if (customers.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
+    const targetInput =
+      searchType === "account"
+        ? document.getElementById("customerAccount")
+        : document.getElementById("customerName");
+    const container = targetInput.parentElement;
 
-    const dropdown = createDropdown();
+    const dropdown = document.createElement("div");
+    dropdown.className = "dropdown-results";
+    dropdown.style.position = "absolute";
+    dropdown.style.top = "100%";
+    dropdown.style.left = "0";
+    dropdown.style.right = "0";
+    dropdown.style.zIndex = "1000";
+    dropdown.style.maxHeight = "300px";
+    dropdown.style.overflowY = "auto";
+    dropdown.style.backgroundColor = "white";
+    dropdown.style.border = "1px solid #ddd";
+    dropdown.style.borderRadius = "4px";
+    dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
 
     customers.forEach((customer) => {
-      const item = createDropdownItem(
-        `${customer.account_number} - ${customer.name}`,
-        customer.contact_name ? `Contact: ${customer.contact_name}` : ""
-      );
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
+      item.style.padding = "10px";
+      item.style.cursor = "pointer";
+      item.innerHTML = `
+        <strong>${customer.name}</strong>
+        <div style="font-size: 0.85em; color: #666;">
+          Account: ${customer.account_number}
+        </div>
+      `;
+
+      item.addEventListener("mouseenter", function () {
+        this.style.backgroundColor = "#f8f9fa";
+      });
+
+      item.addEventListener("mouseleave", function () {
+        this.style.backgroundColor = "transparent";
+      });
 
       item.addEventListener("click", function () {
         selectCustomer(customer);
-        hideAllDropdowns();
       });
 
       dropdown.appendChild(item);
     });
 
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
+    container.appendChild(dropdown);
+  }
+
+  function hideCustomerDropdown() {
+    const existing = document.querySelector(".dropdown-results");
+    if (existing) {
+      existing.remove();
+    }
   }
 
   function selectCustomer(customer) {
-    customerId = customer.id;
-
-    const accountInput = document.getElementById("customerAccount");
-    const nameInput = document.getElementById("customerName");
-    const addressInput = document.getElementById("customerAddress");
-
-    if (accountInput) {
-      accountInput.value = customer.account_number;
-      accountInput.style.borderColor = "#28a745";
-    }
-
-    if (nameInput) {
-      nameInput.value = customer.name;
-      nameInput.style.borderColor = "#28a745";
-    }
-
-    if (addressInput && customer.address) {
-      addressInput.value = customer.address;
-    }
-
     document.getElementById("customerId").value = customer.id;
-    showCustomerInfo(customer);
+    document.getElementById("customerAccount").value = customer.account_number;
+    document.getElementById("customerName").value = customer.name;
+    document.getElementById("customerAddress").value = customer.address || "";
+
+    hideCustomerDropdown();
   }
 
-  function clearOtherCustomerFields(fieldType) {
-    hideCustomerInfo();
-    customerId = null;
+  function setupProductSearch(inputElement) {
+    if (!inputElement) return;
 
-    if (fieldType === "account") {
-      const nameInput = document.getElementById("customerName");
-      if (nameInput) {
-        nameInput.value = "";
-        nameInput.style.borderColor = "";
-      }
-    } else {
-      const accountInput = document.getElementById("customerAccount");
-      if (accountInput) {
-        accountInput.value = "";
-        accountInput.style.borderColor = "";
-      }
-    }
-  }
+    inputElement.addEventListener(
+      "input",
+      debounce(function () {
+        if (this.value.length >= 2) {
+          searchProducts(this.value, this);
+        } else {
+          hideDropdown(this);
+        }
+      }, 300)
+    );
 
-  function showCustomerInfo(customer) {
-    const customerInfo = document.getElementById("customerInfo");
-    if (customerInfo) {
-      customerInfo.innerHTML = `
-      <strong>Selected:</strong> ${customer.account_number} - ${
-        customer.name
-      }<br>
-      ${customer.contact_name ? `Contact: ${customer.contact_name}<br>` : ""}
-      ${customer.phone ? `Phone: ${customer.phone}<br>` : ""}
-      ${customer.address ? `Address: ${customer.address}` : ""}
-    `;
-      customerInfo.style.display = "block";
-    }
-  }
-
-  function hideCustomerInfo() {
-    const customerInfo = document.getElementById("customerInfo");
-    if (customerInfo) {
-      customerInfo.style.display = "none";
-    }
-  }
-
-  function setupProductSearch(input) {
-    if (!input) return;
-
-    input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        searchProducts(searchValue, input);
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
+    inputElement.addEventListener("blur", function () {
       setTimeout(() => {
         if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
+          hideDropdown(this);
         }
       }, 200);
     });
   }
 
-  async function searchProducts(searchValue, inputElement) {
+  async function searchProducts(query, inputElement) {
     try {
       const response = await fetch(
-        `/api/products/search?q=${encodeURIComponent(searchValue)}`
+        `/api/products/search?q=${encodeURIComponent(query)}`
       );
       const products = await response.json();
-      showProductDropdown(products, inputElement);
+
+      if (products.length > 0) {
+        showProductDropdown(products, inputElement);
+      } else {
+        hideDropdown(inputElement);
+      }
     } catch (error) {
       console.error("Error searching products:", error);
-      hideDropdown(inputElement);
     }
   }
 
   function showProductDropdown(products, inputElement) {
     hideDropdown(inputElement);
 
-    if (products.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = createDropdown();
+    const dropdown = document.createElement("div");
+    dropdown.className = "dropdown-results";
+    dropdown.style.position = "absolute";
+    dropdown.style.zIndex = "1000";
+    dropdown.style.backgroundColor = "white";
+    dropdown.style.border = "1px solid #ddd";
+    dropdown.style.borderRadius = "4px";
+    dropdown.style.maxWidth = "500px";
+    dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+    dropdown.style.maxHeight = "300px";
+    dropdown.style.overflowY = "auto";
 
     products.forEach((product) => {
-      const item = createDropdownItem(`${product.code}`, `${product.name}`);
+      const item = document.createElement("div");
+      item.className = "dropdown-item";
+      item.style.padding = "8px 12px";
+      item.style.cursor = "pointer";
+      item.innerHTML = `
+        <strong>${product.code}</strong>
+        <div style="font-size: 0.85em; color: #666;">${product.name}</div>
+      `;
+
+      item.addEventListener("mouseenter", function () {
+        this.style.backgroundColor = "#f8f9fa";
+      });
+
+      item.addEventListener("mouseleave", function () {
+        this.style.backgroundColor = "transparent";
+      });
 
       item.addEventListener("click", function () {
         selectProduct(product, inputElement);
-        hideAllDropdowns();
+        hideDropdown(inputElement);
       });
 
       dropdown.appendChild(item);
     });
 
     inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
   }
 
   function selectProduct(product, inputElement) {
@@ -533,62 +521,11 @@
 
     if (codeInput) {
       codeInput.value = product.code;
-      codeInput.style.borderColor = "#28a745";
     }
 
     if (nameInput) {
       nameInput.value = product.name;
     }
-  }
-
-  function createDropdown() {
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-    dropdown.style.cssText = `
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--dark-card);
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  `;
-    return dropdown;
-  }
-
-  function createDropdownItem(title, subtitle) {
-    const item = document.createElement("div");
-    item.className = "dropdown-item-custom";
-    item.style.cssText = `
-    padding: 12px 16px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s;
-    color: var(--text-light);
-  `;
-
-    item.innerHTML = `
-    <div style="font-weight: 600;">${title}</div>
-    ${
-      subtitle
-        ? `<small style="color: var(--text-muted);">${subtitle}</small>`
-        : ""
-    }
-  `;
-
-    item.addEventListener("mouseenter", function () {
-      this.style.backgroundColor = "var(--primary-blue)";
-    });
-
-    item.addEventListener("mouseleave", function () {
-      this.style.backgroundColor = "transparent";
-    });
-
-    return item;
   }
 
   function hideDropdown(inputElement) {
@@ -599,15 +536,22 @@
     }
   }
 
-  function hideAllDropdowns() {
-    document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
-      dropdown.remove();
-    });
-  }
-
-  window.addProductRow = function () {
+  window.addProductRow = function (
+    productCode = "",
+    productName = "",
+    quantity = 1
+  ) {
     const template = document.getElementById("productRowTemplate");
     const clone = template.content.cloneNode(true);
+
+    const codeInput = clone.querySelector(".product-code");
+    const nameInput = clone.querySelector(".product-name");
+    const quantityInput = clone.querySelector(".product-quantity");
+
+    if (productCode) codeInput.value = productCode;
+    if (productName) nameInput.value = productName;
+    if (quantity) quantityInput.value = quantity;
+
     document.getElementById("productsContainer").appendChild(clone);
 
     const newProductRows = document.querySelectorAll(".product-row");
@@ -623,5 +567,4 @@
     button.closest(".product-row").remove();
   };
 </script>
-
 {% endblock %}
