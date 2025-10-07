@@ -177,60 +177,64 @@ def upload_clearance_file():
     try:
         # Read file into memory
         file_content = BytesIO(file.read())
-        wb = openpyxl.load_workbook(file_content)
+        wb = openpyxl.load_workbook(file_content, data_only=True)  # This evaluates formulas
         sheet = wb['Sheet1']
         
         current_pallet = ''
         items_added = 0
-        items_skipped = 0
         errors = []
         row_num = 0
         
-        print("Starting import...")
-        
-        for row in sheet.iter_rows(min_row=1, values_only=True):
-            row_num += 1
+        for row_num, row in enumerate(sheet.iter_rows(min_row=1, values_only=True), 1):
             try:
-                # Check if this is a pallet header
-                if row[0] and isinstance(row[0], str) and 'Pallet' in row[0]:
-                    current_pallet = row[0]
-                    print(f"Found pallet: {current_pallet}")
+                # Pallet header
+                if row[0] and 'Pallet' in str(row[0]):
+                    current_pallet = str(row[0])
                     continue
                 
-                # Skip header rows and empty rows
-                if row[0] == 'Qty' or not row[0]:
+                # Title row or header row
+                if row[0] == 'Qty' or row[0] == '2024 Stock Clearance':
                     continue
                 
-                # If we have a quantity value, it's a data row
-                if isinstance(row[0], (int, float)) and row[0] > 0:
-                    qty = int(row[0])
-                    supplier_code = str(row[1]) if row[1] else ''
-                    his_code = str(row[2]) if row[2] else ''
-                    description = str(row[3]) if row[3] else ''
-                    cost_price = float(row[4]) if row[4] else 0.0
-                    total_price = float(row[5]) if row[5] else qty * cost_price
-                    supplier_link = str(row[7]) if row[7] else ''
-                    
-                    # Just add the item - no deduplication
-                    item = ClearanceStock(
-                        qty=qty,
-                        qty_sold=0,
-                        supplier_code=supplier_code,
-                        his_code=his_code,
-                        description=description,
-                        cost_price=cost_price,
-                        total_price=total_price,
-                        supplier_link=supplier_link,
-                        pallet=current_pallet,
-                        created_by=current_user.id
-                    )
-                    db.session.add(item)
-                    items_added += 1
-                    
+                # Empty row
+                if not row[0]:
+                    continue
+                
+                # Skip non-numeric qty
+                try:
+                    test_qty = float(str(row[0]))
+                    if test_qty <= 0:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+                
+                # DATA ROW - just fucking add it
+                qty = int(float(str(row[0])))
+                cost_price = float(row[4] or 0)
+                
+                # Handle total_price - might be a formula or None
+                if row[5] and not isinstance(row[5], str):
+                    total_price = float(row[5])
+                else:
+                    total_price = qty * cost_price
+                
+                item = ClearanceStock(
+                    qty=qty,
+                    qty_sold=0,
+                    supplier_code=str(row[1] or ''),
+                    his_code=str(row[2] or ''),
+                    description=str(row[3] or ''),
+                    cost_price=cost_price,
+                    total_price=total_price,
+                    supplier_link=str(row[7] or '') if len(row) > 7 else '',
+                    pallet=current_pallet,
+                    created_by=current_user.id
+                )
+                db.session.add(item)
+                items_added += 1
+                
             except Exception as e:
-                error_msg = f"Row {row_num}: {str(e)}"
-                errors.append(error_msg)
-                print(error_msg)
+                errors.append(f"Row {row_num}: {str(e)}")
                 continue
         
         db.session.commit()
@@ -246,7 +250,7 @@ def upload_clearance_file():
             'message': message,
             'items_added': items_added,
             'total_rows': row_num,
-            'errors': errors[:10]  # Return first 10 errors
+            'errors': errors  # Return ALL errors, not just first 10
         })
         
     except Exception as e:
