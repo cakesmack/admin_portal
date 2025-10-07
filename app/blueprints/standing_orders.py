@@ -76,7 +76,7 @@ def validate_standing_order_data(data):
 
 
 
-@standing_orders_bp.route('/standing-orders')
+@standing_orders_bp.route('/')
 @login_required
 def standing_orders():
     # Get all standing orders

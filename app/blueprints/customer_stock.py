@@ -45,7 +45,7 @@ def validate_stock_transaction(data, stock_item):
     return errors
 
 
-@customer_stock_bp.route('/customer-stock')
+@customer_stock_bp.route('/')
 @login_required
 def customer_stock():
     # Get all customer stock with low stock alerts
@@ -74,7 +74,7 @@ def branded_stock():
             
             if quantity_ordered > stock_item.current_stock:
                 flash('Cannot order more than available stock', 'danger')
-                return redirect(url_for('main.branded_stock'))
+                return redirect(url_for('customer_stock.branded_stock'))
             
             transaction = StockTransaction(
                 stock_item_id=stock_item_id,

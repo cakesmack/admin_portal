@@ -1458,7 +1458,7 @@ def get_recent_activity():
                 'description': f'Created standing order for {order.customer.name}',
                 'user': order.created_by_user.username,
                 'timestamp': order.created_at,
-                'link': url_for('main.view_standing_order', order_id=order.id),
+                'link': url_for('standing_orders.view_standing_order', order_id=order.id),
                 'icon': 'bi-arrow-repeat'
             })
     except Exception as e:
@@ -1482,7 +1482,7 @@ def get_recent_activity():
                 'description': action_descriptions.get(log.action_type, f'{log.action_type.title()} standing order'),
                 'user': log.user.username,
                 'timestamp': log.performed_at,
-                'link': url_for('main.view_standing_order', order_id=log.standing_order_id),
+                'link': url_for('standing_orders.view_standing_order', order_id=log.standing_order_id),
                 'icon': 'bi-arrow-repeat'
             })
     except Exception as e:

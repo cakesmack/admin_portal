@@ -9,7 +9,7 @@ import calendar
 
 callsheets_bp = Blueprint('callsheets', __name__, url_prefix='/callsheets')
 
-@callsheets_bp.route('/callsheets')
+@callsheets_bp.route('/')
 @login_required
 def callsheets():
     """Main callsheets page - shows all permanent callsheets"""
