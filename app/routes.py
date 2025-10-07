@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
 from app.models import User, Customer, CallsheetEntry, Form, Callsheet, CallsheetArchive, TodoItem, CompanyUpdate, CustomerStock, StockTransaction, StandingOrder, StandingOrderItem, StandingOrderLog, StandingOrderSchedule, Product, CustomerAddress
-from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, SpecialOrderForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
+from app.forms import LoginForm, ReturnsForm, BrandedStockForm, InvoiceCorrectionForm, CreateUserForm, EditUserForm, ChangePasswordForm, ForcePasswordChangeForm
 import json
 from datetime import datetime, date, timedelta
 import calendar
@@ -922,36 +922,6 @@ def invoice_correction():
         return redirect(url_for('main.dashboard'))
     
     return render_template('invoice_correction.html', title='Invoice Correction - Delivery Only', form=form)
-
-@main.route('/special-order', methods=['GET', 'POST'])
-@login_required
-def special_order():
-    form = SpecialOrderForm()
-    if form.validate_on_submit():
-        form_data = {
-            'supplier': form.supplier.data,
-            'customer_account': form.customer_account.data,
-            'customer_name': form.customer_name.data,
-            'product_code': form.product_code.data,
-            'product_description': form.product_description.data,
-            'quantity': form.quantity.data,
-            'cost_price' : form.cost_price.data,
-            'sell_price' : form.sell_price.data,
-            'notes': form.notes.data
-        }
-        
-        new_form = Form(
-            type='special_order',
-            data=json.dumps(form_data),
-            user_id=current_user.id
-        )
-        db.session.add(new_form)
-        db.session.commit()
-        
-        flash('Special order request submitted successfully!', 'success')
-        return redirect(url_for('main.dashboard'))
-    
-    return render_template('special_order.html', title='Special Order', form=form)
 
 @main.route('/api/customers')
 @login_required
