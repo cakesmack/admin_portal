@@ -594,3 +594,44 @@ class StandingOrderLog(db.Model):
     
     # Relationships
     user = db.relationship('User', backref='standing_order_actions')
+
+# Add this to app/models.py
+
+class ClearanceStock(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    qty = db.Column(db.Integer, nullable=False)
+    qty_sold = db.Column(db.Integer, default=0)
+    supplier_code = db.Column(db.String(50), nullable=False)
+    his_code = db.Column(db.String(50))
+    description = db.Column(db.String(200), nullable=False)
+    cost_price = db.Column(db.Float, nullable=False)
+    total_price = db.Column(db.Float)
+    supplier_link = db.Column(db.String(500))
+    pallet = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    user = db.relationship('User', backref='clearance_items')
+    
+    __table_args__ = (
+        db.Index('idx_clearance_supplier_code', 'supplier_code'),
+        db.Index('idx_clearance_his_code', 'his_code'),
+        db.Index('idx_clearance_pallet', 'pallet'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'qty': self.qty,
+            'qty_sold': self.qty_sold,
+            'supplier_code': self.supplier_code,
+            'his_code': self.his_code,
+            'description': self.description,
+            'cost_price': self.cost_price,
+            'total_price': self.total_price,
+            'supplier_link': self.supplier_link,
+            'pallet': self.pallet,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
