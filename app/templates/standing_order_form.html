@@ -2,7 +2,10 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h2>New Standing Order</h2>
-  <a href="{{ url_for('main.standing_orders') }}" class="btn btn-secondary">
+  <a
+    href="{{ url_for('standing_orders.standing_orders') }}"
+    class="btn btn-secondary"
+  >
     <i class="bi bi-arrow-left"></i> Back
   </a>
 </div>
@@ -124,7 +127,7 @@
           <i class="bi bi-check-circle"></i> Create Standing Order
         </button>
         <a
-          href="{{ url_for('main.standing_orders') }}"
+          href="{{ url_for('standing_orders.standing_orders') }}"
           class="btn btn-secondary"
         >
           Cancel

@@ -24,14 +24,14 @@
       </a>
     </div>
     <a
-      href="{{ url_for('main.print_schedule_view', view=view_type, date=target_date) }}"
+      href="{{ url_for('standing_orders.print_schedule_view', view=view_type, date=target_date) }}"
       class="btn btn-info ms-2"
       target="_blank"
     >
       <i class="bi bi-printer"></i> Print Schedule
     </a>
     <a
-      href="{{ url_for('main.standing_orders') }}"
+      href="{{ url_for('standing_orders.standing_orders') }}"
       class="btn btn-secondary ms-2"
     >
       <i class="bi bi-arrow-left"></i> Back
@@ -203,7 +203,7 @@
                 </button>
                 {% endif %}
                 <a
-                  href="{{ url_for('main.view_standing_order', order_id=schedule.standing_order_id) }}"
+                  href="{{ url_for('standing_orders.view_standing_order', order_id=schedule.standing_order_id) }}"
                   class="btn btn-sm btn-info"
                 >
                   <i class="bi bi-eye"></i>

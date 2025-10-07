@@ -3,7 +3,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h2>Edit Standing Order #{{ order.id }}</h2>
   <a
-    href="{{ url_for('main.view_standing_order', order_id=order.id) }}"
+    href="{{ url_for('standing_orders.view_standing_order', order_id=order.id) }}"
     class="btn btn-secondary"
   >
     <i class="bi bi-arrow-left"></i> Back
@@ -99,7 +99,7 @@
           <i class="bi bi-check-circle"></i> Save Changes
         </button>
         <a
-          href="{{ url_for('main.view_standing_order', order_id=order.id) }}"
+          href="{{ url_for('standing_orders.view_standing_order', order_id=order.id) }}"
           class="btn btn-secondary"
         >
           Cancel

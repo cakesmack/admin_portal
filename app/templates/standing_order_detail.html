@@ -3,7 +3,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h2>Standing Order Details</h2>
   <div>
-    <a href="{{ url_for('main.standing_orders') }}" class="btn btn-secondary">
+    <a
+      href="{{ url_for('standing_orders.standing_orders') }}"
+      class="btn btn-secondary"
+    >
       <i class="bi bi-arrow-left"></i> Back to List
     </a>
   </div>
@@ -203,7 +206,7 @@
       </button>
 
       <a
-        href="{{ url_for('main.print_standing_order', order_id=order.id) }}"
+        href="{{ url_for('standing_orders.print_standing_order', order_id=order.id) }}"
         class="btn btn-info"
         target="_blank"
       >

@@ -9,7 +9,7 @@ import os
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
-login_manager.login_view = 'main.login'
+login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
 def create_app():
@@ -39,11 +39,21 @@ def create_app():
     
     # Register blueprints
     from app.routes import main
-    from app.admin_routes import admin_bp
+    from app.blueprints.auth import auth_bp
+    from app.blueprints.standing_orders import standing_orders_bp
+    from app.blueprints.callsheets import callsheets_bp
+    from app.blueprints.customer_stock import customer_stock_bp
+    from app.blueprints.admin import admin_bp
     
     app.register_blueprint(main)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(standing_orders_bp)
+    app.register_blueprint(callsheets_bp)
+    app.register_blueprint(customer_stock_bp)
     app.register_blueprint(admin_bp)
-    
+
+
+
     # Add security headers in production
     if app.config.get('FLASK_ENV') == 'production':
         @app.after_request

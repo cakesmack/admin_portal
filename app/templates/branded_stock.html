@@ -322,7 +322,7 @@
     }
     
     // Submit via fetch
-    fetch('{{ url_for("main.branded_stock") }}', {
+    fetch('{{ url_for("customer_stock.branded_stock") }}', {
       method: 'POST',
       body: formData
     })

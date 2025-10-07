@@ -51,7 +51,7 @@
               </div>
               {% endfor %} {% endif %} {% endwith %}
 
-              <form method="POST" action="{{ url_for('main.login') }}">
+              <form method="POST" action="{{ url_for('auth.login') }}">
                 {{ form.hidden_tag() }}
 
                 <div class="mb-3">
