@@ -124,7 +124,7 @@ def standing_orders():
                          paused_count=paused_count,
                          pending_this_week=pending_this_week)
 
-@standing_orders_bp.route('/standing-orders/new', methods=['GET', 'POST'])
+@standing_orders_bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new_standing_order():
     if request.method == 'POST':
@@ -191,7 +191,7 @@ def new_standing_order():
     customers = Customer.query.order_by(Customer.name).all()
     return render_template('standing_order_form.html', customers=customers)
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>/edit', methods=['GET', 'POST'])
+@standing_orders_bp.route('/<int:order_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_standing_order(order_id):
     order = StandingOrder.query.get_or_404(order_id)
@@ -315,7 +315,7 @@ def edit_standing_order(order_id):
     customers = Customer.query.order_by(Customer.name).all()
     return render_template('standing_order_edit.html', order=order, customers=customers)
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>')
+@standing_orders_bp.route('/<int:order_id>')
 @login_required
 def view_standing_order(order_id):
     order = StandingOrder.query.get_or_404(order_id)
@@ -341,7 +341,7 @@ def view_standing_order(order_id):
                          logs=logs,
                          today=today)
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>/pause', methods=['POST'])
+@standing_orders_bp.route('/<int:order_id>/pause', methods=['POST'])
 @login_required
 def pause_standing_order(order_id):
     order = StandingOrder.query.get_or_404(order_id)
@@ -364,7 +364,7 @@ def pause_standing_order(order_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>/resume', methods=['POST'])
+@standing_orders_bp.route('/<int:order_id>/resume', methods=['POST'])
 @login_required
 def resume_standing_order(order_id):
     order = StandingOrder.query.get_or_404(order_id)
@@ -391,7 +391,7 @@ def resume_standing_order(order_id):
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>/end', methods=['POST'])
+@standing_orders_bp.route('/<int:order_id>/end', methods=['POST'])
 @login_required
 def end_standing_order(order_id):
     order = StandingOrder.query.get_or_404(order_id)
@@ -427,7 +427,7 @@ def end_standing_order(order_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/schedule/<int:schedule_id>/complete', methods=['POST'])
+@standing_orders_bp.route('/schedule/<int:schedule_id>/complete', methods=['POST'])
 @login_required
 def complete_schedule(schedule_id):
     schedule = StandingOrderSchedule.query.get_or_404(schedule_id)
@@ -446,7 +446,7 @@ def complete_schedule(schedule_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/schedule/<int:schedule_id>/skip', methods=['POST'])
+@standing_orders_bp.route('/schedule/<int:schedule_id>/skip', methods=['POST'])
 @login_required
 def skip_schedule(schedule_id):
     schedule = StandingOrderSchedule.query.get_or_404(schedule_id)
@@ -462,7 +462,7 @@ def skip_schedule(schedule_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/generate-schedules', methods=['POST'])
+@standing_orders_bp.route('/generate-schedules', methods=['POST'])
 @login_required
 def generate_all_schedules():
     """Generate schedules for all active standing orders for the next month"""
@@ -479,7 +479,7 @@ def generate_all_schedules():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-@standing_orders_bp.route('/standing-orders/schedule-view')
+@standing_orders_bp.route('/schedule-view')
 @login_required
 def schedule_view():
     """Monthly/weekly/daily schedule view"""
@@ -573,7 +573,7 @@ def generate_schedules_for_order(order_id, months_ahead=1):
     
     return count
 
-@standing_orders_bp.route('/standing-orders/<int:order_id>/print')
+@standing_orders_bp.route('/<int:order_id>/print')
 @login_required
 def print_standing_order(order_id):
     """Print standing order details"""
@@ -596,7 +596,7 @@ def print_standing_order(order_id):
         today=today
     )
 
-@standing_orders_bp.route('/standing-orders/schedule-view/print')
+@standing_orders_bp.route('/schedule-view/print')
 @login_required
 def print_schedule_view():
     """Print schedule view"""

@@ -64,6 +64,327 @@ export function getWeekIdentifier(date = new Date()) {
   return `${monday.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
+// ==================== GENERAL UTILITIES ====================
+
+export function generateUniqueId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+export function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+export function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+export function formatCurrency(value, currency = "£") {
+  return `${currency}${parseFloat(value).toFixed(2)}`;
+}
+
+export function safeParseFloat(value, defaultValue = 0) {
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
+export function capitalizeWords(str) {
+  if (!str) return "";
+  return str
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+// ==================== CUSTOMER SEARCH & DROPDOWN (API-BASED) ====================
+
+/**
+ * Setup customer search autocomplete on input fields
+ * @param {string} accountInputId - ID of account number input
+ * @param {string} nameInputId - ID of customer name input
+ * @param {Function} onSelect - Optional callback when customer is selected
+ */
+export function setupCustomerSearch(accountInputId = "customerAccount", nameInputId = "customerName", onSelect = null) {
+  const accountInput = document.getElementById(accountInputId);
+  const nameInput = document.getElementById(nameInputId);
+
+  if (accountInput) {
+    accountInput.addEventListener("input", function(e) {
+      const value = e.target.value;
+      clearTimeout(accountInput._searchTimeout);
+      
+      if (value.length >= 2) {
+        accountInput._searchTimeout = setTimeout(() => {
+          searchCustomersAPI(value, "account", onSelect);
+        }, 300);
+      } else {
+        hideCustomerDropdown();
+      }
+    });
+  }
+
+  if (nameInput) {
+    nameInput.addEventListener("input", function(e) {
+      const value = e.target.value;
+      clearTimeout(nameInput._searchTimeout);
+      
+      if (value.length >= 2) {
+        nameInput._searchTimeout = setTimeout(() => {
+          searchCustomersAPI(value, "name", onSelect);
+        }, 300);
+      } else {
+        hideCustomerDropdown();
+      }
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".search-container")) {
+      hideCustomerDropdown();
+    }
+  });
+}
+
+/**
+ * Search customers via API
+ */
+export async function searchCustomersAPI(query, searchType, onSelect = null) {
+  try {
+    const response = await fetch(
+      `/api/customers/search?q=${encodeURIComponent(query)}`
+    );
+    const customers = await response.json();
+
+    if (customers.length > 0) {
+      showCustomerDropdown(customers, searchType, onSelect);
+    } else {
+      hideCustomerDropdown();
+    }
+  } catch (error) {
+    console.error("Error searching customers:", error);
+  }
+}
+
+/**
+ * Display customer search dropdown
+ */
+export function showCustomerDropdown(customers, searchType, onSelect = null) {
+  hideCustomerDropdown();
+
+  const targetInput =
+    searchType === "account"
+      ? document.getElementById("customerAccount")
+      : document.getElementById("customerName");
+
+  if (!targetInput) return;
+
+  const container = targetInput.parentElement;
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "dropdown-results";
+  dropdown.style.position = "absolute";
+  dropdown.style.top = "100%";
+  dropdown.style.left = "0";
+  dropdown.style.right = "0";
+  dropdown.style.zIndex = "1000";
+  dropdown.style.maxHeight = "300px";
+  dropdown.style.overflowY = "auto";
+  dropdown.style.backgroundColor = "white";
+  dropdown.style.border = "1px solid #ddd";
+  dropdown.style.borderRadius = "4px";
+  dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+
+  customers.forEach((customer) => {
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.style.padding = "10px";
+    item.style.cursor = "pointer";
+    item.innerHTML = `
+      <strong>${customer.name}</strong>
+      <div style="font-size: 0.85em; color: #666;">
+        Account: ${customer.account_number}
+      </div>
+    `;
+
+    item.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "#f8f9fa";
+    });
+
+    item.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "transparent";
+    });
+
+    item.addEventListener("click", function () {
+      selectCustomer(customer, onSelect);
+    });
+
+    dropdown.appendChild(item);
+  });
+
+  container.appendChild(dropdown);
+}
+
+/**
+ * Hide customer dropdown
+ */
+export function hideCustomerDropdown() {
+  const existing = document.querySelector(".dropdown-results");
+  if (existing) {
+    existing.remove();
+  }
+}
+
+/**
+ * Select a customer and populate fields
+ */
+export function selectCustomer(customer, onSelect = null) {
+  const customerIdInput = document.getElementById("customerId");
+  const accountInput = document.getElementById("customerAccount");
+  const nameInput = document.getElementById("customerName");
+  const addressInput = document.getElementById("customerAddress");
+
+  if (customerIdInput) customerIdInput.value = customer.id;
+  if (accountInput) accountInput.value = customer.account_number;
+  if (nameInput) nameInput.value = customer.name;
+  if (addressInput) addressInput.value = customer.address || "";
+
+  hideCustomerDropdown();
+
+  if (onSelect) {
+    onSelect(customer);
+  }
+}
+
+// ==================== PRODUCT SEARCH & DROPDOWN (API-BASED) ====================
+
+/**
+ * Setup product search autocomplete on a product code input
+ * @param {HTMLElement} inputElement - The input element to attach search to
+ */
+export function setupProductSearch(inputElement) {
+  if (!inputElement) return;
+
+  inputElement.addEventListener("input", function(e) {
+    const value = e.target.value;
+    clearTimeout(inputElement._searchTimeout);
+    
+    if (value.length >= 2) {
+      inputElement._searchTimeout = setTimeout(() => {
+        searchProductsAPI(value, inputElement);
+      }, 300);
+    } else {
+      hideDropdown(inputElement);
+    }
+  });
+
+  inputElement.addEventListener("blur", function () {
+    setTimeout(() => {
+      if (!document.querySelector(".dropdown-results:hover")) {
+        hideDropdown(inputElement);
+      }
+    }, 200);
+  });
+}
+
+/**
+ * Search products via API
+ */
+export async function searchProductsAPI(query, inputElement) {
+  try {
+    const response = await fetch(
+      `/api/products/search?q=${encodeURIComponent(query)}`
+    );
+    const products = await response.json();
+
+    if (products.length > 0) {
+      showProductDropdown(products, inputElement);
+    } else {
+      hideDropdown(inputElement);
+    }
+  } catch (error) {
+    console.error("Error searching products:", error);
+  }
+}
+
+/**
+ * Display product search dropdown
+ */
+export function showProductDropdown(products, inputElement) {
+  hideDropdown(inputElement);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "dropdown-results";
+  dropdown.style.position = "absolute";
+  dropdown.style.zIndex = "1000";
+  dropdown.style.backgroundColor = "white";
+  dropdown.style.border = "1px solid #ddd";
+  dropdown.style.borderRadius = "4px";
+  dropdown.style.maxWidth = "500px";
+  dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+  dropdown.style.maxHeight = "300px";
+  dropdown.style.overflowY = "auto";
+
+  products.forEach((product) => {
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.style.padding = "8px 12px";
+    item.style.cursor = "pointer";
+    item.innerHTML = `
+      <strong>${product.code}</strong>
+      <div style="font-size: 0.85em; color: #666;">${product.name}</div>
+    `;
+
+    item.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "#f8f9fa";
+    });
+
+    item.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "transparent";
+    });
+
+    item.addEventListener("click", function () {
+      selectProduct(product, inputElement);
+      hideDropdown(inputElement);
+    });
+
+    dropdown.appendChild(item);
+  });
+
+  inputElement.parentElement.appendChild(dropdown);
+}
+
+/**
+ * Select a product and populate fields
+ */
+export function selectProduct(product, inputElement) {
+  const productRow = inputElement.closest(".product-row");
+  
+  if (productRow) {
+    const codeInput = productRow.querySelector(".product-code");
+    const nameInput = productRow.querySelector(".product-name");
+
+    if (codeInput) codeInput.value = product.code;
+    if (nameInput) nameInput.value = product.name;
+  }
+}
+
+/**
+ * Hide dropdown for a specific input
+ */
+export function hideDropdown(inputElement) {
+  const existing = inputElement.parentElement.querySelector(".dropdown-results");
+  if (existing) {
+    existing.remove();
+  }
+}
+
 // ==================== LOCALSTORAGE UTILITIES ====================
 
 export function getLocalStorage(key, defaultValue = null) {
@@ -96,7 +417,7 @@ export function removeLocalStorage(key) {
   }
 }
 
-// ==================== CUSTOMER UTILITIES ====================
+// ==================== CUSTOMER UTILITIES (LOCALSTORAGE) ====================
 
 export function normalizeCustomer(customer) {
   if (!customer) return null;
@@ -149,188 +470,6 @@ export function getCustomerByName(name) {
   return customer ? normalizeCustomer(customer) : null;
 }
 
-// ==================== CUSTOMER SELECTOR ====================
-
-export function initCustomerSelector(formElement, options = {}) {
-  const config = {
-    customerSelectId: "customer",
-    addressSelectId: "customerAddress",
-    addressContainerId: "addressContainer",
-    onCustomerChange: null,
-    onAddressChange: null,
-    ...options,
-  };
-
-  const customerSelect = formElement.querySelector(
-    `#${config.customerSelectId}`
-  );
-  const addressSelect = formElement.querySelector(`#${config.addressSelectId}`);
-  const addressContainer = formElement.querySelector(
-    `#${config.addressContainerId}`
-  );
-
-  if (!customerSelect) {
-    console.error("Customer select element not found");
-    return null;
-  }
-
-  let customers = [];
-  let currentCustomer = null;
-  let currentAddress = null;
-
-  function loadCustomers() {
-    const data = localStorage.getItem("customerDatabase");
-    customers = data ? JSON.parse(data) : [];
-    return customers;
-  }
-
-  function populateCustomerSelect() {
-    customerSelect.innerHTML = '<option value="">Select Customer...</option>';
-
-    customers.forEach((customer, index) => {
-      const option = document.createElement("option");
-      option.value = index;
-      option.textContent = customer.name;
-      customerSelect.appendChild(option);
-    });
-  }
-
-  function populateAddressSelect(customer) {
-    if (!addressSelect || !addressContainer) return;
-
-    const normalized = normalizeCustomer(customer);
-
-    if (normalized.addresses.length === 1) {
-      addressContainer.style.display = "none";
-      currentAddress = normalized.addresses[0];
-      return;
-    }
-
-    addressContainer.style.display = "block";
-    addressSelect.innerHTML = '<option value="">Select Address...</option>';
-
-    normalized.addresses.forEach((address, index) => {
-      const option = document.createElement("option");
-      option.value = index;
-      option.textContent = `${address.label} - ${address.street}, ${address.city}`;
-      addressSelect.appendChild(option);
-    });
-
-    if (normalized.addresses.length > 0) {
-      addressSelect.value = "0";
-      currentAddress = normalized.addresses[0];
-    }
-  }
-
-  function handleCustomerChange() {
-    const selectedIndex = customerSelect.value;
-
-    if (selectedIndex === "") {
-      currentCustomer = null;
-      currentAddress = null;
-      if (addressContainer) {
-        addressContainer.style.display = "none";
-      }
-      if (config.onCustomerChange) {
-        config.onCustomerChange(null, null);
-      }
-      return;
-    }
-
-    currentCustomer = normalizeCustomer(customers[selectedIndex]);
-    populateAddressSelect(currentCustomer);
-
-    if (config.onCustomerChange) {
-      config.onCustomerChange(currentCustomer, currentAddress);
-    }
-  }
-
-  function handleAddressChange() {
-    if (!currentCustomer || !addressSelect) return;
-
-    const selectedIndex = addressSelect.value;
-    if (selectedIndex === "") {
-      currentAddress = null;
-    } else {
-      currentAddress = currentCustomer.addresses[selectedIndex];
-    }
-
-    if (config.onAddressChange) {
-      config.onAddressChange(currentCustomer, currentAddress);
-    }
-  }
-
-  function getSelectedCustomer() {
-    return currentCustomer;
-  }
-
-  function getSelectedAddress() {
-    return currentAddress;
-  }
-
-  function getSelectedData() {
-    if (!currentCustomer || !currentAddress) {
-      return null;
-    }
-
-    return {
-      customer: currentCustomer,
-      address: currentAddress,
-    };
-  }
-
-  function refresh() {
-    loadCustomers();
-    populateCustomerSelect();
-
-    currentCustomer = null;
-    currentAddress = null;
-    customerSelect.value = "";
-    if (addressContainer) {
-      addressContainer.style.display = "none";
-    }
-  }
-
-  function selectCustomer(customerName, addressIndex = 0) {
-    const index = customers.findIndex((c) => c.name === customerName);
-    if (index === -1) return false;
-
-    customerSelect.value = index;
-    handleCustomerChange();
-
-    if (
-      addressSelect &&
-      currentCustomer &&
-      currentCustomer.addresses.length > 1
-    ) {
-      addressSelect.value = addressIndex;
-      handleAddressChange();
-    }
-
-    return true;
-  }
-
-  loadCustomers();
-  populateCustomerSelect();
-
-  if (addressContainer) {
-    addressContainer.style.display = "none";
-  }
-
-  customerSelect.addEventListener("change", handleCustomerChange);
-  if (addressSelect) {
-    addressSelect.addEventListener("change", handleAddressChange);
-  }
-
-  return {
-    getSelectedCustomer,
-    getSelectedAddress,
-    getSelectedData,
-    refresh,
-    selectCustomer,
-  };
-}
-
 export function saveCustomer(customer) {
   const data = localStorage.getItem("customerDatabase");
   const customers = data ? JSON.parse(data) : [];
@@ -347,7 +486,7 @@ export function saveCustomer(customer) {
   return true;
 }
 
-// ==================== PRODUCT UTILITIES ====================
+// ==================== PRODUCT UTILITIES (LOCALSTORAGE) ====================
 
 export function getAllProducts() {
   return getLocalStorage("productDatabase", []);
@@ -378,45 +517,70 @@ export function getProductByName(name) {
   return products.find((p) => p.name === name) || null;
 }
 
-// ==================== CALLSHEET UTILITIES ====================
+// ==================== ADDRESS SELECTOR ====================
 
-export function getAllCallsheets() {
-  return getLocalStorage("callsheets", {});
-}
+export async function setupAddressSelector(
+  customer,
+  container,
+  onAddressSelected
+) {
+  try {
+    const response = await fetch(`/api/customer/${customer.id}/addresses`);
+    const addresses = await response.json();
 
-export function getCallsheetForWeek(weekId) {
-  const callsheets = getAllCallsheets();
-  return callsheets[weekId] || [];
-}
+    const existingSelector = container.querySelector(
+      ".address-selector-container"
+    );
+    if (existingSelector) {
+      existingSelector.remove();
+    }
 
-export function getCurrentWeekCallsheet() {
-  const weekId = getWeekIdentifier();
-  return getCallsheetForWeek(weekId);
-}
+    if (!addresses || addresses.length === 0) {
+      if (onAddressSelected) onAddressSelected(null, null);
+      return;
+    }
 
-export function saveCallsheetForWeek(weekId, entries) {
-  const callsheets = getAllCallsheets();
-  callsheets[weekId] = entries;
-  return setLocalStorage("callsheets", callsheets);
-}
+    if (addresses.length === 1) {
+      if (onAddressSelected)
+        onAddressSelected(addresses[0], addresses[0].label);
+      return;
+    }
 
-export function addToCurrentCallsheet(entry) {
-  const weekId = getWeekIdentifier();
-  const entries = getCallsheetForWeek(weekId);
-  entries.push(entry);
-  return saveCallsheetForWeek(weekId, entries);
-}
+    const selectorHtml = `
+      <div class="address-selector-container mb-3">
+        <label class="form-label">Select Location *</label>
+        <select class="form-select address-location-select" required>
+          <option value="">Choose delivery location...</option>
+          ${addresses
+            .map(
+              (addr, idx) => `
+            <option value="${idx}" data-label="${addr.label}">
+              ${addr.label}${addr.phone ? " - " + addr.phone : ""}
+            </option>
+          `
+            )
+            .join("")}
+        </select>
+      </div>
+    `;
 
-export function removeCallsheetEntry(weekId, index) {
-  const entries = getCallsheetForWeek(weekId);
-  if (index >= 0 && index < entries.length) {
-    entries.splice(index, 1);
-    return saveCallsheetForWeek(weekId, entries);
+    container.insertAdjacentHTML("beforeend", selectorHtml);
+
+    const select = container.querySelector(".address-location-select");
+    select.addEventListener("change", function () {
+      const idx = parseInt(this.value);
+      if (!isNaN(idx) && addresses[idx]) {
+        if (onAddressSelected) {
+          onAddressSelected(addresses[idx], addresses[idx].label);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error setting up address selector:", error);
   }
-  return false;
 }
 
-// ==================== FORM VALIDATION UTILITIES ====================
+// ==================== FORM VALIDATION ====================
 
 export function validateForm(form, requiredFields) {
   const errors = [];
@@ -457,194 +621,4 @@ export function clearValidationErrors(errorContainer) {
     errorContainer.innerHTML = "";
     errorContainer.style.display = "none";
   }
-}
-
-// ==================== PDF UTILITIES ====================
-
-export function createPDF() {
-  const { jsPDF } = window.jspdf;
-  return new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
-}
-
-export function addPDFHeader(pdf, title, yPosition = 20) {
-  pdf.setFontSize(16);
-  pdf.setFont(undefined, "bold");
-  pdf.text(title, 105, yPosition, { align: "center" });
-}
-
-export function addPDFFooter(pdf) {
-  const pageCount = pdf.internal.getNumberOfPages();
-  pdf.setFontSize(10);
-
-  for (let i = 1; i <= pageCount; i++) {
-    pdf.setPage(i);
-    pdf.text(
-      `Page ${i} of ${pageCount}`,
-      pdf.internal.pageSize.getWidth() / 2,
-      pdf.internal.pageSize.getHeight() - 10,
-      { align: "center" }
-    );
-  }
-}
-
-// ==================== GENERAL UTILITIES ====================
-
-export function generateUniqueId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-export function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-export function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
-}
-
-export function formatCurrency(value, currency = "£") {
-  return `${currency}${parseFloat(value).toFixed(2)}`;
-}
-
-export function safeParseFloat(value, defaultValue = 0) {
-  const parsed = parseFloat(value);
-  return isNaN(parsed) ? defaultValue : parsed;
-}
-
-export function capitalizeWords(str) {
-  if (!str) return "";
-  return str
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-// Add this function to script.js for form address selection
-
-/**
- * Sets up address selection for forms after customer is selected
- * @param {Object} customer - Customer object from API
- * @param {HTMLElement} container - Container element to insert address selector
- * @param {Function} onAddressSelected - Callback when address is selected (address, addressLabel)
- */
-export async function setupAddressSelector(
-  customer,
-  container,
-  onAddressSelected
-) {
-  // Fetch customer addresses
-  try {
-    const response = await fetch(`/api/customer/${customer.id}/addresses`);
-    const addresses = await response.json();
-
-    // Remove any existing address selector
-    const existingSelector = container.querySelector(
-      ".address-selector-container"
-    );
-    if (existingSelector) {
-      existingSelector.remove();
-    }
-
-    if (!addresses || addresses.length === 0) {
-      // No addresses
-      if (onAddressSelected) onAddressSelected(null, null);
-      return;
-    }
-
-    if (addresses.length === 1) {
-      // Single address - auto-select
-      if (onAddressSelected)
-        onAddressSelected(addresses[0], addresses[0].label);
-      return;
-    }
-
-    // Multiple addresses - show selector
-    const selectorHtml = `
-      <div class="address-selector-container mb-3">
-        <label class="form-label">Select Location *</label>
-        <select class="form-select address-location-select" required>
-          <option value="">Choose delivery location...</option>
-          ${addresses
-            .map(
-              (addr, idx) => `
-            <option value="${idx}" data-label="${addr.label}">
-              ${addr.label}${addr.phone ? " - " + addr.phone : ""}
-            </option>
-          `
-            )
-            .join("")}
-        </select>
-        <small class="text-muted">This customer has multiple delivery locations</small>
-      </div>
-    `;
-
-    container.insertAdjacentHTML("afterbegin", selectorHtml);
-
-    // Handle address selection
-    const select = container.querySelector(".address-location-select");
-    select.addEventListener("change", function () {
-      const selectedIndex = this.value;
-      if (selectedIndex !== "") {
-        const selectedAddress = addresses[selectedIndex];
-        const selectedOption = this.options[this.selectedIndex];
-        const addressLabel = selectedOption.dataset.label;
-
-        if (onAddressSelected) {
-          onAddressSelected(selectedAddress, addressLabel);
-        }
-      }
-    });
-
-    // Store addresses for later access
-    container.dataset.customerAddresses = JSON.stringify(addresses);
-  } catch (error) {
-    console.error("Error loading addresses:", error);
-  }
-}
-
-/**
- * Gets the selected address from a container
- * @param {HTMLElement} container - Container with address selector
- * @returns {Object} Object with address and label
- */
-export function getSelectedAddress(container) {
-  const select = container.querySelector(".address-location-select");
-
-  if (!select) {
-    // No selector means single address or no addresses
-    const addressesData = container.dataset.customerAddresses;
-    if (addressesData) {
-      const addresses = JSON.parse(addressesData);
-      return addresses.length === 1
-        ? {
-            address: addresses[0],
-            label: addresses[0].label,
-          }
-        : null;
-    }
-    return null;
-  }
-
-  const selectedIndex = select.value;
-  if (selectedIndex === "") return null;
-
-  const addresses = JSON.parse(container.dataset.customerAddresses);
-  const selectedAddress = addresses[selectedIndex];
-  const selectedOption = select.options[select.selectedIndex];
-
-  return {
-    address: selectedAddress,
-    label: selectedOption.dataset.label,
-  };
 }

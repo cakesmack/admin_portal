@@ -57,7 +57,7 @@
 
       <!-- Delivery Days -->
       <div class="mb-4">
-        <label class="form-label">Delivery Days * (Weekly)</label>
+        <label class="form-label">Delivery Days * (Weekdays Only)</label>
         <div class="btn-group-toggle" data-toggle="buttons">
           <div class="d-flex gap-2 flex-wrap">
             <label class="btn btn-outline-primary">
@@ -186,15 +186,18 @@
 
 {% endblock %} {% block scripts %}
 <script type="module">
-  import { extractProductCode, debounce } from "/static/js/script.js";
-
-  let productSearchTimeout;
+  import { 
+    setupCustomerSearch, 
+    setupProductSearch 
+  } from "/static/js/script.js";
 
   document.addEventListener(
     "DOMContentLoaded",
     function () {
+      // Setup customer search using imported function
       setupCustomerSearch();
 
+      // Setup delivery day toggles
       document
         .querySelectorAll('input[name="deliveryDays"]')
         .forEach((checkbox) => {
@@ -210,12 +213,12 @@
           });
         });
 
+      // Form submission
       document
         .getElementById("standingOrderForm")
         .addEventListener("submit", async function (e) {
           e.preventDefault();
 
-          // Prevent double submission
           const submitBtn = this.querySelector('button[type="submit"]');
           if (submitBtn.disabled) return;
           submitBtn.disabled = true;
@@ -278,13 +281,13 @@
             customer_name: document.getElementById("customerName").value,
             customer_address: document.getElementById("customerAddress").value,
             delivery_days: deliveryDays.map((d) => parseInt(d)),
-            products: products,
+            items: products,
             special_instructions: document.getElementById("specialInstructions")
               .value,
           };
 
           try {
-            const response = await fetch("/api/standing-orders", {
+            const response = await fetch(window.location.pathname, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -310,235 +313,7 @@
     { once: true }
   );
 
-  function setupCustomerSearch() {
-    const accountInput = document.getElementById("customerAccount");
-    const nameInput = document.getElementById("customerName");
-
-    if (accountInput) {
-      accountInput.addEventListener(
-        "input",
-        debounce(function () {
-          if (this.value.length >= 2) {
-            searchCustomers(this.value, "account");
-          } else {
-            hideCustomerDropdown();
-          }
-        }, 300)
-      );
-    }
-
-    if (nameInput) {
-      nameInput.addEventListener(
-        "input",
-        debounce(function () {
-          if (this.value.length >= 2) {
-            searchCustomers(this.value, "name");
-          } else {
-            hideCustomerDropdown();
-          }
-        }, 300)
-      );
-    }
-
-    document.addEventListener("click", function (e) {
-      if (!e.target.closest(".search-container")) {
-        hideCustomerDropdown();
-      }
-    });
-  }
-
-  async function searchCustomers(query, searchType) {
-    try {
-      const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(query)}`
-      );
-      const customers = await response.json();
-
-      if (customers.length > 0) {
-        showCustomerDropdown(customers, searchType);
-      } else {
-        hideCustomerDropdown();
-      }
-    } catch (error) {
-      console.error("Error searching customers:", error);
-    }
-  }
-
-  function showCustomerDropdown(customers, searchType) {
-    hideCustomerDropdown();
-
-    const targetInput =
-      searchType === "account"
-        ? document.getElementById("customerAccount")
-        : document.getElementById("customerName");
-    const container = targetInput.parentElement;
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-    dropdown.style.position = "absolute";
-    dropdown.style.top = "100%";
-    dropdown.style.left = "0";
-    dropdown.style.right = "0";
-    dropdown.style.zIndex = "1000";
-    dropdown.style.maxHeight = "300px";
-    dropdown.style.overflowY = "auto";
-    dropdown.style.backgroundColor = "white";
-    dropdown.style.border = "1px solid #ddd";
-    dropdown.style.borderRadius = "4px";
-    dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-
-    customers.forEach((customer) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-      item.style.padding = "10px";
-      item.style.cursor = "pointer";
-      item.innerHTML = `
-        <strong>${customer.name}</strong>
-        <div style="font-size: 0.85em; color: #666;">
-          Account: ${customer.account_number}
-        </div>
-      `;
-
-      item.addEventListener("mouseenter", function () {
-        this.style.backgroundColor = "#f8f9fa";
-      });
-
-      item.addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "transparent";
-      });
-
-      item.addEventListener("click", function () {
-        selectCustomer(customer);
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    container.appendChild(dropdown);
-  }
-
-  function hideCustomerDropdown() {
-    const existing = document.querySelector(".dropdown-results");
-    if (existing) {
-      existing.remove();
-    }
-  }
-
-  function selectCustomer(customer) {
-    document.getElementById("customerId").value = customer.id;
-    document.getElementById("customerAccount").value = customer.account_number;
-    document.getElementById("customerName").value = customer.name;
-    document.getElementById("customerAddress").value = customer.address || "";
-
-    hideCustomerDropdown();
-  }
-
-  function setupProductSearch(inputElement) {
-    if (!inputElement) return;
-
-    inputElement.addEventListener(
-      "input",
-      debounce(function () {
-        if (this.value.length >= 2) {
-          searchProducts(this.value, this);
-        } else {
-          hideDropdown(this);
-        }
-      }, 300)
-    );
-
-    inputElement.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(this);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchProducts(query, inputElement) {
-    try {
-      const response = await fetch(
-        `/api/products/search?q=${encodeURIComponent(query)}`
-      );
-      const products = await response.json();
-
-      if (products.length > 0) {
-        showProductDropdown(products, inputElement);
-      } else {
-        hideDropdown(inputElement);
-      }
-    } catch (error) {
-      console.error("Error searching products:", error);
-    }
-  }
-
-  function showProductDropdown(products, inputElement) {
-    hideDropdown(inputElement);
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-    dropdown.style.position = "absolute";
-    dropdown.style.zIndex = "1000";
-    dropdown.style.backgroundColor = "white";
-    dropdown.style.border = "1px solid #ddd";
-    dropdown.style.borderRadius = "4px";
-    dropdown.style.maxWidth = "500px";
-    dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-    dropdown.style.maxHeight = "300px";
-    dropdown.style.overflowY = "auto";
-
-    products.forEach((product) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-      item.style.padding = "8px 12px";
-      item.style.cursor = "pointer";
-      item.innerHTML = `
-        <strong>${product.code}</strong>
-        <div style="font-size: 0.85em; color: #666;">${product.name}</div>
-      `;
-
-      item.addEventListener("mouseenter", function () {
-        this.style.backgroundColor = "#f8f9fa";
-      });
-
-      item.addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "transparent";
-      });
-
-      item.addEventListener("click", function () {
-        selectProduct(product, inputElement);
-        hideDropdown(inputElement);
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-  }
-
-  function selectProduct(product, inputElement) {
-    const productRow = inputElement.closest(".product-row");
-    const codeInput = productRow.querySelector(".product-code");
-    const nameInput = productRow.querySelector(".product-name");
-
-    if (codeInput) {
-      codeInput.value = product.code;
-    }
-
-    if (nameInput) {
-      nameInput.value = product.name;
-    }
-  }
-
-  function hideDropdown(inputElement) {
-    const existing =
-      inputElement.parentElement.querySelector(".dropdown-results");
-    if (existing) {
-      existing.remove();
-    }
-  }
-
+  // Add product row using imported setupProductSearch
   window.addProductRow = function (
     productCode = "",
     productName = "",
