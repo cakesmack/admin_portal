@@ -514,7 +514,7 @@
     }
 
     try {
-      const response = await fetch("/api/customer-stock", {
+      const response = await fetch("customer-stock/api/customer-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -558,7 +558,7 @@
 
     try {
       const response = await fetch(
-        `/api/customer-stock/${itemId}/transaction`,
+        `customer-stock/api/customer-stock/${itemId}/transaction`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -580,7 +580,7 @@
 
   async function showStockHistory(itemId) {
     try {
-      const response = await fetch(`/api/customer-stock/${itemId}/history`);
+      const response = await fetch(`customer-stock/api/customer-stock/${itemId}/history`);
       const transactions = await response.json();
 
       let historyHtml =
@@ -633,7 +633,7 @@
 
     try {
       const response = await fetch(
-        `/api/customer-stock/search?q=${encodeURIComponent(query)}`
+        `customer-stock/api/customer-stock/search?q=${encodeURIComponent(query)}`
       );
       const items = await response.json();
 
@@ -684,7 +684,7 @@
 
     try {
       const response = await fetch(
-        `/api/customer-stock/${itemId}/transaction`,
+        `customer-stock/api/customer-stock/${itemId}/transaction`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

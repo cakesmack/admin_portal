@@ -348,7 +348,7 @@ table.table tbody tr.callsheet-row:hover td {
       <div class="d-flex align-items-center">
         <div class="notes-preview {% if entry.customer.callsheet_notes %}has-notes{% endif %}" 
              style="flex-grow: 1; cursor: pointer;" 
-             onclick="showNotesModal({{ entry.id }}, '{{ entry.customer.name }}')">
+onclick="showNotesModal({{ entry.id }}, {{ entry.customer.id }}, '{{ entry.customer.callsheet_notes|default('') }}')"
           {% if entry.customer.callsheet_notes %}
           <i class="bi bi-sticky-fill text-warning"></i> 
           {{ entry.customer.callsheet_notes[:30] }}{% if entry.customer.callsheet_notes|length > 30 %}...{% endif %}

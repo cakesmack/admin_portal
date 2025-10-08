@@ -6,7 +6,7 @@ from app.forms import BrandedStockForm
 from datetime import datetime
 import json
 
-customer_stock_bp = Blueprint('customer_stock', __name__, url_prefix='/customer-stock')
+customer_stock_bp = Blueprint('customer_stock', __name__)
 
 def validate_stock_transaction(data, stock_item):
     """Validate stock transaction input"""
@@ -60,7 +60,6 @@ def customer_stock():
     )
 
 
-
 @customer_stock_bp.route('/branded-stock', methods=['GET', 'POST'])
 @login_required
 def branded_stock():
@@ -69,57 +68,77 @@ def branded_stock():
         stock_item_id = request.form.get('stock_item_id')
         
         if stock_item_id:
-            stock_item = CustomerStock.query.get_or_404(stock_item_id)
-            quantity_ordered = int(request.form.get('quantity_delivered', 0))
-            
-            if quantity_ordered > stock_item.current_stock:
-                flash('Cannot order more than available stock', 'danger')
-                return redirect(url_for('customer_stock.branded_stock'))
-            
-            transaction = StockTransaction(
-                stock_item_id=stock_item_id,
-                transaction_type='stock_out',
-                quantity=quantity_ordered,
-                reference=request.form.get('order_reference', ''),
-                notes=request.form.get('order_notes', ''),
-                created_by=current_user.id
-            )
-            
-            stock_item.current_stock -= quantity_ordered
-            stock_item.updated_at = datetime.now()
-            
-            db.session.add(transaction)
-            
-            form_data = {
-                'customer_account': request.form.get('customer_account'),
-                'customer_name': request.form.get('customer_name'),
-                'address_label': request.form.get('address_label', ''),
-                'product_code': request.form.get('product_code'),
-                'product_name': request.form.get('product_name'),
-                'quantity_delivered': quantity_ordered,
-                'current_stock': stock_item.current_stock,
-                'order_reference': request.form.get('order_reference', ''),
-                'order_notes': request.form.get('order_notes', ''),
-                'transaction_type': 'Customer Stock Order'
-            }
-            
-            new_form = Form(
-                type='branded_stock',
-                data=json.dumps(form_data),
-                user_id=current_user.id
-            )
-            db.session.add(new_form)
-            db.session.commit()
-            
-            flash(f'Stock order #{new_form.id} has been processed successfully!', 'success')
-            
-            # Return JavaScript to open print form and redirect
-            return f'''
-            <script>
-                window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
-                window.location.href = '{url_for('main.branded_stock')}';
-            </script>
-            '''
+            try:
+                stock_item = CustomerStock.query.get_or_404(stock_item_id)
+                quantity_ordered = int(request.form.get('quantity_delivered', 0))
+                
+                if quantity_ordered > stock_item.current_stock:
+                    flash('Cannot order more than available stock', 'danger')
+                    return redirect(url_for('customer_stock.branded_stock'))
+                
+                transaction = StockTransaction(
+                    stock_item_id=stock_item_id,
+                    transaction_type='stock_out',
+                    quantity=quantity_ordered,
+                    reference=request.form.get('order_reference', ''),
+                    notes=request.form.get('order_notes', ''),
+                    created_by=current_user.id
+                )
+                
+                stock_item.current_stock -= quantity_ordered
+                stock_item.updated_at = datetime.now()
+                
+                db.session.add(transaction)
+                
+                form_data = {
+                    'customer_account': request.form.get('customer_account'),
+                    'customer_name': request.form.get('customer_name'),
+                    'address_label': request.form.get('address_label', ''),
+                    'product_code': request.form.get('product_code'),
+                    'product_name': request.form.get('product_name'),
+                    'quantity_delivered': quantity_ordered,
+                    'current_stock': stock_item.current_stock,
+                    'order_reference': request.form.get('order_reference', ''),
+                    'order_notes': request.form.get('order_notes', ''),
+                    'transaction_type': 'Customer Stock Order'
+                }
+                
+                new_form = Form(
+                    type='branded_stock',
+                    data=json.dumps(form_data),
+                    user_id=current_user.id
+                )
+                db.session.add(new_form)
+                db.session.commit()
+                
+                print(f"✓ Order created successfully: #{new_form.id}")
+                
+                # Generate URLs
+                print_url = url_for('main.print_form', form_id=new_form.id)
+                redirect_url = url_for('customer_stock.branded_stock')
+                
+                print(f"✓ Print URL: {print_url}")
+                print(f"✓ Redirect URL: {redirect_url}")
+                
+                response = f'''
+                <script>
+                    window.open('{print_url}', '_blank');
+                    window.location.href = '{redirect_url}';
+                </script>
+                '''
+                
+                print(f"✓ Response generated, length: {len(response)}")
+                return response
+                
+            except Exception as e:
+                print(f"❌ ERROR in branded_stock: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                db.session.rollback()
+                return jsonify({'success': False, 'message': str(e)}), 500
+    else:
+        if request.method == 'POST':
+            print(f"❌ Form validation failed: {form.errors}")
     
     # GET request - display the form
     stock_items = CustomerStock.query.join(Customer).order_by(Customer.name, CustomerStock.product_name).all()
@@ -140,9 +159,6 @@ def branded_stock():
                          form=form,
                          stock_items=stock_items,
                          recent_branded_stock=recent_branded_stock)
-
-
-
 @customer_stock_bp.route('/api/customer-stock', methods=['POST'])
 @login_required
 def create_customer_stock():
@@ -170,7 +186,7 @@ def create_customer_stock():
         
         stock_item = CustomerStock(
             customer_id=data['customer_id'],
-            product_code=data.get('product_code'),  # Optional
+            product_code=data.get('product_code'),
             product_name=data['product_name'],
             current_stock=data.get('initial_stock', 0),
             reorder_level=data.get('reorder_level', 5)
@@ -185,7 +201,7 @@ def create_customer_stock():
                 stock_item_id=stock_item.id,
                 transaction_type='stock_in',
                 quantity=data['initial_stock'],
-                reference=data.get('invoice_number', 'Initial Stock'),  # Changed from 'reference'
+                reference=data.get('invoice_number', 'Initial Stock'),
                 notes=data.get('notes', 'Initial stock setup'),
                 created_by=current_user.id
             )

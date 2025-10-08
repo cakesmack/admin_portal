@@ -14,7 +14,7 @@ login_manager.login_message_category = 'info'
 
 def create_app():
     app = Flask(__name__)
-    
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
     # Load configuration
     try:
         from config import get_config
