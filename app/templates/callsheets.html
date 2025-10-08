@@ -749,7 +749,7 @@ async function saveCallsheet() {
     showLoading();
     
     try {
-        const url = id ? `/api/callsheet/${id}/update` : '/api/callsheet/create';
+        const url = id ? `/callsheets/api/callsheet/${id}/update` : '/callsheets/api/callsheet/create';
         const body = { name: name, day_of_week: day };
         
         const response = await fetch(url, {
@@ -784,7 +784,7 @@ function deleteCallsheet(event, callsheetId) {
     
     showLoading();
     
-    fetch(`/api/callsheet/${callsheetId}/delete`, {
+    fetch(`/callsheets/api/callsheet/${callsheetId}/delete`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })
@@ -812,7 +812,7 @@ function completeCallsheet(callsheetId, callsheetName) {
     
     showLoading();
     
-    fetch(`/api/callsheet/${callsheetId}/complete`, {
+    fetch(`/callsheets/api/callsheet/${callsheetId}/complete`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })
@@ -887,7 +887,7 @@ async function saveCallStatus() {
     showLoading();
     
     try {
-        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+        const response = await fetch(`/callsheets/api/callsheet-entry/${entryId}/update-status`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -934,7 +934,7 @@ async function saveCallStatusDirect(entryId, status, selectElement) {
     showLoading();
     
     try {
-        const response = await fetch(`/api/callsheet-entry/${entryId}/update-status`, {
+        const response = await fetch(`/callsheets/api/callsheet-entry/${entryId}/update-status`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ call_status: status })
@@ -987,7 +987,7 @@ async function saveNotes() {
     showLoading();
     
     try {
-        const response = await fetch(`/api/callsheet-entry/${entryId}/update-notes`, {
+        const response = await fetch(`/callsheets/api/callsheet-entry/${entryId}/update-notes`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ notes: notes })
@@ -1090,7 +1090,7 @@ async function addCustomerToCallsheet() {
     showLoading();
     
     try {
-        const response = await fetch(`/api/callsheet/${callsheetId}/add-customer`, {
+        const response = await fetch(`/callsheets/api/callsheet/${callsheetId}/add-customer`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -1181,7 +1181,7 @@ function removeCustomer(entryId) {
     
     showLoading();
     
-    fetch(`/api/callsheet-entry/${entryId}/delete`, {
+    fetch(`/callsheets/api/callsheet-entry/${entryId}/delete`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })
@@ -1209,7 +1209,7 @@ async function togglePauseCustomer(entryId) {
     showLoading();
     
     try {
-        const response = await fetch(`/api/callsheet-entry/${entryId}/toggle-pause`, {
+        const response = await fetch(`/callsheets/api/callsheet-entry/${entryId}/toggle-pause`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         });
@@ -1232,7 +1232,7 @@ async function togglePauseCustomer(entryId) {
 
 async function updateEntryPosition(entryId, newPosition) {
     try {
-        const response = await fetch(`/api/callsheet-entry/${entryId}/reorder`, {
+        const response = await fetch(`/callsheets/api/callsheet-entry/${entryId}/reorder`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ position: newPosition })

@@ -70,7 +70,7 @@
   });
 
   function loadHistory() {
-    fetch("/api/callsheets/history")
+    fetch("/callsheets/api/history")
       .then((response) => response.json())
       .then((data) => {
         const tbody = document.getElementById("historyBody");
@@ -119,7 +119,7 @@
   }
 
   function viewCompletion(completionId) {
-    fetch(`/api/callsheets/history/${completionId}`)
+    fetch(`/callsheets/api/history/${completionId}`)
       .then((response) => response.json())
       .then((result) => {
         if (!result.success) {
