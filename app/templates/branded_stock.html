@@ -1,4 +1,4 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
 {% block content %}
 <h2>Customer Stock Order Form</h2>
 <p class="text-muted">Process customer orders from their held inventory</p>
@@ -60,15 +60,16 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <form method="POST" id="orderForm">
+        <form method="POST" action="{{ url_for('customer_stock.branded_stock') }}" id="orderForm">
           {{ form.hidden_tag() }}
           
-          <input type="hidden" name="stock_item_id" id="modalStockItemId" />
-          <input type="hidden" name="customer_id" id="modalCustomerId" />
-          <input type="hidden" name="customer_account" id="modalCustomerAccount" />
-          <input type="hidden" name="customer_name" id="modalCustomerName" />
-          <input type="hidden" name="product_code" id="modalProductCode" />
-          <input type="hidden" name="product_name" id="modalProductName" />
+          <input type="hidden" name="stock_item_id" id="modalStockItemId">
+          <input type="hidden" name="customer_id" id="modalCustomerId">
+          <input type="hidden" name="customer_account" id="modalCustomerAccount">
+          <input type="hidden" name="customer_name" id="modalCustomerName">
+          <input type="hidden" name="product_code" id="modalProductCode">
+          <input type="hidden" name="product_name" id="modalProductName">
+          <input type="hidden" name="address_label" id="address_label">
 
           <div class="alert alert-info">
             <strong>Customer:</strong> <span id="modalCustomerDisplay"></span><br>
@@ -76,55 +77,29 @@
             <strong>Available Stock:</strong> <span id="modalAvailableStock"></span>
           </div>
 
-          <!-- Address selection area -->
+          <!-- Address selection area - populated dynamically -->
           <div class="address-selection-area-modal col-md-12 mb-3"></div>
 
           <div class="row mb-3">
             <div class="col-md-6">
               <label class="form-label">Quantity to Order *</label>
-              <input
-                type="number"
-                class="form-control"
-                name="quantity_delivered"
-                id="modalQuantity"
-                min="1"
-                required
-              />
+              <input type="number" class="form-control" name="quantity_delivered" id="modalQuantity" min="1" required>
               <small class="text-muted">Maximum: <span id="modalMaxQty"></span></small>
             </div>
             <div class="col-md-6">
               <label class="form-label">New Stock Level</label>
-              <input
-                type="number"
-                class="form-control"
-                name="current_stock"
-                id="modalNewStock"
-                readonly
-                style="background-color: #f8f9fa"
-              />
+              <input type="number" class="form-control" name="current_stock" id="modalNewStock" readonly style="background-color: #f8f9fa">
             </div>
           </div>
 
           <div class="mb-3">
             <label class="form-label">Order Reference</label>
-            <input
-              type="text"
-              class="form-control"
-              name="order_reference"
-              id="modalReference"
-              placeholder="Order number, invoice etc."
-            />
+            <input type="text" class="form-control" name="order_reference" id="modalReference" placeholder="Order number, invoice etc.">
           </div>
 
           <div class="mb-3">
             <label class="form-label">Order Notes</label>
-            <textarea
-              class="form-control"
-              name="order_notes"
-              id="modalNotes"
-              rows="3"
-              placeholder="Additional notes about this order"
-            ></textarea>
+            <textarea class="form-control" name="order_notes" id="modalNotes" rows="3" placeholder="Additional notes about this order"></textarea>
           </div>
         </form>
       </div>
@@ -166,11 +141,7 @@
             <td>{{ delivery.data.get('quantity_delivered', 'N/A') }}</td>
             <td>{{ delivery.data.get('current_stock', 'N/A') }}</td>
             <td>
-              <a
-                href="{{ url_for('main.print_form', form_id=delivery.id) }}"
-                class="btn btn-sm btn-primary"
-                target="_blank"
-              >
+              <a href="{{ url_for('main.print_form', form_id=delivery.id) }}" class="btn btn-sm btn-primary" target="_blank">
                 <i class="bi bi-printer"></i> Print
               </a>
             </td>
@@ -180,178 +151,154 @@
       </table>
     </div>
     {% else %}
-    <p class="text-muted">No stock orders recorded yet.</p>
+    <p class="text-muted">No recent orders</p>
     {% endif %}
   </div>
 </div>
 
-{% endblock %} 
+{% endblock %}
 
 {% block scripts %}
-<script type="module">
-  import {
-    setupAddressSelector,
-    getSelectedAddress,
-  } from "/static/js/script.js";
-
-  let selectedStockItem = null;
-  let selectedCustomerForAddress = null;
+<script>
+  // NO IMPORTS - Plain JavaScript only
   let orderModal;
 
   document.addEventListener("DOMContentLoaded", function () {
-    orderModal = new bootstrap.Modal(document.getElementById("orderModal"));
-    
-    // Setup quantity calculation in modal
-    document.getElementById("modalQuantity").addEventListener("input", calculateModalNewStock);
+    orderModal = new bootstrap.Modal(document.getElementById('orderModal'));
+
+    // Auto-calculate new stock level when quantity changes
+    const quantityInput = document.getElementById('modalQuantity');
+    quantityInput.addEventListener('input', function() {
+      const availableStock = parseInt(this.getAttribute('data-available')) || 0;
+      const ordered = parseInt(this.value) || 0;
+      const newStock = availableStock - ordered;
+      document.getElementById('modalNewStock').value = newStock;
+    });
   });
 
-  // Quick select function from stock table
-  window.quickSelectItem = async function(itemId, customerId, accountNumber, customerName, productCode, productName, currentStock, unitType) {
-    // Set selected stock item
-    selectedStockItem = {
-      id: itemId,
-      customerId: customerId,
-      account_number: accountNumber,
-      customer_name: customerName,
-      product_code: productCode,
-      product_name: productName,
-      current_stock: currentStock,
-      unit_type: unitType
-    };
-    
-    // Fill modal hidden fields
-    document.getElementById("modalStockItemId").value = itemId;
-    document.getElementById("modalCustomerId").value = customerId;
-    document.getElementById("modalCustomerAccount").value = accountNumber;
-    document.getElementById("modalCustomerName").value = customerName;
-    document.getElementById("modalProductCode").value = productCode;
-    document.getElementById("modalProductName").value = productName;
-    
-    // Update modal display
-    document.getElementById("modalCustomerDisplay").textContent = `${accountNumber} - ${customerName}`;
-    document.getElementById("modalProductDisplay").textContent = `${productCode} - ${productName}`;
-    document.getElementById("modalAvailableStock").textContent = `${currentStock} ${unitType}`;
-    document.getElementById("modalMaxQty").textContent = `${currentStock} ${unitType}`;
-    
-    // Set max quantity
-    document.getElementById("modalQuantity").max = currentStock;
-    document.getElementById("modalQuantity").value = "";
-    document.getElementById("modalNewStock").value = currentStock;
-    
-    // Clear other fields
-    document.getElementById("modalReference").value = "";
-    document.getElementById("modalNotes").value = "";
-    
-    // Setup address selector for this customer
-    try {
-      const response = await fetch(`/api/customers/search?q=${accountNumber}`);
-      const customers = await response.json();
-      
-      if (customers.length > 0) {
-        selectedCustomerForAddress = customers[0];
-        const addressContainer = document.querySelector(".address-selection-area-modal");
-        
-        // Clear previous address selector
-        addressContainer.innerHTML = "";
-        
-        // Setup address selection
-        await setupAddressSelector(selectedCustomerForAddress, addressContainer, (address, label) => {
-          // Address is selected, we'll get it on submit
-        });
-      }
-    } catch (error) {
-      console.error("Error loading customer for address:", error);
-    }
-    
+  // Quick select item from table
+  function quickSelectItem(stockItemId, customerId, customerAccount, customerName, productCode, productName, availableStock, unitType) {
+    // Store data in hidden fields
+    document.getElementById('modalStockItemId').value = stockItemId;
+    document.getElementById('modalCustomerId').value = customerId;
+    document.getElementById('modalCustomerAccount').value = customerAccount;
+    document.getElementById('modalCustomerName').value = customerName;
+    document.getElementById('modalProductCode').value = productCode;
+    document.getElementById('modalProductName').value = productName;
+
+    // Display info
+    document.getElementById('modalCustomerDisplay').textContent = customerAccount + ' - ' + customerName;
+    document.getElementById('modalProductDisplay').textContent = productCode + ' - ' + productName;
+    document.getElementById('modalAvailableStock').textContent = availableStock + ' ' + unitType;
+    document.getElementById('modalMaxQty').textContent = availableStock;
+
+    // Setup quantity input
+    const quantityInput = document.getElementById('modalQuantity');
+    quantityInput.max = availableStock;
+    quantityInput.value = 1;
+    quantityInput.setAttribute('data-available', availableStock);
+
+    // Calculate initial new stock
+    document.getElementById('modalNewStock').value = availableStock - 1;
+
+    // Fetch customer addresses and setup address selector
+    fetchCustomerAddresses(customerId);
+
     // Show modal
     orderModal.show();
   }
-  
-  function calculateModalNewStock() {
-    const ordered = parseInt(document.getElementById("modalQuantity").value) || 0;
-    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
-    const newLevel = Math.max(0, available - ordered);
-    
-    document.getElementById("modalNewStock").value = newLevel;
-    
-    // Visual feedback
-    const input = document.getElementById("modalQuantity");
-    if (ordered > available) {
-      input.style.borderColor = "#dc3545";
-    } else if (ordered > 0) {
-      input.style.borderColor = "#28a745";
-    } else {
-      input.style.borderColor = "";
+
+  // Fetch customer addresses
+  async function fetchCustomerAddresses(customerId) {
+    try {
+      const response = await fetch('/api/customer/' + customerId + '/addresses');
+      const addresses = await response.json();
+
+      const container = document.querySelector('.address-selection-area-modal');
+      
+      if (addresses.length === 0) {
+        container.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> This customer has no address on file. Please add one.</div>';
+      } else if (addresses.length === 1) {
+        const addr = addresses[0];
+        container.innerHTML = '<div class="alert alert-info"><strong>Delivery Address:</strong> ' + addr.label + '<br>' + formatAddress(addr) + '</div>';
+        document.getElementById('address_label').value = addr.label;
+      } else {
+        // Show address selector
+        showAddressSelector(addresses, container);
+      }
+    } catch (error) {
+      console.error('Error fetching addresses:', error);
     }
   }
-  
-  window.submitOrder = function() {
-    const quantity = parseInt(document.getElementById("modalQuantity").value);
-    const available = selectedStockItem ? selectedStockItem.current_stock : 0;
-    
-    if (!quantity || quantity < 1) {
-      alert("Please enter a valid quantity");
-      return;
-    }
-    
-    if (quantity > available) {
-      alert(`Cannot order more than available stock (${available})`);
-      return;
-    }
-    
-    // Show loading state
-    const submitBtn = event.target;
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
-    
-    // Get selected address
-    const addressContainer = document.querySelector(".address-selection-area-modal");
-    const selectedAddressData = addressContainer ? getSelectedAddress(addressContainer) : null;
 
-    // Add address label to form if available
-    let addressLabel = "";
-    if (selectedAddressData && selectedAddressData.label) {
-      addressLabel = selectedAddressData.label;
-    }
-
-    // Get form data
-    const formData = new FormData(document.getElementById("orderForm"));
-    if (addressLabel) {
-      formData.append("address_label", addressLabel);
-    }
+  // Show address selector
+  function showAddressSelector(addresses, container) {
+    let html = '<div class="mb-3"><label class="form-label"><strong>Select Delivery Location:</strong></label>';
+    html += '<select class="form-select address-location-select" required>';
+    html += '<option value="">Choose location...</option>';
     
-    // Submit via fetch
-    fetch('{{ url_for("customer_stock.branded_stock") }}', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => response.text())
-    .then(html => {
-      // Check if response contains the script tag with print window
-      if (html.includes('window.open')) {
-        // Extract the URL from the script
-        const match = html.match(/window\.open\('([^']+)'/);
-        if (match && match[1]) {
-          // Open print window
-          window.open(match[1], '_blank');
-          
-          // Close modal and reload page
-          orderModal.hide();
-          window.location.reload();
-        }
+    addresses.forEach((addr, idx) => {
+      html += '<option value="' + idx + '" data-label="' + addr.label + '">';
+      html += addr.label;
+      if (addr.street) html += ' - ' + addr.street;
+      html += '</option>';
+    });
+    
+    html += '</select>';
+    html += '<div class="selected-address-display mt-2" style="display: none;"></div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    const select = container.querySelector(".address-location-select");
+    const displayDiv = container.querySelector(".selected-address-display");
+
+    select.addEventListener("change", function () {
+      const idx = parseInt(this.value);
+      
+      if (!isNaN(idx) && addresses[idx]) {
+        const selectedAddress = addresses[idx];
+        
+        displayDiv.innerHTML = '<div class="alert alert-success"><strong>' + selectedAddress.label + '</strong><br>' + formatAddress(selectedAddress) + '</div>';
+        displayDiv.style.display = "block";
+
+        // Store address label
+        document.getElementById('address_label').value = selectedAddress.label;
       } else {
-        // Something went wrong, reload to show error message
-        window.location.reload();
+        displayDiv.style.display = "none";
+        document.getElementById('address_label').value = "";
       }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      alert('Error processing order');
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalText;
     });
   }
-</script>
 
+  // Format address for display
+  function formatAddress(address) {
+    const parts = [];
+    if (address.street) parts.push(address.street);
+    if (address.city) parts.push(address.city);
+    if (address.zip) parts.push(address.zip);
+    return parts.length > 0 ? parts.join(", ") : "Address not specified";
+  }
+
+  // Submit order
+  function submitOrder() {
+    const form = document.getElementById('orderForm');
+    const quantity = parseInt(document.getElementById('modalQuantity').value);
+    const maxQty = parseInt(document.getElementById('modalQuantity').max);
+
+    // Validate
+    if (!quantity || quantity < 1) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+
+    if (quantity > maxQty) {
+      alert('Cannot order more than ' + maxQty + ' units');
+      return;
+    }
+
+    // Submit form normally (not via AJAX)
+    form.submit();
+  }
+</script>
 {% endblock %}

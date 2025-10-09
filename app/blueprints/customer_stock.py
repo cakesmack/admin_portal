@@ -159,6 +159,7 @@ def branded_stock():
                          form=form,
                          stock_items=stock_items,
                          recent_branded_stock=recent_branded_stock)
+
 @customer_stock_bp.route('/api/customer-stock', methods=['POST'])
 @login_required
 def create_customer_stock():

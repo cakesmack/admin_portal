@@ -103,255 +103,175 @@ export function capitalizeWords(str) {
     .join(" ");
 }
 
-// ==================== CUSTOMER SEARCH & DROPDOWN (API-BASED) ====================
+// ==================== CUSTOMER SEARCH & ADDRESS SELECTION ====================
+
+let currentSelectedCustomer = null;
+let customerSearchTimeout = null;
 
 /**
- * Setup customer search autocomplete on input fields
- * @param {string} accountInputId - ID of account number input
- * @param {string} nameInputId - ID of customer name input
- * @param {Function} onSelect - Optional callback when customer is selected
+ * Initialize customer search on a form
+ * @param {Object} options - Configuration options
+ * @param {string} options.accountInputId - ID of account number input
+ * @param {string} options.nameInputId - ID of customer name input  
+ * @param {string} options.addressInputId - ID of address display input (optional)
+ * @param {string} options.addressContainerId - ID of container for address selection (optional)
+ * @param {Function} options.onSelect - Callback when customer is selected
  */
-export function setupCustomerSearch(accountInputId = "customerAccount", nameInputId = "customerName", onSelect = null) {
-  const accountInput = document.getElementById(accountInputId);
-  const nameInput = document.getElementById(nameInputId);
+export function initCustomerSearch(options = {}) {
+  const {
+    accountInputId = "customerAccount",
+    nameInputId = "customerName", 
+    addressInputId = "customerAddress",
+    addressContainerId = "addressSelectionContainer",
+    onSelect = null
+  } = options;
+
+  const accountInput = document.getElementById(accountInputId) || 
+                       document.querySelector(`input[name="${accountInputId}"]`) ||
+                       document.querySelector('input[name="customer_account"]');
+  const nameInput = document.getElementById(nameInputId) ||
+                    document.querySelector(`input[name="${nameInputId}"]`) ||
+                    document.querySelector('input[name="customer_name"]');
 
   if (accountInput) {
-    accountInput.addEventListener("input", function(e) {
-      const value = e.target.value;
-      clearTimeout(accountInput._searchTimeout);
-      
-      if (value.length >= 2) {
-        accountInput._searchTimeout = setTimeout(() => {
-          searchCustomersAPI(value, "account", onSelect);
-        }, 300);
-      } else {
-        hideCustomerDropdown();
-      }
-    });
+    setupCustomerInputField(accountInput, "account", addressInputId, addressContainerId, onSelect);
   }
 
   if (nameInput) {
-    nameInput.addEventListener("input", function(e) {
-      const value = e.target.value;
-      clearTimeout(nameInput._searchTimeout);
-      
-      if (value.length >= 2) {
-        nameInput._searchTimeout = setTimeout(() => {
-          searchCustomersAPI(value, "name", onSelect);
-        }, 300);
-      } else {
-        hideCustomerDropdown();
-      }
-    });
+    setupCustomerInputField(nameInput, "name", addressInputId, addressContainerId, onSelect);
   }
 
+  // Hide dropdowns when clicking outside
   document.addEventListener("click", function (e) {
     if (!e.target.closest(".search-container")) {
-      hideCustomerDropdown();
+      hideAllDropdowns();
     }
   });
 }
 
 /**
- * Search customers via API
+ * Setup event handlers for a customer search input field
  */
-export async function searchCustomersAPI(query, searchType, onSelect = null) {
-  try {
-    const response = await fetch(
-      `/api/customers/search?q=${encodeURIComponent(query)}`
-    );
-    const customers = await response.json();
+function setupCustomerInputField(inputElement, searchType, addressInputId, addressContainerId, onSelect) {
+  inputElement.addEventListener("input", function (e) {
+    const value = e.target.value.trim();
+    clearTimeout(customerSearchTimeout);
 
-    if (customers.length > 0) {
-      showCustomerDropdown(customers, searchType, onSelect);
-    } else {
-      hideCustomerDropdown();
+    if (value.length < 2) {
+      hideCustomerDropdown(inputElement);
+      if (searchType === "account") {
+        clearCustomerFields(["name", "address"]);
+      } else {
+        clearCustomerFields(["account", "address"]);
+      }
+      currentSelectedCustomer = null;
+      return;
     }
-  } catch (error) {
-    console.error("Error searching customers:", error);
-  }
-}
 
-/**
- * Display customer search dropdown
- */
-export function showCustomerDropdown(customers, searchType, onSelect = null) {
-  hideCustomerDropdown();
-
-  const targetInput =
-    searchType === "account"
-      ? document.getElementById("customerAccount")
-      : document.getElementById("customerName");
-
-  if (!targetInput) return;
-
-  const container = targetInput.parentElement;
-
-  const dropdown = document.createElement("div");
-  dropdown.className = "dropdown-results";
-  dropdown.style.position = "absolute";
-  dropdown.style.top = "100%";
-  dropdown.style.left = "0";
-  dropdown.style.right = "0";
-  dropdown.style.zIndex = "1000";
-  dropdown.style.maxHeight = "300px";
-  dropdown.style.overflowY = "auto";
-  dropdown.style.backgroundColor = "white";
-  dropdown.style.border = "1px solid #ddd";
-  dropdown.style.borderRadius = "4px";
-  dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-
-  customers.forEach((customer) => {
-    const item = document.createElement("div");
-    item.className = "dropdown-item";
-    item.style.padding = "10px";
-    item.style.cursor = "pointer";
-    item.innerHTML = `
-      <strong>${customer.name}</strong>
-      <div style="font-size: 0.85em; color: #666;">
-        Account: ${customer.account_number}
-      </div>
-    `;
-
-    item.addEventListener("mouseenter", function () {
-      this.style.backgroundColor = "#f8f9fa";
-    });
-
-    item.addEventListener("mouseleave", function () {
-      this.style.backgroundColor = "transparent";
-    });
-
-    item.addEventListener("click", function () {
-      selectCustomer(customer, onSelect);
-    });
-
-    dropdown.appendChild(item);
-  });
-
-  container.appendChild(dropdown);
-}
-
-/**
- * Hide customer dropdown
- */
-export function hideCustomerDropdown() {
-  const existing = document.querySelector(".dropdown-results");
-  if (existing) {
-    existing.remove();
-  }
-}
-
-/**
- * Select a customer and populate fields
- */
-export function selectCustomer(customer, onSelect = null) {
-  const customerIdInput = document.getElementById("customerId");
-  const accountInput = document.getElementById("customerAccount");
-  const nameInput = document.getElementById("customerName");
-  const addressInput = document.getElementById("customerAddress");
-
-  if (customerIdInput) customerIdInput.value = customer.id;
-  if (accountInput) accountInput.value = customer.account_number;
-  if (nameInput) nameInput.value = customer.name;
-  if (addressInput) addressInput.value = customer.address || "";
-
-  hideCustomerDropdown();
-
-  if (onSelect) {
-    onSelect(customer);
-  }
-}
-
-// ==================== PRODUCT SEARCH & DROPDOWN (API-BASED) ====================
-
-/**
- * Setup product search autocomplete on a product code input
- * @param {HTMLElement} inputElement - The input element to attach search to
- */
-export function setupProductSearch(inputElement) {
-  if (!inputElement) return;
-
-  inputElement.addEventListener("input", function(e) {
-    const value = e.target.value;
-    clearTimeout(inputElement._searchTimeout);
-    
-    if (value.length >= 2) {
-      inputElement._searchTimeout = setTimeout(() => {
-        searchProductsAPI(value, inputElement);
-      }, 300);
-    } else {
-      hideDropdown(inputElement);
-    }
+    customerSearchTimeout = setTimeout(() => {
+      searchCustomers(value, inputElement, searchType, addressInputId, addressContainerId, onSelect);
+    }, 300);
   });
 
   inputElement.addEventListener("blur", function () {
     setTimeout(() => {
       if (!document.querySelector(".dropdown-results:hover")) {
-        hideDropdown(inputElement);
+        hideCustomerDropdown(inputElement);
       }
     }, 200);
   });
 }
 
 /**
- * Search products via API
+ * Search for customers via API
  */
-export async function searchProductsAPI(query, inputElement) {
+async function searchCustomers(query, inputElement, searchType, addressInputId, addressContainerId, onSelect) {
   try {
     const response = await fetch(
-      `/api/products/search?q=${encodeURIComponent(query)}`
+      `/api/customers/search?q=${encodeURIComponent(query)}`
     );
-    const products = await response.json();
-
-    if (products.length > 0) {
-      showProductDropdown(products, inputElement);
-    } else {
-      hideDropdown(inputElement);
+    
+    if (!response.ok) {
+      throw new Error("Search failed");
     }
+
+    const customers = await response.json();
+
+    if (customers.length === 0) {
+      hideCustomerDropdown(inputElement);
+      return;
+    }
+
+    showCustomerDropdown(customers, inputElement, searchType, addressInputId, addressContainerId, onSelect);
   } catch (error) {
-    console.error("Error searching products:", error);
+    console.error("Error searching customers:", error);
+    hideCustomerDropdown(inputElement);
   }
 }
 
 /**
- * Display product search dropdown
+ * Display customer search results dropdown
  */
-export function showProductDropdown(products, inputElement) {
-  hideDropdown(inputElement);
+function showCustomerDropdown(customers, inputElement, searchType, addressInputId, addressContainerId, onSelect) {
+  hideCustomerDropdown(inputElement);
 
   const dropdown = document.createElement("div");
   dropdown.className = "dropdown-results";
-  dropdown.style.position = "absolute";
-  dropdown.style.zIndex = "1000";
-  dropdown.style.backgroundColor = "white";
-  dropdown.style.border = "1px solid #ddd";
-  dropdown.style.borderRadius = "4px";
-  dropdown.style.maxWidth = "500px";
-  dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-  dropdown.style.maxHeight = "300px";
-  dropdown.style.overflowY = "auto";
+  dropdown.style.cssText = `
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--dark-card, white);
+    border: 2px solid var(--border-color, #ddd);
+    border-radius: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    margin-top: 4px;
+  `;
 
-  products.forEach((product) => {
+  customers.forEach((customer) => {
     const item = document.createElement("div");
     item.className = "dropdown-item";
-    item.style.padding = "8px 12px";
-    item.style.cursor = "pointer";
-    item.innerHTML = `
-      <strong>${product.code}</strong>
-      <div style="font-size: 0.85em; color: #666;">${product.name}</div>
+    item.style.cssText = `
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color, #eee);
+      transition: background-color 0.2s;
     `;
 
+    if (searchType === "account") {
+      item.innerHTML = `
+        <strong>${customer.account_number}</strong>
+        <small class="text-muted d-block">${customer.name}</small>
+      `;
+    } else {
+      item.innerHTML = `
+        <strong>${customer.name}</strong>
+        <small class="text-muted d-block">${customer.account_number}</small>
+      `;
+    }
+
     item.addEventListener("mouseenter", function () {
-      this.style.backgroundColor = "#f8f9fa";
+      this.style.backgroundColor = "var(--primary-blue, #007bff)";
+      this.style.color = "white";
+      const small = this.querySelector("small");
+      if (small) small.style.color = "rgba(255, 255, 255, 0.8)";
     });
 
     item.addEventListener("mouseleave", function () {
       this.style.backgroundColor = "transparent";
+      this.style.color = "";
+      const small = this.querySelector("small");
+      if (small) small.style.color = "";
     });
 
-    item.addEventListener("click", function () {
-      selectProduct(product, inputElement);
-      hideDropdown(inputElement);
+    item.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      selectCustomer(customer, addressInputId, addressContainerId, onSelect);
+      hideCustomerDropdown(inputElement);
     });
 
     dropdown.appendChild(item);
@@ -361,11 +281,466 @@ export function showProductDropdown(products, inputElement) {
 }
 
 /**
+ * Handle customer selection
+ */
+function selectCustomer(customer, addressInputId, addressContainerId, onSelect) {
+  currentSelectedCustomer = customer;
+
+  // Fill in basic customer fields
+  const accountInput = document.querySelector('input[name="customer_account"]') ||
+                       document.getElementById("customerAccount");
+  const nameInput = document.querySelector('input[name="customer_name"]') ||
+                    document.getElementById("customerName");
+
+  if (accountInput) accountInput.value = customer.account_number;
+  if (nameInput) nameInput.value = customer.name;
+
+  // Handle addresses
+  handleCustomerAddresses(customer, addressInputId, addressContainerId);
+
+  // Call custom callback if provided
+  if (onSelect && typeof onSelect === "function") {
+    onSelect(customer);
+  }
+}
+
+/**
+ * Handle address selection based on customer's addresses
+ * ALWAYS shows selector with "Add New Address" option
+ */
+function handleCustomerAddresses(customer, addressInputId, addressContainerId) {
+  const addressInput = document.querySelector(`input[name="${addressInputId}"]`) ||
+                       document.getElementById(addressInputId) ||
+                       document.querySelector('input[name="customer_address"]');
+  
+  const addressContainer = document.getElementById(addressContainerId) ||
+                          document.querySelector('.address-selection-area') ||
+                          document.querySelector('.address-selection-area-modal');
+
+  if (!addressContainer) {
+    console.warn('⚠️ No address container found');
+    return;
+  }
+
+  // Get addresses - check both the addresses array and legacy address field
+  let addresses = customer.addresses || [];
+  const legacyAddress = customer.address;
+
+  // If no addresses but has legacy address, convert to array format
+  if (addresses.length === 0 && legacyAddress) {
+    addresses = [{
+      id: null,
+      label: "Primary",
+      street: legacyAddress,
+      city: "",
+      zip: "",
+      phone: "",
+      is_primary: true
+    }];
+  }
+
+  console.log('📍 Customer has', addresses.length, 'address(es)');
+
+  // ALWAYS show the selector - even for 0 or 1 addresses
+  showAddressSelector(addresses, addressContainer, addressInput, customer.name);
+}
+
+/**
+ * Show address selector when customer has multiple addresses
+ */
+function showAddressSelector(addresses, container, addressInput) {
+  console.log('📍 Showing address selector with', addresses.length, 'addresses');
+  
+  container.innerHTML = `
+    <div class="address-selector-wrapper mb-3" style="background: var(--dark-card, #f8f9fa); padding: 15px; border-radius: 8px; border: 2px solid var(--border-color, #dee2e6);">
+      <label class="form-label" style="font-weight: 600; color: var(--text-light, #333);">
+        <i class="bi bi-geo-alt-fill"></i> Select Delivery Location *
+      </label>
+      <select class="form-select address-location-select" required style="margin-bottom: 10px;">
+        <option value="">Choose location...</option>
+        ${addresses.map((addr, idx) => `
+          <option value="${idx}">
+            📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${addr.city ? ", " + addr.city : ""}
+          </option>
+        `).join("")}
+        <option value="new" style="font-weight: 600; color: #28a745;">➕ Add New Address</option>
+      </select>
+      <div class="selected-address-display mt-2" style="display: none;"></div>
+      <div class="new-address-form mt-3" style="display: none;">
+        <div class="alert alert-info">
+          <i class="bi bi-plus-circle"></i> <strong>Add New Delivery Address</strong>
+          <p class="mb-0 mt-2 small">This address will be saved to the customer's account.</p>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Location Name *</label>
+          <input type="text" class="form-control new-address-label" placeholder="e.g., Warehouse 2, Reception Desk, Kitchen" required>
+          <small class="text-muted">Give this location a memorable name</small>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Street Address</label>
+          <input type="text" class="form-control new-address-street" placeholder="123 High Street">
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-2">
+            <label class="form-label">City/Town</label>
+            <input type="text" class="form-control new-address-city" placeholder="Glasgow">
+          </div>
+          <div class="col-md-6 mb-2">
+            <label class="form-label">Postcode</label>
+            <input type="text" class="form-control new-address-zip" placeholder="G1 1AA">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Phone Number</label>
+          <input type="text" class="form-control new-address-phone" placeholder="01234 567890">
+        </div>
+      </div>
+    </div>
+  `;
+
+  const select = container.querySelector(".address-location-select");
+  const displayDiv = container.querySelector(".selected-address-display");
+  const newAddressForm = container.querySelector(".new-address-form");
+
+  select.addEventListener("change", function () {
+    const selectedValue = this.value;
+    console.log('📍 Address selection changed to:', selectedValue);
+
+    if (selectedValue === "new") {
+      // Show new address form
+      console.log('➕ Showing new address form');
+      displayDiv.style.display = "none";
+      newAddressForm.style.display = "block";
+      
+      if (addressInput) {
+        addressInput.value = "";
+        addressInput.placeholder = "Enter new address details above";
+      }
+      
+      // Set a flag that this is a new address
+      updateAddressLabel("__NEW_ADDRESS__");
+      
+    } else if (selectedValue === "") {
+      // No selection
+      displayDiv.style.display = "none";
+      newAddressForm.style.display = "none";
+      if (addressInput) {
+        addressInput.value = "";
+        addressInput.placeholder = "Select a location above";
+      }
+      updateAddressLabel("");
+      
+    } else {
+      // Show selected existing address
+      const idx = parseInt(selectedValue);
+      const selectedAddress = addresses[idx];
+      console.log('✅ Selected address:', selectedAddress.label);
+      
+      displayDiv.innerHTML = `
+        <div class="alert alert-success" style="margin-top: 10px;">
+          <i class="bi bi-check-circle-fill"></i> <strong>${selectedAddress.label}</strong><br>
+          <small>${formatAddressDisplay(selectedAddress)}</small>
+        </div>
+      `;
+      displayDiv.style.display = "block";
+      newAddressForm.style.display = "none";
+
+      if (addressInput) {
+        addressInput.value = formatAddressDisplay(selectedAddress);
+      }
+
+      // Store the selected address label for form submission
+      updateAddressLabel(selectedAddress.label);
+    }
+  });
+  
+  // Helper function to update address label input
+  function updateAddressLabel(value) {
+    let labelInput = document.getElementById("address_label") ||
+                     document.querySelector('input[name="address_label"]');
+    
+    if (!labelInput) {
+      // Create hidden input if it doesn't exist
+      const form = container.closest("form");
+      if (form) {
+        labelInput = document.createElement("input");
+        labelInput.type = "hidden";
+        labelInput.name = "address_label";
+        labelInput.id = "address_label";
+        form.appendChild(labelInput);
+      }
+    }
+    
+    if (labelInput) {
+      labelInput.value = value;
+      console.log('📝 Updated address_label input to:', value);
+    }
+  }
+}
+
+/**
+ * Format address for display
+ */
+function formatAddressDisplay(address) {
+  const parts = [];
+  if (address.street) parts.push(address.street);
+  if (address.city) parts.push(address.city);
+  if (address.zip) parts.push(address.zip);
+  return parts.join(", ") || "Address not specified";
+}
+
+/**
+ * Get selected address data from container
+ */
+export function getSelectedAddress(container) {
+  if (!container) {
+    console.warn('⚠️ No address container provided');
+    return null;
+  }
+
+  const select = container.querySelector(".address-location-select");
+  if (!select) {
+    console.log('ℹ️ No address selector found');
+    return null;
+  }
+
+  const selectedValue = select.value;
+  console.log('📍 Getting selected address, value:', selectedValue);
+
+  if (selectedValue === "new") {
+    // Return new address data from form
+    const newAddressData = {
+      label: container.querySelector(".new-address-label")?.value.trim() || "",
+      street: container.querySelector(".new-address-street")?.value.trim() || "",
+      city: container.querySelector(".new-address-city")?.value.trim() || "",
+      zip: container.querySelector(".new-address-zip")?.value.trim() || "",
+      phone: container.querySelector(".new-address-phone")?.value.trim() || "",
+      isNew: true
+    };
+    
+    console.log('➕ New address data:', newAddressData);
+    
+    // Validate new address has at least a label
+    if (!newAddressData.label) {
+      alert('Please enter a location name for the new address');
+      return null;
+    }
+    
+    return newAddressData;
+    
+  } else if (selectedValue && selectedValue !== "") {
+    // Return the label of selected existing address
+    const labelInput = document.getElementById("address_label") ||
+                       document.querySelector('input[name="address_label"]');
+    const label = labelInput ? labelInput.value : "";
+    
+    console.log('✅ Existing address selected:', label);
+    
+    return {
+      label: label,
+      isNew: false
+    };
+  }
+
+  console.log('❌ No address selected');
+  return null;
+}
+
+/**
+ * Clear specific customer fields
+ */
+function clearCustomerFields(fieldsToClear) {
+  const fieldMap = {
+    account: 'input[name="customer_account"]',
+    name: 'input[name="customer_name"]',
+    address: 'input[name="customer_address"]'
+  };
+
+  fieldsToClear.forEach(field => {
+    const input = document.querySelector(fieldMap[field]);
+    if (input) input.value = "";
+  });
+}
+
+/**
+ * Hide customer dropdown for specific input
+ */
+function hideCustomerDropdown(inputElement) {
+  const existing = inputElement.parentElement.querySelector(".dropdown-results");
+  if (existing) {
+    existing.remove();
+  }
+}
+
+/**
+ * Hide all dropdowns on page
+ */
+function hideAllDropdowns() {
+  document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
+    dropdown.remove();
+  });
+}
+
+/**
+ * Get currently selected customer
+ */
+export function getSelectedCustomer() {
+  return currentSelectedCustomer;
+}
+
+// ==================== PRODUCT SEARCH ====================
+
+let productSearchTimeout = null;
+
+/**
+ * Initialize product search on input fields with class 'product-code'
+ * Can be called multiple times for dynamic product rows
+ */
+export function initProductSearch(containerElement = document) {
+  const productCodeInputs = containerElement.querySelectorAll('.product-code');
+  
+  productCodeInputs.forEach(input => {
+    // Remove existing listeners to prevent duplicates
+    input.removeEventListener('input', handleProductInput);
+    input.removeEventListener('blur', handleProductBlur);
+    
+    // Add new listeners
+    input.addEventListener('input', handleProductInput);
+    input.addEventListener('blur', handleProductBlur);
+  });
+}
+
+/**
+ * Handle product input event
+ */
+function handleProductInput(e) {
+  const inputElement = e.target;
+  const value = inputElement.value.trim();
+
+  clearTimeout(productSearchTimeout);
+
+  if (value.length < 2) {
+    hideProductDropdown(inputElement);
+    return;
+  }
+
+  productSearchTimeout = setTimeout(() => {
+    searchProducts(value, inputElement);
+  }, 300);
+}
+
+/**
+ * Handle product blur event
+ */
+function handleProductBlur(e) {
+  const inputElement = e.target;
+  setTimeout(() => {
+    if (!document.querySelector(".dropdown-results:hover")) {
+      hideProductDropdown(inputElement);
+    }
+  }, 200);
+}
+
+/**
+ * Search for products via API
+ */
+async function searchProducts(query, inputElement) {
+  try {
+    const response = await fetch(
+      `/api/products/search?q=${encodeURIComponent(query)}`
+    );
+
+    if (!response.ok) {
+      throw new Error("Product search failed");
+    }
+
+    const products = await response.json();
+
+    if (products.length === 0) {
+      hideProductDropdown(inputElement);
+      return;
+    }
+
+    showProductDropdown(products, inputElement);
+  } catch (error) {
+    console.error("Error searching products:", error);
+    hideProductDropdown(inputElement);
+  }
+}
+
+/**
+ * Display product search results dropdown
+ */
+function showProductDropdown(products, inputElement) {
+  hideProductDropdown(inputElement);
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "dropdown-results";
+  dropdown.style.cssText = `
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--dark-card, white);
+    border: 2px solid var(--border-color, #ddd);
+    border-radius: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    margin-top: 4px;
+  `;
+
+  products.forEach((product) => {
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.style.cssText = `
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color, #eee);
+      transition: background-color 0.2s;
+    `;
+
+    item.innerHTML = `
+      <strong>${product.code}</strong>
+      <small class="text-muted d-block">${product.name}</small>
+    `;
+
+    item.addEventListener("mouseenter", function () {
+      this.style.backgroundColor = "var(--primary-blue, #007bff)";
+      this.style.color = "white";
+      const small = this.querySelector("small");
+      if (small) small.style.color = "rgba(255, 255, 255, 0.8)";
+    });
+
+    item.addEventListener("mouseleave", function () {
+      this.style.backgroundColor = "transparent";
+      this.style.color = "";
+      const small = this.querySelector("small");
+      if (small) small.style.color = "";
+    });
+
+    item.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      selectProduct(product, inputElement);
+      hideProductDropdown(inputElement);
+    });
+
+    dropdown.appendChild(item);
+  });
+
+  // Position dropdown relative to the input's container
+  const container = inputElement.closest('.search-container') || inputElement.parentElement;
+  container.style.position = 'relative';
+  container.appendChild(dropdown);
+}
+
+/**
  * Select a product and populate fields
  */
-export function selectProduct(product, inputElement) {
-  const productRow = inputElement.closest(".product-row");
-  
+function selectProduct(product, inputElement) {
+  const productRow = inputElement.closest(".product-row") || inputElement.closest(".row");
+
   if (productRow) {
     const codeInput = productRow.querySelector(".product-code");
     const nameInput = productRow.querySelector(".product-name");
@@ -376,13 +751,44 @@ export function selectProduct(product, inputElement) {
 }
 
 /**
- * Hide dropdown for a specific input
+ * Hide product dropdown for specific input
  */
-export function hideDropdown(inputElement) {
-  const existing = inputElement.parentElement.querySelector(".dropdown-results");
+function hideProductDropdown(inputElement) {
+  const container = inputElement.closest('.search-container') || inputElement.parentElement;
+  const existing = container.querySelector(".dropdown-results");
   if (existing) {
     existing.remove();
   }
+}
+
+// ==================== BACKWARD COMPATIBILITY ====================
+
+// Keep old function names for backward compatibility
+export function setupCustomerSearch(accountInputId, nameInputId, onSelect) {
+  return initCustomerSearch({
+    accountInputId,
+    nameInputId,
+    onSelect
+  });
+}
+
+export function setupProductSearch(inputElement) {
+  if (inputElement) {
+    inputElement.addEventListener('input', handleProductInput);
+    inputElement.addEventListener('blur', handleProductBlur);
+  }
+}
+
+export function setupAddressSelector(container, addresses, onAddressSelected) {
+  showAddressSelector(addresses, container, null);
+}
+
+export function selectProductFromDropdown(product, inputElement) {
+  selectProduct(product, inputElement);
+}
+
+export function hideDropdown(inputElement) {
+  hideCustomerDropdown(inputElement);
 }
 
 // ==================== LOCALSTORAGE UTILITIES ====================
@@ -392,7 +798,7 @@ export function getLocalStorage(key, defaultValue = null) {
     const item = localStorage.getItem(key);
     return item ? JSON.parse(item) : defaultValue;
   } catch (error) {
-    console.error(`Error reading from localStorage (${key}):`, error);
+    console.error("Error reading from localStorage:", error);
     return defaultValue;
   }
 }
@@ -402,7 +808,7 @@ export function setLocalStorage(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
-    console.error(`Error writing to localStorage (${key}):`, error);
+    console.error("Error writing to localStorage:", error);
     return false;
   }
 }
@@ -412,171 +818,8 @@ export function removeLocalStorage(key) {
     localStorage.removeItem(key);
     return true;
   } catch (error) {
-    console.error(`Error removing from localStorage (${key}):`, error);
+    console.error("Error removing from localStorage:", error);
     return false;
-  }
-}
-
-// ==================== CUSTOMER UTILITIES (LOCALSTORAGE) ====================
-
-export function normalizeCustomer(customer) {
-  if (!customer) return null;
-
-  if (Array.isArray(customer.addresses) && customer.addresses.length > 0) {
-    return customer;
-  }
-
-  const normalized = { ...customer };
-  normalized.addresses = [
-    {
-      label: "Primary",
-      street: customer.street || "",
-      city: customer.city || "",
-      state: customer.state || "",
-      zip: customer.zip || "",
-      country: customer.country || "",
-    },
-  ];
-
-  return normalized;
-}
-
-export function autofillAddressFields(form, address, prefix = "") {
-  if (!form || !address) return;
-
-  const fields = {
-    street: `${prefix}Street`,
-    city: `${prefix}City`,
-    state: `${prefix}State`,
-    zip: `${prefix}Zip`,
-    country: `${prefix}Country`,
-  };
-
-  Object.keys(fields).forEach((key) => {
-    const field = form.querySelector(`#${fields[key]}`);
-    if (field && address[key]) {
-      field.value = address[key];
-    }
-  });
-}
-
-export function getAllCustomers() {
-  return getLocalStorage("customerDatabase", []);
-}
-
-export function getCustomerByName(name) {
-  const customers = getAllCustomers();
-  const customer = customers.find((c) => c.name === name);
-  return customer ? normalizeCustomer(customer) : null;
-}
-
-export function saveCustomer(customer) {
-  const data = localStorage.getItem("customerDatabase");
-  const customers = data ? JSON.parse(data) : [];
-
-  const existingIndex = customers.findIndex((c) => c.name === customer.name);
-
-  if (existingIndex !== -1) {
-    customers[existingIndex] = customer;
-  } else {
-    customers.push(customer);
-  }
-
-  localStorage.setItem("customerDatabase", JSON.stringify(customers));
-  return true;
-}
-
-// ==================== PRODUCT UTILITIES (LOCALSTORAGE) ====================
-
-export function getAllProducts() {
-  return getLocalStorage("productDatabase", []);
-}
-
-export function searchProducts(query) {
-  if (!query) return [];
-
-  const products = getAllProducts();
-  const searchTerm = query.toLowerCase();
-
-  return products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm) ||
-      (product.code && product.code.toLowerCase().includes(searchTerm))
-  );
-}
-
-export function getProductByCode(code) {
-  if (!code) return null;
-  const products = getAllProducts();
-  return products.find((p) => p.code === code) || null;
-}
-
-export function getProductByName(name) {
-  if (!name) return null;
-  const products = getAllProducts();
-  return products.find((p) => p.name === name) || null;
-}
-
-// ==================== ADDRESS SELECTOR ====================
-
-export async function setupAddressSelector(
-  customer,
-  container,
-  onAddressSelected
-) {
-  try {
-    const response = await fetch(`/api/customer/${customer.id}/addresses`);
-    const addresses = await response.json();
-
-    const existingSelector = container.querySelector(
-      ".address-selector-container"
-    );
-    if (existingSelector) {
-      existingSelector.remove();
-    }
-
-    if (!addresses || addresses.length === 0) {
-      if (onAddressSelected) onAddressSelected(null, null);
-      return;
-    }
-
-    if (addresses.length === 1) {
-      if (onAddressSelected)
-        onAddressSelected(addresses[0], addresses[0].label);
-      return;
-    }
-
-    const selectorHtml = `
-      <div class="address-selector-container mb-3">
-        <label class="form-label">Select Location *</label>
-        <select class="form-select address-location-select" required>
-          <option value="">Choose delivery location...</option>
-          ${addresses
-            .map(
-              (addr, idx) => `
-            <option value="${idx}" data-label="${addr.label}">
-              ${addr.label}${addr.phone ? " - " + addr.phone : ""}
-            </option>
-          `
-            )
-            .join("")}
-        </select>
-      </div>
-    `;
-
-    container.insertAdjacentHTML("beforeend", selectorHtml);
-
-    const select = container.querySelector(".address-location-select");
-    select.addEventListener("change", function () {
-      const idx = parseInt(this.value);
-      if (!isNaN(idx) && addresses[idx]) {
-        if (onAddressSelected) {
-          onAddressSelected(addresses[idx], addresses[idx].label);
-        }
-      }
-    });
-  } catch (error) {
-    console.error("Error setting up address selector:", error);
   }
 }
 

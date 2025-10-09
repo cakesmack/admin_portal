@@ -1,124 +1,89 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
+<h2>Create Standing Order</h2>
+<p class="text-muted">Set up recurring weekly deliveries for customers</p>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h2>New Standing Order</h2>
-  <a
-    href="{{ url_for('standing_orders.standing_orders') }}"
-    class="btn btn-secondary"
-  >
-    <i class="bi bi-arrow-left"></i> Back
-  </a>
-</div>
-
-<div class="card">
+<div class="card mt-4">
   <div class="card-body">
-    <form id="standingOrderForm">
-      <!-- Customer Selection -->
+    <form method="POST" id="standingOrderForm">
+      
+      <!-- Customer Details -->
       <div class="row mb-4">
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Customer Details</h5>
+        </div>
+      </div>
+
+      <div class="row mb-3">
         <div class="col-md-4">
           <div class="search-container position-relative">
-            <label class="form-label">Customer Account *</label>
-            <input
-              type="text"
-              class="form-control"
-              id="customerAccount"
-              name="customer_account"
-              placeholder="Start typing account number..."
-              required
-            />
-            <input type="hidden" id="customerId" name="customer_id" />
+            <label class="form-label">Customer Account Number *</label>
+            <input type="text" name="customer_account" class="form-control" placeholder="Start typing account..." required>
+            <input type="hidden" name="customer_id" id="customerId">
           </div>
         </div>
         <div class="col-md-4">
           <div class="search-container position-relative">
             <label class="form-label">Customer Name *</label>
-            <input
-              type="text"
-              class="form-control"
-              id="customerName"
-              name="customer_name"
-              placeholder="Start typing customer name..."
-              required
-            />
+            <input type="text" name="customer_name" class="form-control" placeholder="Start typing name..." required>
           </div>
         </div>
         <div class="col-md-4">
-          <label class="form-label">Customer Address</label>
-          <input
-            type="text"
-            class="form-control"
-            id="customerAddress"
-            name="customer_address"
-            placeholder="Customer address will auto-fill"
-            required
-          />
+          <label class="form-label">Delivery Address</label>
+          <input type="text" name="customer_address" class="form-control" placeholder="Address" readonly>
         </div>
       </div>
 
-      <!-- Delivery Days -->
-      <div class="mb-4">
-        <label class="form-label">Delivery Days * (Weekdays Only)</label>
-        <div class="btn-group-toggle" data-toggle="buttons">
-          <div class="d-flex gap-2 flex-wrap">
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="0" /> Monday
-            </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="1" /> Tuesday
-            </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="2" /> Wednesday
-            </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="3" /> Thursday
-            </label>
-            <label class="btn btn-outline-primary">
-              <input type="checkbox" name="deliveryDays" value="4" /> Friday
-            </label>
-          </div>
-        </div>
-        <small class="text-muted"
-          >Standing order will start from the next occurrence of the selected
-          day(s)</small
-        >
-      </div>
+      <!-- Address Selection Container -->
+      <div id="addressSelectionContainer" class="address-selection-area mb-3"></div>
 
-      <!-- End Date Only -->
+      <!-- Delivery Schedule -->
       <div class="row mb-4">
-        <div class="col-md-6">
-          <label class="form-label">End Date (leave blank for ongoing)</label>
-          <input type="date" class="form-control" id="endDate" />
-          <small class="text-muted"
-            >Only use if standing order has a specific end date (e.g., 1 month
-            trial)</small
-          >
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Delivery Schedule</h5>
         </div>
       </div>
 
-      <!-- Products -->
-      <div class="mb-4">
-        <h5>Products</h5>
-        <div id="productsContainer">
-          <!-- Products will be added here -->
+      <div class="mb-3">
+        <label class="form-label">Delivery Days (Select one or more) *</label>
+        <div class="btn-group d-flex flex-wrap" role="group">
+          <input type="checkbox" class="btn-check" name="deliveryDays" value="0" id="monday">
+          <label class="btn btn-outline-primary" for="monday">Monday</label>
+
+          <input type="checkbox" class="btn-check" name="deliveryDays" value="1" id="tuesday">
+          <label class="btn btn-outline-primary" for="tuesday">Tuesday</label>
+
+          <input type="checkbox" class="btn-check" name="deliveryDays" value="2" id="wednesday">
+          <label class="btn btn-outline-primary" for="wednesday">Wednesday</label>
+
+          <input type="checkbox" class="btn-check" name="deliveryDays" value="3" id="thursday">
+          <label class="btn btn-outline-primary" for="thursday">Thursday</label>
+
+          <input type="checkbox" class="btn-check" name="deliveryDays" value="4" id="friday">
+          <label class="btn btn-outline-primary" for="friday">Friday</label>
         </div>
-        <button
-          type="button"
-          class="btn btn-success mt-2"
-          onclick="addProductRow()"
-        >
-          <i class="bi bi-plus"></i> Add Product
+        <small class="text-muted">Weekend deliveries are not supported</small>
+      </div>
+
+      <!-- Product Details -->
+      <div class="row mb-4">
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Products</h5>
+        </div>
+      </div>
+
+      <div id="products-container"></div>
+
+      <div class="mb-3">
+        <button type="button" class="btn btn-success" onclick="addProductRow()">
+          <i class="bi bi-plus-circle"></i> Add Product
         </button>
       </div>
 
       <!-- Special Instructions -->
       <div class="mb-4">
         <label class="form-label">Special Instructions</label>
-        <textarea
-          class="form-control"
-          id="specialInstructions"
-          rows="3"
-          placeholder="Any special delivery instructions or notes"
-        ></textarea>
+        <textarea class="form-control" name="specialInstructions" rows="3" placeholder="Any special delivery instructions or notes"></textarea>
       </div>
 
       <!-- Submit Buttons -->
@@ -126,10 +91,7 @@
         <button type="submit" class="btn btn-primary">
           <i class="bi bi-check-circle"></i> Create Standing Order
         </button>
-        <a
-          href="{{ url_for('standing_orders.standing_orders') }}"
-          class="btn btn-secondary"
-        >
+        <a href="{{ url_for('standing_orders.standing_orders') }}" class="btn btn-secondary">
           Cancel
         </a>
       </div>
@@ -144,39 +106,19 @@
       <div class="col-md-4">
         <div class="search-container position-relative">
           <label class="form-label">Product Code *</label>
-          <input
-            type="text"
-            class="form-control product-code"
-            placeholder="Start typing product code..."
-            required
-          />
+          <input type="text" class="form-control product-code" placeholder="Start typing product code..." required>
         </div>
       </div>
       <div class="col-md-5">
         <label class="form-label">Product Name *</label>
-        <input
-          type="text"
-          class="form-control product-name"
-          placeholder="Product description"
-          required
-        />
+        <input type="text" class="form-control product-name" placeholder="Product description" required>
       </div>
       <div class="col-md-2">
         <label class="form-label">Quantity *</label>
-        <input
-          type="number"
-          class="form-control product-quantity"
-          min="1"
-          placeholder="Qty"
-          required
-        />
+        <input type="number" class="form-control product-quantity" min="1" placeholder="Qty" required>
       </div>
       <div class="col-md-1 d-flex align-items-end">
-        <button
-          type="button"
-          class="btn btn-danger btn-sm"
-          onclick="removeProductRow(this)"
-        >
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeProductRow(this)">
           <i class="bi bi-trash"></i>
         </button>
       </div>
@@ -184,165 +126,141 @@
   </div>
 </template>
 
-{% endblock %} {% block scripts %}
+{% endblock %}
+
+{% block scripts %}
 <script type="module">
   import { 
-    setupCustomerSearch, 
-    setupProductSearch 
+    initCustomerSearch, 
+    initProductSearch,
+    getSelectedAddress,
+    getSelectedCustomer
   } from "/static/js/script.js";
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    function () {
-      // Setup customer search using imported function
-      setupCustomerSearch();
+  document.addEventListener("DOMContentLoaded", function () {
+    // Initialize customer search with callback to store customer ID
+    initCustomerSearch({
+      accountInputId: "customer_account",
+      nameInputId: "customer_name",
+      addressInputId: "customer_address",
+      addressContainerId: "addressSelectionContainer",
+      onSelect: (customer) => {
+        document.getElementById("customerId").value = customer.id;
+      }
+    });
 
-      // Setup delivery day toggles
-      document
-        .querySelectorAll('input[name="deliveryDays"]')
-        .forEach((checkbox) => {
-          checkbox.addEventListener("change", function () {
-            const label = this.parentElement;
-            if (this.checked) {
-              label.classList.remove("btn-outline-primary");
-              label.classList.add("btn-primary");
-            } else {
-              label.classList.remove("btn-primary");
-              label.classList.add("btn-outline-primary");
-            }
+    // Style delivery day checkboxes
+    document.querySelectorAll('input[name="deliveryDays"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const label = this.parentElement;
+        if (this.checked) {
+          label.classList.remove('btn-outline-primary');
+          label.classList.add('btn-primary');
+        } else {
+          label.classList.remove('btn-primary');
+          label.classList.add('btn-outline-primary');
+        }
+      });
+    });
+
+    // Add first product row automatically
+    window.addProductRow();
+
+    // Handle form submission
+    const form = document.getElementById("standingOrderForm");
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      // Validate delivery days
+      const deliveryDays = Array.from(document.querySelectorAll('input[name="deliveryDays"]:checked')).map(cb => cb.value);
+      
+      if (deliveryDays.length === 0) {
+        alert('Please select at least one delivery day');
+        return;
+      }
+
+      // Collect products as "items" (backend expects "items" not "products")
+      const items = [];
+      document.querySelectorAll('.product-row').forEach(row => {
+        const code = row.querySelector('.product-code').value.trim();
+        const name = row.querySelector('.product-name').value.trim();
+        const quantity = row.querySelector('.product-quantity').value;
+
+        if (code && name && quantity) {
+          items.push({
+            product_code: code,
+            product_name: name,
+            quantity: parseInt(quantity)
           });
+        }
+      });
+
+      if (items.length === 0) {
+        alert('Please add at least one product');
+        return;
+      }
+
+      // Get selected address
+      const addressContainer = document.getElementById("addressSelectionContainer");
+      const selectedAddressData = getSelectedAddress(addressContainer);
+
+      // Prepare form data - IMPORTANT: Format matches what backend expects
+      const formData = {
+        customer_id: document.getElementById("customerId").value,
+        customer_name: document.querySelector('input[name="customer_name"]').value,
+        delivery_days: deliveryDays,  // Send as array, backend will join
+        special_instructions: document.querySelector('textarea[name="specialInstructions"]').value,
+        items: items  // Backend expects "items" not "products"
+      };
+
+      // Add address label if selected
+      if (selectedAddressData && selectedAddressData.label) {
+        formData.address_label = selectedAddressData.label;
+      }
+
+      try {
+        // POST to /standing-orders/new (not /api/standing-orders)
+        const response = await fetch('/standing-orders/new', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData)
         });
 
-      // Form submission
-      document
-        .getElementById("standingOrderForm")
-        .addEventListener("submit", async function (e) {
-          e.preventDefault();
+        const result = await response.json();
 
-          const submitBtn = this.querySelector('button[type="submit"]');
-          if (submitBtn.disabled) return;
-          submitBtn.disabled = true;
+        if (result.success) {
+          alert('Standing order created successfully!');
+          window.location.href = '/standing-orders';
+        } else {
+          alert('Error: ' + result.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error creating standing order. Please try again.');
+      }
+    });
+  });
 
-          const deliveryDays = Array.from(
-            document.querySelectorAll('input[name="deliveryDays"]:checked')
-          ).map((cb) => cb.value);
-
-          if (deliveryDays.length === 0) {
-            alert("Please select at least one delivery day");
-            submitBtn.disabled = false;
-            return;
-          }
-
-          const weekendDays = deliveryDays.filter((day) => parseInt(day) >= 5);
-          if (weekendDays.length > 0) {
-            alert(
-              "Weekend deliveries are not supported. Please select Monday through Friday only."
-            );
-            submitBtn.disabled = false;
-            return;
-          }
-
-          const productRows = document.querySelectorAll(".product-row");
-          if (productRows.length === 0) {
-            alert("Please add at least one product");
-            submitBtn.disabled = false;
-            return;
-          }
-
-          const products = [];
-          let hasError = false;
-
-          productRows.forEach((row) => {
-            const code = row.querySelector(".product-code").value.trim();
-            const name = row.querySelector(".product-name").value.trim();
-            const quantity = row.querySelector(".product-quantity").value;
-
-            if (!code || !name || !quantity) {
-              hasError = true;
-              return;
-            }
-
-            products.push({
-              product_code: code,
-              product_name: name,
-              quantity: parseInt(quantity),
-            });
-          });
-
-          if (hasError) {
-            alert("Please fill in all product fields");
-            submitBtn.disabled = false;
-            return;
-          }
-
-          const formData = {
-            customer_id: document.getElementById("customerId").value,
-            customer_account: document.getElementById("customerAccount").value,
-            customer_name: document.getElementById("customerName").value,
-            customer_address: document.getElementById("customerAddress").value,
-            delivery_days: deliveryDays.map((d) => parseInt(d)),
-            items: products,
-            special_instructions: document.getElementById("specialInstructions")
-              .value,
-          };
-
-          try {
-            const response = await fetch(window.location.pathname, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(formData),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-              window.location.href = "/standing-orders";
-            } else {
-              alert(data.message || "Error creating standing order");
-              submitBtn.disabled = false;
-            }
-          } catch (error) {
-            console.error("Error:", error);
-            alert("Error creating standing order");
-            submitBtn.disabled = false;
-          }
-        });
-    },
-    { once: true }
-  );
-
-  // Add product row using imported setupProductSearch
-  window.addProductRow = function (
-    productCode = "",
-    productName = "",
-    quantity = 1
-  ) {
-    const template = document.getElementById("productRowTemplate");
+  // Make functions global for onclick handlers
+  window.addProductRow = async function() {
+    const { initProductSearch } = await import("/static/js/script.js");
+    
+    const container = document.getElementById('products-container');
+    const template = document.getElementById('productRowTemplate');
     const clone = template.content.cloneNode(true);
+    
+    container.appendChild(clone);
 
-    const codeInput = clone.querySelector(".product-code");
-    const nameInput = clone.querySelector(".product-name");
-    const quantityInput = clone.querySelector(".product-quantity");
-
-    if (productCode) codeInput.value = productCode;
-    if (productName) nameInput.value = productName;
-    if (quantity) quantityInput.value = quantity;
-
-    document.getElementById("productsContainer").appendChild(clone);
-
-    const newProductRows = document.querySelectorAll(".product-row");
-    const latestRow = newProductRows[newProductRows.length - 1];
-    const newProductCodeInput = latestRow.querySelector(".product-code");
-
-    if (newProductCodeInput) {
-      setupProductSearch(newProductCodeInput);
-    }
+    // Initialize product search for the new row
+    const newRow = container.lastElementChild;
+    initProductSearch(newRow);
   };
 
-  window.removeProductRow = function (button) {
-    button.closest(".product-row").remove();
+  window.removeProductRow = function(button) {
+    const row = button.closest('.product-row');
+    row.remove();
   };
 </script>
 {% endblock %}

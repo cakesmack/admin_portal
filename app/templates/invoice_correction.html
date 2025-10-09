@@ -1,22 +1,22 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
 <h2>Invoiced Goods - Delivery Only</h2>
 <p class="text-muted">Record invoice discrepancies and delivery corrections</p>
 
 <div class="card mt-4">
   <div class="card-body">
-    <form
-      method="POST"
-      action="{{ url_for('main.invoice_correction') }}"
-      id="invoiceCorrectionForm"
-    >
+    <form method="POST" action="{{ url_for('main.invoice_correction') }}" id="invoiceCorrectionForm">
       {{ form.hidden_tag() }}
+
+      <!-- Hidden fields -->
+      <input type="hidden" name="additional_products" id="additional_products" value="">
+      <input type="hidden" name="address_label" id="address_label" value="">
 
       <!-- Invoice Number -->
       <div class="row mb-3">
         <div class="col-md-6">
-          {{ form.invoice_number.label(class="form-label") }} {{
-          form.invoice_number(class="form-control", placeholder="Enter invoice
-          number...") }}
+          {{ form.invoice_number.label(class="form-label") }}
+          {{ form.invoice_number(class="form-control", placeholder="Enter invoice number...") }}
         </div>
       </div>
 
@@ -30,24 +30,24 @@
       <div class="row mb-3">
         <div class="col-md-4">
           <div class="search-container position-relative">
-            {{ form.customer_account.label(class="form-label") }} {{
-            form.customer_account(class="form-control", placeholder="Start
-            typing account number...") }}
+            {{ form.customer_account.label(class="form-label") }}
+            {{ form.customer_account(class="form-control", placeholder="Start typing account number...") }}
           </div>
         </div>
         <div class="col-md-4">
           <div class="search-container position-relative">
-            {{ form.customer_name.label(class="form-label") }} {{
-            form.customer_name(class="form-control", placeholder="Start typing
-            customer name...") }}
+            {{ form.customer_name.label(class="form-label") }}
+            {{ form.customer_name(class="form-control", placeholder="Start typing customer name...") }}
           </div>
         </div>
         <div class="col-md-4">
-          {{ form.customer_address.label(class="form-label") }} {{
-          form.customer_address(class="form-control", placeholder="Customer
-          address") }}
+          {{ form.customer_address.label(class="form-label") }}
+          {{ form.customer_address(class="form-control", placeholder="Customer address", readonly=true) }}
         </div>
       </div>
+
+      <!-- Address Selection Container -->
+      <div id="addressSelectionContainer" class="address-selection-area mb-3"></div>
 
       <!-- Product Details -->
       <div class="row mb-4">
@@ -57,28 +57,28 @@
       </div>
 
       <!-- Main Product -->
-      <div class="row mb-3" id="main-product">
+      <div class="row mb-3 product-row" id="main-product">
         <div class="col-md-3">
           <div class="search-container position-relative">
-            {{ form.product_code.label(class="form-label") }} {{
-            form.product_code(class="form-control", placeholder="Start typing
-            product code...") }}
+            {{ form.product_code.label(class="form-label") }}
+            {{ form.product_code(class="form-control product-code", placeholder="Product code...") }}
           </div>
         </div>
-        <div class="col-md-5">
-          {{ form.product_name.label(class="form-label") }} {{
-          form.product_name(class="form-control", placeholder="Product
-          description") }}
+        <div class="col-md-4">
+          {{ form.product_name.label(class="form-label") }}
+          {{ form.product_name(class="form-control product-name", placeholder="Product name") }}
         </div>
         <div class="col-md-2">
-          {{ form.ordered_quantity.label(class="form-label") }} {{
-          form.ordered_quantity(class="form-control", type="number", min="1",
-          placeholder="Ordered") }}
+          {{ form.ordered_quantity.label(class="form-label") }}
+          {{ form.ordered_quantity(class="form-control", type="number", min="0", placeholder="Ordered") }}
         </div>
         <div class="col-md-2">
-          {{ form.delivered_quantity.label(class="form-label") }} {{
-          form.delivered_quantity(class="form-control", type="number", min="0",
-          placeholder="Delivered") }}
+          {{ form.delivered_quantity.label(class="form-label") }}
+          {{ form.delivered_quantity(class="form-control", type="number", min="0", placeholder="Delivered") }}
+        </div>
+        <div class="col-md-1">
+          <label class="form-label">Outstanding</label>
+          <input type="number" class="form-control" id="outstanding" readonly style="background-color: #f8f9fa">
         </div>
       </div>
 
@@ -87,414 +87,152 @@
 
       <div class="row mb-4">
         <div class="col-12">
-          <button
-            type="button"
-            class="btn btn-success btn-sm"
-            id="addProductBtn"
-          >
+          <button type="button" class="btn btn-success btn-sm" onclick="addProduct()">
             <i class="bi bi-plus-circle"></i> Add Another Product
           </button>
         </div>
       </div>
 
-      <!-- Quantity Details (removed - now per product) -->
-      <div class="row mb-4">
-        <div class="col-12">
-          <h5 class="border-bottom pb-2 mb-3">Summary</h5>
-        </div>
-      </div>
-
+      <!-- Correction Notes -->
       <div class="row mb-3">
-        <div class="col-md-12">
-          <div class="alert alert-info">
-            <strong>Note:</strong> Outstanding quantities will be calculated
-            automatically (Ordered - Delivered)
-          </div>
-        </div>
-      </div>
-
-      <!-- Notes -->
-      <div class="row mb-4">
         <div class="col-12">
-          <h5 class="border-bottom pb-2 mb-3">Additional Information</h5>
+          {{ form.notes.label(class="form-label") }}
+          {{ form.notes(class="form-control", rows="4", placeholder="Details about the correction...") }}
         </div>
-      </div>
-
-      <div class="mb-3">
-        {{ form.notes.label(class="form-label") }} {{
-        form.notes(class="form-control", rows="3", placeholder="Any additional
-        notes about the correction...") }}
       </div>
 
       <div class="d-grid">
         {{ form.submit(class="btn btn-primary btn-lg") }}
       </div>
-
-      <!-- Hidden field for additional products -->
-      <input
-        type="hidden"
-        name="additional_products"
-        id="additional_products"
-        value=""
-      />
     </form>
   </div>
 </div>
 
+{% endblock %}
+
 {% block scripts %}
 <script type="module">
-  import {
-    extractProductCode,
-    formatProductWithCode,
-    debounce,
-    generateUniqueId,
-    setupAddressSelector,
-    getSelectedAddress,
+  import { 
+    initCustomerSearch, 
+    initProductSearch,
+    getSelectedAddress 
   } from "/static/js/script.js";
 
-  let searchTimeout;
   let additionalProducts = [];
-  let selectedCustomer = null;
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    function () {
-      setupCustomerSearch();
-      setupProductSearch(document.querySelector('input[name="product_code"]'));
+  document.addEventListener("DOMContentLoaded", function () {
+    // Initialize customer search
+    initCustomerSearch({
+      accountInputId: "customer_account",
+      nameInputId: "customer_name",
+      addressInputId: "customer_address",
+      addressContainerId: "addressSelectionContainer"
+    });
 
-      document.addEventListener("click", function (e) {
-        if (!e.target.closest(".search-container")) {
-          hideAllDropdowns();
+    // Initialize product search
+    initProductSearch();
+
+    // Auto-calculate outstanding quantity
+    const orderedInput = document.querySelector('#main-product input[name="ordered_quantity"]');
+    const deliveredInput = document.querySelector('#main-product input[name="delivered_quantity"]');
+    const outstandingInput = document.getElementById('outstanding');
+
+    function calculateOutstanding() {
+      const ordered = parseInt(orderedInput.value) || 0;
+      const delivered = parseInt(deliveredInput.value) || 0;
+      outstandingInput.value = ordered - delivered;
+    }
+
+    orderedInput.addEventListener('input', calculateOutstanding);
+    deliveredInput.addEventListener('input', calculateOutstanding);
+
+    // Handle form submission
+    const form = document.getElementById("invoiceCorrectionForm");
+    if (form) {
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitBtn.disabled) return;
+        submitBtn.disabled = true;
+
+        // Collect additional products
+        updateAdditionalProducts();
+        document.getElementById("additional_products").value = JSON.stringify(additionalProducts);
+
+        // Get selected address
+        const addressContainer = document.getElementById("addressSelectionContainer");
+        const selectedAddressData = getSelectedAddress(addressContainer);
+        
+        if (selectedAddressData && selectedAddressData.label) {
+          document.getElementById("address_label").value = selectedAddressData.label;
         }
-      });
 
-      const form = document.getElementById("invoiceCorrectionForm");
-      if (form) {
-        form.addEventListener("submit", async function (e) {
-          e.preventDefault();
+        const formData = new FormData(form);
 
-          // Prevent double submission
-          const submitBtn = form.querySelector(
-            'button[type="submit"], input[type="submit"]'
-          );
-          if (submitBtn.disabled) return;
-          submitBtn.disabled = true;
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: formData,
+          });
 
-          updateAdditionalProducts();
-          document.getElementById("additional_products").value =
-            JSON.stringify(additionalProducts);
+          const responseText = await response.text();
 
-          const addressContainer = document.querySelector(
-            ".address-selection-area"
-          );
-          const selectedAddressData = addressContainer
-            ? getSelectedAddress(addressContainer)
-            : null;
-
-          let addressLabel = "";
-          if (selectedAddressData && selectedAddressData.label) {
-            addressLabel = selectedAddressData.label;
-          }
-
-          const formData = new FormData(form);
-          if (addressLabel) {
-            formData.append("address_label", addressLabel);
-          }
-
-          try {
-            const response = await fetch(form.action, {
-              method: "POST",
-              headers: {
-                "X-Requested-With": "XMLHttpRequest",
-              },
-              body: formData,
-            });
-
-            const responseText = await response.text();
-
-            if (response.ok) {
-              try {
-                const data = JSON.parse(responseText);
-                if (data.success && data.form_id) {
-                  window.open(`/form/print/${data.form_id}`, "_blank");
-                  window.location.href = "/dashboard";
-                }
-              } catch (e) {
-                const tempDiv = document.createElement("div");
-                tempDiv.innerHTML = responseText;
-                const scripts = tempDiv.getElementsByTagName("script");
-                for (let script of scripts) {
-                  eval(script.innerHTML);
-                }
+          if (response.ok) {
+            try {
+              const data = JSON.parse(responseText);
+              if (data.success && data.form_id) {
+                window.open(`/print-form/${data.form_id}`, "_blank");
+                window.location.href = "/dashboard";
               }
-            } else {
-              alert("Error submitting form. Please try again.");
-              submitBtn.disabled = false;
+            } catch (e) {
+              const tempDiv = document.createElement("div");
+              tempDiv.innerHTML = responseText;
+              const scripts = tempDiv.getElementsByTagName("script");
+              for (let script of scripts) {
+                eval(script.innerHTML);
+              }
             }
-          } catch (error) {
-            console.error("Error:", error);
+          } else {
             alert("Error submitting form. Please try again.");
             submitBtn.disabled = false;
           }
-        });
-      }
-    },
-    { once: true }
-  );
-
-  function setupCustomerSearch() {
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
-
-    if (accountInput) {
-      setupSearchField(accountInput, "account");
-    }
-
-    if (nameInput) {
-      setupSearchField(nameInput, "name");
-    }
-  }
-
-  function setupSearchField(input, fieldType) {
-    input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        clearOtherFields(fieldType);
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        searchCustomers(searchValue, input, fieldType);
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error submitting form. Please try again.");
+          submitBtn.disabled = false;
         }
-      }, 200);
-    });
-  }
-
-  async function searchCustomers(searchValue, inputElement, fieldType) {
-    try {
-      const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const customers = await response.json();
-
-      if (customers.length === 0) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      showDropdown(customers, inputElement, fieldType);
-    } catch (error) {
-      console.error("Search error:", error);
-    }
-  }
-
-  function showDropdown(customers, inputElement, fieldType) {
-    hideDropdown(inputElement);
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-
-    customers.forEach((customer) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-
-      if (fieldType === "account") {
-        item.innerHTML = `
-          <strong>${customer.account_number}</strong>
-          <small class="text-muted d-block">${customer.name}</small>
-        `;
-      } else {
-        item.innerHTML = `
-          <strong>${customer.name}</strong>
-          <small class="text-muted d-block">${customer.account_number}</small>
-        `;
-      }
-
-      item.addEventListener("mousedown", function (e) {
-        e.preventDefault();
-        selectCustomer(customer);
       });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-  }
-
-  function selectCustomer(customer) {
-    selectedCustomer = customer;
-
-    document.querySelector('input[name="customer_account"]').value =
-      customer.account_number;
-    document.querySelector('input[name="customer_name"]').value = customer.name;
-    document.querySelector('input[name="customer_address"]').value =
-      customer.address || "";
-
-    hideAllDropdowns();
-
-    if (customer.addresses && customer.addresses.length > 1) {
-      const addressContainer = document.querySelector(
-        ".address-selection-area"
-      );
-      if (addressContainer) {
-        setupAddressSelector(addressContainer, customer.addresses);
-      }
     }
-  }
+  });
 
-  function clearOtherFields(exceptField) {
-    if (exceptField !== "account") {
-      document.querySelector('input[name="customer_account"]').value = "";
-    }
-    if (exceptField !== "name") {
-      document.querySelector('input[name="customer_name"]').value = "";
-    }
-    document.querySelector('input[name="customer_address"]').value = "";
-    selectedCustomer = null;
-  }
-
-  function hideDropdown(inputElement) {
-    const existing =
-      inputElement.parentElement.querySelector(".dropdown-results");
-    if (existing) {
-      existing.remove();
-    }
-  }
-
-  function hideAllDropdowns() {
-    document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
-      dropdown.remove();
-    });
-  }
-
-  function setupProductSearch(inputElement) {
-    if (!inputElement) return;
-
-    inputElement.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        searchProducts(searchValue, inputElement);
-      }, 300);
-    });
-
-    inputElement.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(inputElement);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchProducts(searchValue, inputElement) {
-    try {
-      const response = await fetch(
-        `/api/products/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const products = await response.json();
-
-      if (products.length === 0) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      showProductDropdown(products, inputElement);
-    } catch (error) {
-      console.error("Product search error:", error);
-    }
-  }
-
-  function showProductDropdown(products, inputElement) {
-    hideDropdown(inputElement);
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-
-    products.forEach((product) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-      item.innerHTML = `
-        <strong>${product.code}</strong>
-        <small class="text-muted d-block">${product.name}</small>
-      `;
-
-      item.addEventListener("mousedown", function (e) {
-        e.preventDefault();
-        selectProduct(product, inputElement);
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-  }
-
-  function selectProduct(product, inputElement) {
-    const isAdditionalProduct = inputElement.classList.contains(
-      "additional-product-code"
-    );
-
-    if (isAdditionalProduct) {
-      const row = inputElement.closest(".additional-product-row");
-      row.querySelector(".additional-product-code").value = product.code;
-      row.querySelector(".additional-product-name").value = product.name;
-    } else {
-      document.querySelector('input[name="product_code"]').value = product.code;
-      document.querySelector('input[name="product_name"]').value = product.name;
-    }
-
-    hideDropdown(inputElement);
-  }
-
-  let productCounter = 0;
-
+  // Add new product row
   window.addProduct = function () {
-    const container = document.getElementById("additionalProductsContainer");
-
+    const container = document.getElementById("additional-products-container");
+    
     const newRow = document.createElement("div");
-    newRow.className = "row mb-3 additional-product-row";
+    newRow.className = "row mb-3 product-row";
     newRow.innerHTML = `
       <div class="col-md-3">
-        <label class="form-label">Product Code</label>
-        <input class="form-control additional-product-code" 
-               placeholder="Product code" type="text">
+        <div class="search-container position-relative">
+          <label class="form-label">Product Code</label>
+          <input type="text" class="form-control product-code" placeholder="Code...">
+        </div>
       </div>
       <div class="col-md-4">
         <label class="form-label">Product Name</label>
-        <input class="form-control additional-product-name" 
-               placeholder="Product description" type="text">
+        <input type="text" class="form-control product-name" placeholder="Name">
       </div>
       <div class="col-md-2">
         <label class="form-label">Ordered</label>
-        <input class="form-control additional-product-ordered" 
-               type="number" min="0" placeholder="Ordered">
+        <input type="number" class="form-control product-ordered" min="0" value="0">
       </div>
       <div class="col-md-2">
         <label class="form-label">Delivered</label>
-        <input class="form-control additional-product-delivered" 
-               type="number" min="0" placeholder="Delivered">
+        <input type="number" class="form-control product-delivered" min="0" value="0">
       </div>
       <div class="col-md-1 d-flex align-items-end">
-        <button type="button" class="btn btn-danger btn-sm" onclick="removeProduct(this)">
+        <button type="button" class="btn btn-danger" onclick="removeProduct(this)">
           <i class="bi bi-trash"></i>
         </button>
       </div>
@@ -502,42 +240,39 @@
 
     container.appendChild(newRow);
 
-    const newCodeInput = newRow.querySelector(".additional-product-code");
-    setupProductSearch(newCodeInput);
-
-    productCounter++;
+    // Initialize product search for the new row
+    initProductSearch(newRow);
   };
 
+  // Remove product row
   window.removeProduct = function (button) {
-    button.closest(".additional-product-row").remove();
-    updateAdditionalProducts();
+    button.closest(".product-row").remove();
   };
 
+  // Collect additional products for submission
   function updateAdditionalProducts() {
     additionalProducts = [];
+    const additionalRows = document.querySelectorAll("#additional-products-container .product-row");
 
-    document.querySelectorAll(".additional-product-row").forEach((row) => {
-      const code = row.querySelector(".additional-product-code").value;
-      const name = row.querySelector(".additional-product-name").value;
-      const ordered = row.querySelector(".additional-product-ordered").value;
-      const delivered = row.querySelector(
-        ".additional-product-delivered"
-      ).value;
+    additionalRows.forEach((row) => {
+      const code = row.querySelector(".product-code").value.trim();
+      const name = row.querySelector(".product-name").value.trim();
+      const ordered = row.querySelector(".product-ordered").value;
+      const delivered = row.querySelector(".product-delivered").value;
 
       if (code && name) {
         const orderedQty = parseInt(ordered) || 0;
         const deliveredQty = parseInt(delivered) || 0;
-        const outstanding = orderedQty - deliveredQty;
-
+        
         additionalProducts.push({
           product_code: code,
           product_name: name,
           ordered_quantity: orderedQty,
           delivered_quantity: deliveredQty,
-          outstanding_quantity: outstanding,
+          outstanding: orderedQty - deliveredQty
         });
       }
     });
   }
 </script>
-{% endblock %} {% endblock %}
+{% endblock %}

@@ -1,4 +1,5 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %}
+{% block content %}
 <h2>Product Returns Form</h2>
 <p class="text-muted">Create a digital return form for customer products</p>
 
@@ -7,35 +8,38 @@
     <form method="POST" action="{{ url_for('main.returns') }}" id="returnsForm">
       {{ form.hidden_tag() }}
 
-      <!-- Hidden field for additional products -->
-      <input
-        type="hidden"
-        name="additional_products"
-        id="additional_products"
-        value=""
-      />
+      <!-- Hidden fields for data -->
+      <input type="hidden" name="additional_products" id="additional_products" value="">
+      <input type="hidden" name="address_label" id="address_label" value="">
+
+      <!-- Customer Details Section -->
+      <div class="row mb-4">
+        <div class="col-12">
+          <h5 class="border-bottom pb-2 mb-3">Customer Details</h5>
+        </div>
+      </div>
 
       <div class="row mb-3">
         <div class="col-md-4">
           <div class="search-container position-relative">
-            {{ form.customer_account.label(class="form-label") }} {{
-            form.customer_account(class="form-control", placeholder="Start
-            typing account number...") }}
+            {{ form.customer_account.label(class="form-label") }}
+            {{ form.customer_account(class="form-control", placeholder="Start typing account number...") }}
           </div>
         </div>
         <div class="col-md-4">
           <div class="search-container position-relative">
-            {{ form.customer_name.label(class="form-label") }} {{
-            form.customer_name(class="form-control", placeholder="Start typing
-            customer name...") }}
+            {{ form.customer_name.label(class="form-label") }}
+            {{ form.customer_name(class="form-control", placeholder="Start typing customer name...") }}
           </div>
         </div>
         <div class="col-md-4">
-          {{ form.customer_address.label(class="form-label") }} {{
-          form.customer_address(class="form-control", placeholder="Customer
-          address") }}
+          {{ form.customer_address.label(class="form-label") }}
+          {{ form.customer_address(class="form-control", placeholder="Customer address", readonly=true) }}
         </div>
       </div>
+
+      <!-- Address Selection Container (populated by script.js) -->
+      <div id="addressSelectionContainer" class="address-selection-area mb-3"></div>
 
       <!-- Products Section -->
       <div class="row mb-4">
@@ -44,24 +48,21 @@
         </div>
       </div>
 
-      <!-- Main Product (original form fields) -->
-      <div class="row mb-3" id="main-product">
+      <!-- Main Product -->
+      <div class="row mb-3 product-row" id="main-product">
         <div class="col-md-4">
           <div class="search-container position-relative">
-            {{ form.product_code.label(class="form-label") }} {{
-            form.product_code(class="form-control", placeholder="Start typing
-            product code...") }}
+            {{ form.product_code.label(class="form-label") }}
+            {{ form.product_code(class="form-control product-code", placeholder="Start typing product code...") }}
           </div>
         </div>
         <div class="col-md-5">
-          {{ form.product_name.label(class="form-label") }} {{
-          form.product_name(class="form-control", placeholder="Product
-          description") }}
+          {{ form.product_name.label(class="form-label") }}
+          {{ form.product_name(class="form-control product-name", placeholder="Product description") }}
         </div>
         <div class="col-md-3">
-          {{ form.quantity.label(class="form-label") }} {{
-          form.quantity(class="form-control", type="number", min="1",
-          placeholder="Quantity") }}
+          {{ form.quantity.label(class="form-label") }}
+          {{ form.quantity(class="form-control", type="number", min="1", placeholder="Quantity") }}
         </div>
       </div>
 
@@ -70,11 +71,7 @@
 
       <div class="row mb-4">
         <div class="col-12">
-          <button
-            type="button"
-            class="btn btn-success btn-sm"
-            onclick="addProduct()"
-          >
+          <button type="button" class="btn btn-success btn-sm" onclick="addProduct()">
             <i class="bi bi-plus-circle"></i> Add Another Product
           </button>
         </div>
@@ -89,13 +86,12 @@
 
       <div class="row mb-3">
         <div class="col-md-6">
-          {{ form.reason.label(class="form-label") }} {{
-          form.reason(class="form-select") }}
+          {{ form.reason.label(class="form-label") }}
+          {{ form.reason(class="form-select") }}
         </div>
         <div class="col-md-6">
-          {{ form.notes.label(class="form-label") }} {{
-          form.notes(class="form-control", rows="3", placeholder="Any additional
-          notes...") }}
+          {{ form.notes.label(class="form-label") }}
+          {{ form.notes(class="form-control", rows="3", placeholder="Any additional notes...") }}
         </div>
       </div>
 
@@ -106,386 +102,178 @@
   </div>
 </div>
 
+{% endblock %}
+
 {% block scripts %}
 <script type="module">
-  import {
-    extractProductCode,
-    formatProductWithCode,
-    debounce,
-    generateUniqueId,
-    setupAddressSelector,
-    getSelectedAddress,
+  import { 
+    initCustomerSearch, 
+    initProductSearch,
+    getSelectedAddress 
   } from "/static/js/script.js";
 
-  let searchTimeout;
   let additionalProducts = [];
-  let selectedCustomer = null;
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    function () {
-      setupCustomerSearchAPI();
-      setupProductSearch(document.querySelector('input[name="product_code"]'));
+  document.addEventListener("DOMContentLoaded", function () {
+    // Initialize customer search with address handling
+    initCustomerSearch({
+      accountInputId: "customer_account",
+      nameInputId: "customer_name",
+      addressInputId: "customer_address",
+      addressContainerId: "addressSelectionContainer"
+    });
 
-      document.addEventListener("click", function (e) {
-        if (!e.target.closest(".search-container")) {
-          hideAllDropdowns();
-        }
-      });
+    // Initialize product search for the main product
+    initProductSearch();
 
-      const form = document.getElementById("returnsForm");
-      if (form) {
-        form.addEventListener("submit", async function (e) {
-          e.preventDefault();
+    // Handle form submission
+    const form = document.getElementById("returnsForm");
+    if (form) {
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
 
-          // Prevent double submission
-          const submitBtn = form.querySelector(
-            'button[type="submit"], input[type="submit"]'
-          );
-          if (submitBtn.disabled) return;
-          submitBtn.disabled = true;
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitBtn.disabled) return;
+        submitBtn.disabled = true;
 
-          updateAdditionalProducts();
-          document.getElementById("additional_products").value =
-            JSON.stringify(additionalProducts);
+        // Collect additional products
+        updateAdditionalProducts();
+        document.getElementById("additional_products").value = JSON.stringify(additionalProducts);
 
-          const addressContainer = document.querySelector(
-            ".address-selection-area"
-          );
-          const selectedAddressData = addressContainer
-            ? getSelectedAddress(addressContainer)
-            : null;
-
-          let addressLabel = "";
-          if (selectedAddressData && selectedAddressData.label) {
-            addressLabel = selectedAddressData.label;
-          }
-
-          const formData = new FormData(form);
-          if (addressLabel) {
-            formData.append("address_label", addressLabel);
-          }
-
-          try {
-            const response = await fetch(form.action, {
-              method: "POST",
-              body: formData,
-            });
-
-            const responseText = await response.text();
-
-            if (response.ok) {
-              try {
-                const data = JSON.parse(responseText);
-                if (data.success && data.form_id) {
-                  window.open(`/print-form/${data.form_id}`, "_blank");
-                  window.location.href = "/dashboard";
-                }
-              } catch (e) {
-                const tempDiv = document.createElement("div");
-                tempDiv.innerHTML = responseText;
-                const scripts = tempDiv.getElementsByTagName("script");
-                for (let script of scripts) {
-                  eval(script.innerHTML);
-                }
-              }
-            } else {
-              alert("Error submitting form. Please try again.");
+        // Get selected address - ENHANCED TO HANDLE NEW ADDRESSES
+        const addressContainer = document.getElementById("addressSelectionContainer");
+        const selectedAddressData = getSelectedAddress(addressContainer);
+        
+        if (selectedAddressData) {
+          if (selectedAddressData.isNew) {
+            // New address - validate it has required fields
+            if (!selectedAddressData.label) {
+              alert('Please provide a location name for the new address');
               submitBtn.disabled = false;
+              return;
             }
-          } catch (error) {
-            console.error("Error:", error);
+            
+            // Store new address data as JSON in hidden field
+            document.getElementById("address_label").value = "__NEW__";
+            
+            // Create hidden inputs for new address data
+            const form = document.getElementById("returnsForm");
+            ['label', 'street', 'city', 'zip', 'phone'].forEach(field => {
+              let input = form.querySelector(`input[name="new_address_${field}"]`);
+              if (!input) {
+                input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = `new_address_${field}`;
+                form.appendChild(input);
+              }
+              input.value = selectedAddressData[field] || '';
+            });
+            
+            console.log('✅ Submitting with NEW address:', selectedAddressData);
+          } else {
+            // Existing address
+            document.getElementById("address_label").value = selectedAddressData.label;
+            console.log('✅ Submitting with EXISTING address:', selectedAddressData.label);
+          }
+        }
+
+        const formData = new FormData(form);
+
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: formData,
+          });
+
+          const responseText = await response.text();
+
+          if (response.ok) {
+            try {
+              const data = JSON.parse(responseText);
+              if (data.success && data.form_id) {
+                window.open(`/print-form/${data.form_id}`, "_blank");
+                window.location.href = "/dashboard";
+              }
+            } catch (e) {
+              // Handle non-JSON response (backward compatibility)
+              const tempDiv = document.createElement("div");
+              tempDiv.innerHTML = responseText;
+              const scripts = tempDiv.getElementsByTagName("script");
+              for (let script of scripts) {
+                eval(script.innerHTML);
+              }
+            }
+          } else {
             alert("Error submitting form. Please try again.");
             submitBtn.disabled = false;
           }
-        });
-      }
-    },
-    { once: true }
-  );
-
-  function setupCustomerSearchAPI() {
-    const accountInput = document.querySelector(
-      'input[name="customer_account"]'
-    );
-    const nameInput = document.querySelector('input[name="customer_name"]');
-
-    if (accountInput) {
-      setupSearchField(accountInput, "account");
-    }
-
-    if (nameInput) {
-      setupSearchField(nameInput, "name");
-    }
-  }
-
-  function setupSearchField(input, fieldType) {
-    input.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(input);
-        clearOtherFields(fieldType);
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        searchCustomers(searchValue, input, fieldType);
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(input);
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error submitting form. Please try again.");
+          submitBtn.disabled = false;
         }
-      }, 200);
-    });
-  }
-
-  async function searchCustomers(searchValue, inputElement, fieldType) {
-    try {
-      const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const customers = await response.json();
-
-      if (customers.length === 0) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      showDropdown(customers, inputElement, fieldType);
-    } catch (error) {
-      console.error("Search error:", error);
-    }
-  }
-
-  function showDropdown(customers, inputElement, fieldType) {
-    hideDropdown(inputElement);
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-
-    customers.forEach((customer) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-
-      if (fieldType === "account") {
-        item.innerHTML = `
-          <strong>${customer.account_number}</strong>
-          <small class="text-muted d-block">${customer.name}</small>
-        `;
-      } else {
-        item.innerHTML = `
-          <strong>${customer.name}</strong>
-          <small class="text-muted d-block">${customer.account_number}</small>
-        `;
-      }
-
-      item.addEventListener("mousedown", function (e) {
-        e.preventDefault();
-        selectCustomer(customer);
       });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-  }
-
-  function selectCustomer(customer) {
-    selectedCustomer = customer;
-
-    document.querySelector('input[name="customer_account"]').value =
-      customer.account_number;
-    document.querySelector('input[name="customer_name"]').value = customer.name;
-    document.querySelector('input[name="customer_address"]').value =
-      customer.address || "";
-
-    hideAllDropdowns();
-
-    if (customer.addresses && customer.addresses.length > 1) {
-      const addressContainer = document.querySelector(
-        ".address-selection-area"
-      );
-      if (addressContainer) {
-        setupAddressSelector(addressContainer, customer.addresses);
-      }
     }
-  }
+  });
 
-  function clearOtherFields(exceptField) {
-    if (exceptField !== "account") {
-      document.querySelector('input[name="customer_account"]').value = "";
-    }
-    if (exceptField !== "name") {
-      document.querySelector('input[name="customer_name"]').value = "";
-    }
-    document.querySelector('input[name="customer_address"]').value = "";
-    selectedCustomer = null;
-  }
-
-  function hideDropdown(inputElement) {
-    const existing =
-      inputElement.parentElement.querySelector(".dropdown-results");
-    if (existing) {
-      existing.remove();
-    }
-  }
-
-  function hideAllDropdowns() {
-    document.querySelectorAll(".dropdown-results").forEach((dropdown) => {
-      dropdown.remove();
-    });
-  }
-
-  function setupProductSearch(inputElement) {
-    if (!inputElement) return;
-
-    inputElement.addEventListener("input", function () {
-      clearTimeout(searchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      searchTimeout = setTimeout(() => {
-        searchProducts(searchValue, inputElement);
-      }, 300);
-    });
-
-    inputElement.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".dropdown-results:hover")) {
-          hideDropdown(inputElement);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchProducts(searchValue, inputElement) {
-    try {
-      const response = await fetch(
-        `/api/products/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const products = await response.json();
-
-      if (products.length === 0) {
-        hideDropdown(inputElement);
-        return;
-      }
-
-      showProductDropdown(products, inputElement);
-    } catch (error) {
-      console.error("Product search error:", error);
-    }
-  }
-
-  function showProductDropdown(products, inputElement) {
-    hideDropdown(inputElement);
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "dropdown-results";
-
-    products.forEach((product) => {
-      const item = document.createElement("div");
-      item.className = "dropdown-item";
-      item.innerHTML = `
-        <strong>${product.code}</strong>
-        <small class="text-muted d-block">${product.name}</small>
-      `;
-
-      item.addEventListener("mousedown", function (e) {
-        e.preventDefault();
-        selectProduct(product, inputElement);
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-  }
-
-  function selectProduct(product, inputElement) {
-    const isAdditionalProduct = inputElement.classList.contains(
-      "additional-product-code"
-    );
-
-    if (isAdditionalProduct) {
-      const row = inputElement.closest(".additional-product-row");
-      row.querySelector(".additional-product-code").value = product.code;
-      row.querySelector(".additional-product-name").value = product.name;
-    } else {
-      document.querySelector('input[name="product_code"]').value = product.code;
-      document.querySelector('input[name="product_name"]').value = product.name;
-    }
-
-    hideDropdown(inputElement);
-  }
-
-  let productCounter = 0;
-
+  // Add new product row
   window.addProduct = function () {
-    const container = document.getElementById("additionalProductsContainer");
+    const container = document.getElementById("additional-products-container");
+    const uniqueId = Date.now();
 
     const newRow = document.createElement("div");
-    newRow.className = "row mb-3 additional-product-row";
+    newRow.className = "row mb-3 product-row";
     newRow.innerHTML = `
-    <div class="col-md-4">
-      <label class="form-label">Product Code</label>
-      <input class="form-control additional-product-code" 
-             placeholder="Product code" type="text">
-    </div>
-    <div class="col-md-5">
-      <label class="form-label">Product Name</label>
-      <input class="form-control additional-product-name" 
-             placeholder="Product description" type="text">
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Quantity</label>
-      <input class="form-control additional-product-quantity" 
-             type="number" min="1" placeholder="Qty">
-    </div>
-    <div class="col-md-1 d-flex align-items-end">
-      <button type="button" class="btn btn-danger btn-sm" onclick="removeProduct(this)">
-        <i class="bi bi-trash"></i>
-      </button>
-    </div>
-  `;
+      <div class="col-md-4">
+        <div class="search-container position-relative">
+          <label class="form-label">Product Code</label>
+          <input type="text" class="form-control product-code" placeholder="Start typing code...">
+        </div>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Product Name</label>
+        <input type="text" class="form-control product-name" placeholder="Product description">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Quantity</label>
+        <input type="number" class="form-control product-quantity" min="1" value="1">
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button type="button" class="btn btn-danger" onclick="removeProduct(this)">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    `;
 
     container.appendChild(newRow);
 
-    const newCodeInput = newRow.querySelector(".additional-product-code");
-    setupProductSearch(newCodeInput);
-
-    productCounter++;
+    // Initialize product search for the new row
+    initProductSearch(newRow);
   };
 
+  // Remove product row
   window.removeProduct = function (button) {
-    button.closest(".additional-product-row").remove();
-    updateAdditionalProducts();
+    button.closest(".product-row").remove();
   };
 
+  // Collect additional products for submission
   function updateAdditionalProducts() {
     additionalProducts = [];
+    const additionalRows = document.querySelectorAll("#additional-products-container .product-row");
 
-    document.querySelectorAll(".additional-product-row").forEach((row) => {
-      const code = row.querySelector(".additional-product-code").value;
-      const name = row.querySelector(".additional-product-name").value;
-      const quantity = row.querySelector(".additional-product-quantity").value;
+    additionalRows.forEach((row) => {
+      const code = row.querySelector(".product-code").value.trim();
+      const name = row.querySelector(".product-name").value.trim();
+      const quantity = row.querySelector(".product-quantity").value;
 
       if (code && name && quantity) {
         additionalProducts.push({
           product_code: code,
           product_name: name,
-          quantity: quantity,
+          quantity: parseInt(quantity),
         });
       }
     });
   }
 </script>
-{% endblock %} {% endblock %}
+{% endblock %}
