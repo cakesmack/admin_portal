@@ -3,9 +3,10 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import Callsheet, CallsheetEntry, CallsheetArchive, Customer, User
 from datetime import datetime, date, timedelta
-from sqlalchemy.orm import joinedload  # ← ADD THIS
+from sqlalchemy.orm import joinedload 
 import json
 import calendar
+from sqlalchemy import func
 
 callsheets_bp = Blueprint('callsheets', __name__, url_prefix='/callsheets')
 

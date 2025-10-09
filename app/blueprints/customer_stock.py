@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import CustomerStock, StockTransaction, Customer, Form
+from app.models import CustomerStock, StockTransaction, Customer, Form, CustomerAddress
 from app.forms import BrandedStockForm
 from datetime import datetime
 import json
