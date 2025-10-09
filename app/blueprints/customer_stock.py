@@ -160,6 +160,7 @@ def branded_stock():
                          stock_items=stock_items,
                          recent_branded_stock=recent_branded_stock)
 
+
 @customer_stock_bp.route('/api/customer-stock', methods=['POST'])
 @login_required
 def create_customer_stock():
@@ -169,16 +170,43 @@ def create_customer_stock():
         # Product name is required, but product_code is optional
         if not data.get('product_name'):
             return jsonify({'success': False, 'message': 'Product name is required'}), 400
+        
+        customer_id = data.get('customer_id')
+        if not customer_id:
+            return jsonify({'success': False, 'message': 'Customer ID is required'}), 400
+        
+        # Handle new address if provided
+        address_label = data.get('address_label', '')
+        if address_label == '__NEW__':
+            new_address_data = data.get('new_address', {})
+            
+            if new_address_data and new_address_data.get('label'):
+                # Create new address for this customer
+                new_address = CustomerAddress(
+                    customer_id=customer_id,
+                    label=new_address_data['label'],
+                    street=new_address_data.get('street', ''),
+                    city=new_address_data.get('city', ''),
+                    zip=new_address_data.get('zip', ''),
+                    phone=new_address_data.get('phone', ''),
+                    is_primary=False
+                )
+                db.session.add(new_address)
+                db.session.flush()  # Get the ID
+                
+                # Use the new address label
+                address_label = new_address_data['label']
+                print(f"✅ Created new address '{address_label}' for customer")
             
         # Check if this customer already has this product (by product code if provided, otherwise by name)
         if data.get('product_code'):
             existing = CustomerStock.query.filter_by(
-                customer_id=data['customer_id'],
+                customer_id=customer_id,
                 product_code=data['product_code']
             ).first()
         else:
             existing = CustomerStock.query.filter_by(
-                customer_id=data['customer_id'],
+                customer_id=customer_id,
                 product_name=data['product_name']
             ).first()
         
@@ -186,7 +214,7 @@ def create_customer_stock():
             return jsonify({'success': False, 'message': 'This customer already has this product in stock'}), 400
         
         stock_item = CustomerStock(
-            customer_id=data['customer_id'],
+            customer_id=customer_id,
             product_code=data.get('product_code'),
             product_name=data['product_name'],
             current_stock=data.get('initial_stock', 0),
@@ -198,21 +226,35 @@ def create_customer_stock():
         
         # Create initial stock transaction if there's initial stock
         if data.get('initial_stock', 0) > 0:
+            notes = data.get('notes', 'Initial stock setup')
+            
+            # Add address label to notes if provided
+            if address_label and address_label != '__NEW__':
+                notes = f"{notes} | Default location: {address_label}"
+            
             transaction = StockTransaction(
                 stock_item_id=stock_item.id,
                 transaction_type='stock_in',
                 quantity=data['initial_stock'],
                 reference=data.get('invoice_number', 'Initial Stock'),
-                notes=data.get('notes', 'Initial stock setup'),
+                notes=notes,
                 created_by=current_user.id
             )
             db.session.add(transaction)
         
         db.session.commit()
+        
+        print(f"✅ Stock item created for customer {customer_id}")
+        if address_label and address_label != '__NEW__':
+            print(f"   Default location: {address_label}")
+        
         return jsonify({'success': True, 'message': 'Stock item created successfully'})
         
     except Exception as e:
         db.session.rollback()
+        print(f"❌ Error in create_customer_stock: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @customer_stock_bp.route('/api/customer-stock/<int:stock_id>/transaction', methods=['POST'])

@@ -232,8 +232,13 @@
             <span id="selectedCustomerDetails"></span>
           </div>
 
+          <!-- Hidden field for customer ID -->
           <input type="hidden" id="newStockCustomerId" />
 
+          <!-- ADDRESS SELECTION CONTAINER -->
+          <div id="addStockAddressContainer" class="mb-3"></div>
+
+          <!-- Product Details -->
           <div class="row">
             <div class="col-md-12 mb-3">
               <label class="form-label">Product Code</label>
@@ -248,6 +253,7 @@
               >
             </div>
           </div>
+
           <div class="row">
             <div class="col-md-8 mb-3">
               <label class="form-label">Product Name *</label>
@@ -269,6 +275,7 @@
               />
             </div>
           </div>
+
           <div class="row">
             <div class="col-md-4 mb-3">
               <label class="form-label">Initial Stock</label>
@@ -290,6 +297,7 @@
               />
             </div>
           </div>
+
           <div class="mb-3">
             <label class="form-label">Notes</label>
             <textarea
@@ -459,15 +467,18 @@
 </div>
 
 {% endblock %} {% block scripts %}
+
 <script>
   let addStockModal, stockInModal, stockHistoryModal, quickTransactionModal;
+  let selectedCustomerId = null;
+  let selectedCustomerName = null;
+  let customerSearchTimeout = null;
 
   document.addEventListener("DOMContentLoaded", function () {
     addStockModal = new bootstrap.Modal(
       document.getElementById("addStockModal")
     );
     stockInModal = new bootstrap.Modal(document.getElementById("stockInModal"));
-
     stockHistoryModal = new bootstrap.Modal(
       document.getElementById("stockHistoryModal")
     );
@@ -475,13 +486,21 @@
       document.getElementById("quickTransactionModal")
     );
 
-    // Quick search functionality
-    document
-      .getElementById("quickSearchStock")
-      .addEventListener("input", searchStockItems);
+    setupCustomerSearchForStock();
+
+    const quickSearch = document.getElementById("quickSearchStock");
+    if (quickSearch) {
+      quickSearch.addEventListener("input", searchStockItems);
+    }
   });
 
   function showAddStockModal() {
+    document.getElementById("addStockForm").reset();
+    document.getElementById("newStockCustomerId").value = "";
+    document.getElementById("selectedCustomerInfo").style.display = "none";
+    document.getElementById("addStockAddressContainer").innerHTML = "";
+    selectedCustomerId = null;
+    selectedCustomerName = null;
     addStockModal.show();
   }
 
@@ -489,17 +508,381 @@
     quickTransactionModal.show();
   }
 
+  function searchStockItems() {
+    const searchTerm = document
+      .getElementById("quickSearchStock")
+      .value.toLowerCase();
+    const rows = document.querySelectorAll(".stock-table tbody tr");
+
+    rows.forEach((row) => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(searchTerm) ? "" : "none";
+    });
+  }
+
+  // ==================== CUSTOMER SEARCH FOR ADD STOCK ====================
+
+  function setupCustomerSearchForStock() {
+    const accountInput = document.getElementById("newStockCustomerAccount");
+    const nameInput = document.getElementById("newStockCustomerName");
+
+    if (accountInput) {
+      accountInput.addEventListener("input", function () {
+        clearTimeout(customerSearchTimeout);
+        const searchValue = this.value.trim();
+
+        if (searchValue.length < 2) {
+          hideCustomerDropdown(accountInput);
+          if (searchValue.length === 0) {
+            clearSelectedCustomer();
+          }
+          return;
+        }
+
+        customerSearchTimeout = setTimeout(() => {
+          searchCustomersForStock(searchValue, accountInput, "account");
+        }, 300);
+      });
+    }
+
+    if (nameInput) {
+      nameInput.addEventListener("input", function () {
+        clearTimeout(customerSearchTimeout);
+        const searchValue = this.value.trim();
+
+        if (searchValue.length < 2) {
+          hideCustomerDropdown(nameInput);
+          if (searchValue.length === 0) {
+            clearSelectedCustomer();
+          }
+          return;
+        }
+
+        customerSearchTimeout = setTimeout(() => {
+          searchCustomersForStock(searchValue, nameInput, "name");
+        }, 300);
+      });
+    }
+  }
+
+  async function searchCustomersForStock(searchValue, inputElement, fieldType) {
+    try {
+      const response = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+      );
+      const customers = await response.json();
+      showCustomerDropdownForStock(customers, inputElement, fieldType);
+    } catch (error) {
+      console.error("Error searching customers:", error);
+      hideCustomerDropdown(inputElement);
+    }
+  }
+
+  function showCustomerDropdownForStock(customers, inputElement, fieldType) {
+    hideCustomerDropdown(inputElement);
+
+    if (customers.length === 0) {
+      return;
+    }
+
+    const dropdown = document.createElement("div");
+    dropdown.className = "customer-dropdown-results";
+    dropdown.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--dark-card);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1050;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    `;
+
+    customers.forEach((customer) => {
+      const item = document.createElement("div");
+      item.className = "customer-dropdown-item";
+      item.style.cssText = `
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.2s;
+        color: var(--text-light);
+      `;
+
+      item.innerHTML = `
+        <div style="font-weight: 600;">${customer.account_number} - ${
+        customer.name
+      }</div>
+        <small style="color: var(--text-muted);">
+          ${customer.contact_name ? "Contact: " + customer.contact_name : ""}
+        </small>
+      `;
+
+      item.addEventListener("mouseenter", function () {
+        this.style.backgroundColor = "var(--primary-blue)";
+      });
+
+      item.addEventListener("mouseleave", function () {
+        this.style.backgroundColor = "";
+      });
+
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        selectCustomerForStock(customer);
+      });
+
+      dropdown.appendChild(item);
+    });
+
+    inputElement.parentElement.appendChild(dropdown);
+  }
+
+  function selectCustomerForStock(customer) {
+    console.log("✅ Selected customer:", customer);
+
+    selectedCustomerId = customer.id;
+    selectedCustomerName = customer.name;
+
+    document.getElementById("newStockCustomerAccount").value =
+      customer.account_number;
+    document.getElementById("newStockCustomerName").value = customer.name;
+    document.getElementById("newStockCustomerId").value = customer.id;
+
+    const infoDiv = document.getElementById("selectedCustomerInfo");
+    document.getElementById("selectedCustomerDetails").innerHTML = `
+      <strong>${customer.account_number}</strong> - ${customer.name}<br>
+      <small>${customer.contact_name || ""}</small>
+    `;
+    infoDiv.style.display = "block";
+
+    hideCustomerDropdown(document.getElementById("newStockCustomerAccount"));
+    hideCustomerDropdown(document.getElementById("newStockCustomerName"));
+
+    loadAddressesForNewStock(customer.id, customer.name);
+  }
+
+  function clearSelectedCustomer() {
+    selectedCustomerId = null;
+    selectedCustomerName = null;
+    document.getElementById("newStockCustomerId").value = "";
+    document.getElementById("selectedCustomerInfo").style.display = "none";
+    document.getElementById("addStockAddressContainer").innerHTML = "";
+  }
+
+  function hideCustomerDropdown(inputElement) {
+    const existing = inputElement.parentElement.querySelector(
+      ".customer-dropdown-results"
+    );
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  // ==================== ADDRESS HANDLING ====================
+
+  async function loadAddressesForNewStock(customerId, customerName) {
+    const container = document.getElementById("addStockAddressContainer");
+
+    try {
+      const response = await fetch(`/api/customer/${customerId}/addresses`);
+      const addresses = await response.json();
+
+      console.log("📍 Customer has", addresses.length, "address(es)");
+      showAddStockAddressSelector(container, addresses, customerName);
+    } catch (error) {
+      console.error("Error loading addresses:", error);
+      container.innerHTML =
+        '<div class="alert alert-danger">Error loading addresses</div>';
+    }
+  }
+
+  function showAddStockAddressSelector(container, addresses, customerName) {
+    const hasAddresses = addresses.length > 0;
+    const autoSelectFirst = addresses.length === 1;
+
+    container.innerHTML = `
+      <div class="address-selector-wrapper mb-3" style="background: var(--dark-card, #f8f9fa); padding: 15px; border-radius: 8px; border: 2px solid var(--border-color, #dee2e6);">
+        ${
+          !hasAddresses
+            ? `
+          <div class="alert alert-warning mb-3">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>No Address on File</strong><br>
+            <small>This customer doesn't have any saved addresses. Please add one below.</small>
+          </div>
+        `
+            : ""
+        }
+        
+        <label class="form-label" style="font-weight: 600; color: var(--text-light, #333);">
+          <i class="bi bi-geo-alt-fill"></i> Default Delivery Location
+        </label>
+        <select class="form-select add-stock-address-select" style="margin-bottom: 10px;">
+          <option value="">Choose location...</option>
+          ${addresses
+            .map(
+              (addr, idx) => `
+            <option value="${idx}" ${
+                autoSelectFirst && idx === 0 ? "selected" : ""
+              }>
+              📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${
+                addr.city ? ", " + addr.city : ""
+              }
+            </option>
+          `
+            )
+            .join("")}
+          <option value="new" style="font-weight: 600; color: #28a745;">➕ Add New Address</option>
+        </select>
+        <small class="text-muted">This will be the default location for this stock item</small>
+        
+        <div class="selected-address-display mt-2" style="${
+          autoSelectFirst ? "display: block;" : "display: none;"
+        }">
+          ${
+            autoSelectFirst
+              ? `
+            <div class="alert alert-success" style="margin-top: 10px;">
+              <i class="bi bi-check-circle-fill"></i> <strong>${
+                addresses[0].label
+              }</strong><br>
+              <small>${formatAddStockAddress(addresses[0])}</small>
+            </div>
+          `
+              : ""
+          }
+        </div>
+        <div class="new-address-form mt-3" style="display: none;"></div>
+      </div>
+    `;
+
+    const select = container.querySelector(".add-stock-address-select");
+    const displayDiv = container.querySelector(".selected-address-display");
+    const newAddressDiv = container.querySelector(".new-address-form");
+
+    select.addEventListener("change", function () {
+      const selectedValue = this.value;
+
+      if (selectedValue === "new") {
+        displayDiv.style.display = "none";
+        showAddStockAddressForm(newAddressDiv, customerName);
+      } else if (selectedValue === "") {
+        displayDiv.style.display = "none";
+        newAddressDiv.innerHTML = "";
+      } else {
+        const idx = parseInt(selectedValue);
+        const selectedAddress = addresses[idx];
+
+        displayDiv.innerHTML = `
+          <div class="alert alert-success" style="margin-top: 10px;">
+            <i class="bi bi-check-circle-fill"></i> <strong>${
+              selectedAddress.label
+            }</strong><br>
+            <small>${formatAddStockAddress(selectedAddress)}</small>
+          </div>
+        `;
+        displayDiv.style.display = "block";
+        newAddressDiv.innerHTML = "";
+      }
+    });
+  }
+
+  function showAddStockAddressForm(container, customerName) {
+    container.innerHTML = `
+      <div class="alert alert-info">
+        <i class="bi bi-plus-circle"></i> <strong>Add New Delivery Address</strong>
+        <p class="mb-0 mt-2 small">This address will be saved to ${customerName}'s account.</p>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Location Name *</label>
+        <input type="text" class="form-control new-address-label" placeholder="e.g., Warehouse 2, Kitchen" required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Street Address</label>
+        <input type="text" class="form-control new-address-street" placeholder="123 High Street">
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-2">
+          <label class="form-label">City/Town</label>
+          <input type="text" class="form-control new-address-city" placeholder="Glasgow">
+        </div>
+        <div class="col-md-6 mb-2">
+          <label class="form-label">Postcode</label>
+          <input type="text" class="form-control new-address-zip" placeholder="G1 1AA">
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Phone Number</label>
+        <input type="text" class="form-control new-address-phone" placeholder="01234 567890">
+      </div>
+    `;
+    container.style.display = "block";
+  }
+
+  function formatAddStockAddress(address) {
+    const parts = [];
+    if (address.street) parts.push(address.street);
+    if (address.city) parts.push(address.city);
+    if (address.zip) parts.push(address.zip);
+    return parts.length > 0 ? parts.join(", ") : "Address not specified";
+  }
+
+  function getAddStockSelectedAddress() {
+    const container = document.getElementById("addStockAddressContainer");
+    const select = container.querySelector(".add-stock-address-select");
+
+    if (!select) return null;
+
+    const selectedValue = select.value;
+
+    if (selectedValue === "new") {
+      return {
+        label:
+          container.querySelector(".new-address-label")?.value.trim() || "",
+        street:
+          container.querySelector(".new-address-street")?.value.trim() || "",
+        city: container.querySelector(".new-address-city")?.value.trim() || "",
+        zip: container.querySelector(".new-address-zip")?.value.trim() || "",
+        phone:
+          container.querySelector(".new-address-phone")?.value.trim() || "",
+        isNew: true,
+      };
+    } else if (selectedValue && selectedValue !== "") {
+      const option = select.options[select.selectedIndex];
+      const labelMatch = option.text.match(/📍\s*(.+?)(?:\s*-|$)/);
+      return {
+        label: labelMatch ? labelMatch[1].trim() : "",
+        isNew: false,
+      };
+    }
+
+    return null;
+  }
+
+  // ==================== SAVE NEW STOCK ====================
+
   async function saveNewStock() {
     if (!selectedCustomerId) {
       alert("Please select a customer first");
       return;
     }
 
+    const productName = document.getElementById("newStockProductName").value;
+    if (!productName) {
+      alert("Please fill in the product name");
+      return;
+    }
+
+    const addressData = getAddStockSelectedAddress();
+
     const data = {
       customer_id: selectedCustomerId,
       product_code:
         document.getElementById("newStockProductCode").value || null,
-      product_name: document.getElementById("newStockProductName").value,
+      product_name: productName,
       initial_stock:
         parseInt(document.getElementById("newStockInitial").value) || 0,
       reorder_level:
@@ -508,9 +891,17 @@
       notes: document.getElementById("newStockNotes").value,
     };
 
-    if (!data.product_name) {
-      alert("Please fill in the product name");
-      return;
+    if (addressData) {
+      if (addressData.isNew) {
+        if (!addressData.label) {
+          alert("Please provide a location name for the new address");
+          return;
+        }
+        data.address_label = "__NEW__";
+        data.new_address = addressData;
+      } else {
+        data.address_label = addressData.label;
+      }
     }
 
     try {
@@ -520,7 +911,15 @@
         body: JSON.stringify(data),
       });
 
+      if (!response.ok) {
+        console.error("❌ API Error:", response.status);
+        const text = await response.text();
+        console.error("Response:", text);
+        throw new Error(`Server returned ${response.status}`);
+      }
+
       const result = await response.json();
+
       if (result.success) {
         addStockModal.hide();
         location.reload();
@@ -528,9 +927,12 @@
         alert("Error: " + result.message);
       }
     } catch (error) {
+      console.error("Error:", error);
       alert("Error: " + error.message);
     }
   }
+
+  // ==================== STOCK IN MODAL ====================
 
   function showStockInModal(itemId, customer, product) {
     document.getElementById("stockInItemId").value = itemId;
@@ -566,6 +968,13 @@
         }
       );
 
+      if (!response.ok) {
+        console.error("❌ API Error:", response.status);
+        const text = await response.text();
+        console.error("Response:", text);
+        throw new Error(`Server returned ${response.status}`);
+      }
+
       const result = await response.json();
       if (result.success) {
         stockInModal.hide();
@@ -574,17 +983,27 @@
         alert("Error: " + result.message);
       }
     } catch (error) {
+      console.error("Error:", error);
       alert("Error: " + error.message);
     }
   }
 
+  // ==================== STOCK HISTORY ====================
+
   async function showStockHistory(itemId) {
     try {
-      const response = await fetch(`customer-stock/api/customer-stock/${itemId}/history`);
+      const response = await fetch(
+        `/customer-stock/api/customer-stock/${itemId}/history`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
       const transactions = await response.json();
 
       let historyHtml =
-        '<div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Quantity</th><th>Invoice Number</th><th>Notes</th><th>User</th></tr></thead><tbody>';
+        '<div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Quantity</th><th>Reference</th><th>Notes</th><th>User</th></tr></thead><tbody>';
 
       transactions.forEach((transaction) => {
         const date = new Date(transaction.transaction_date).toLocaleString();
@@ -592,333 +1011,41 @@
           transaction.transaction_type === "stock_in"
             ? "bg-success"
             : transaction.transaction_type === "stock_out"
-            ? "bg-warning"
-            : "bg-info";
+            ? "bg-danger"
+            : "bg-warning";
 
         historyHtml += `
-                <tr>
-                    <td>${date}</td>
-                    <td><span class="badge ${badgeClass}">${transaction.transaction_type.replace(
+          <tr>
+            <td>${date}</td>
+            <td><span class="badge ${badgeClass}">${transaction.transaction_type.replace(
           "_",
           " "
         )}</span></td>
-                    <td>${transaction.quantity}</td>
-                    <td>${transaction.reference || "-"}</td>
-                    <td>${transaction.notes || "-"}</td>
-                    <td>${transaction.created_by}</td>
-                </tr>
-            `;
+            <td>${transaction.quantity > 0 ? "+" : ""}${
+          transaction.quantity
+        }</td>
+            <td>${transaction.reference || "-"}</td>
+            <td>${transaction.notes || "-"}</td>
+            <td>${transaction.user ? transaction.user.username : "-"}</td>
+          </tr>
+        `;
       });
 
       historyHtml += "</tbody></table></div>";
 
-      if (transactions.length === 0) {
-        historyHtml = '<p class="text-muted">No transactions recorded yet.</p>';
-      }
-
       document.getElementById("historyContent").innerHTML = historyHtml;
       stockHistoryModal.show();
     } catch (error) {
+      console.error("Error:", error);
       alert("Error loading history: " + error.message);
     }
   }
 
-  async function searchStockItems() {
-    const query = document.getElementById("quickSearchStock").value;
-
-    if (query.length < 2) {
-      document.getElementById("quickSearchResults").innerHTML = "";
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `customer-stock/api/customer-stock/search?q=${encodeURIComponent(query)}`
-      );
-      const items = await response.json();
-
-      let resultsHtml = "";
-      items.forEach((item) => {
-        resultsHtml += `
-                <div class="border rounded p-2 mb-2 cursor-pointer" onclick="selectQuickItem(${
-                  item.id
-                }, '${item.customer_name}', '${item.product_name}', ${
-          item.current_stock
-        })">
-                    <strong>${item.customer_name}</strong> - ${
-          item.product_name
-        } (${item.product_code || "N/A"})
-                    <br><small>Current stock: ${item.current_stock} </small>
-                </div>
-            `;
-      });
-
-      document.getElementById("quickSearchResults").innerHTML = resultsHtml;
-    } catch (error) {
-      console.error("Search error:", error);
-    }
-  }
-
-  function selectQuickItem(itemId, customer, product, currentStock) {
-    document.getElementById("quickStockId").value = itemId;
-    document.getElementById(
-      "quickSelectedItem"
-    ).textContent = `${customer} - ${product} (Current: ${currentStock})`;
-    document.getElementById("quickSearchResults").innerHTML = "";
-    document.getElementById("quickTransactionForm").style.display = "block";
-  }
-
-  async function processQuickTransaction() {
-    const itemId = document.getElementById("quickStockId").value;
-    const data = {
-      transaction_type: document.getElementById("quickTransactionType").value,
-      quantity: parseInt(document.getElementById("quickQuantity").value),
-      reference: document.getElementById("quickInvoiceNumber").value,
-      notes: document.getElementById("quickNotes").value,
-    };
-
-    if (!data.quantity) {
-      alert("Please enter a quantity");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `customer-stock/api/customer-stock/${itemId}/transaction`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      );
-
-      const result = await response.json();
-      if (result.success) {
-        quickTransactionModal.hide();
-        location.reload();
-      } else {
-        alert("Error: " + result.message);
-      }
-    } catch (error) {
-      alert("Error: " + error.message);
-    }
-  }
-
-  function filterStock() {
-    const customerFilter = document.getElementById("customerFilter").value;
-    const productSearch = document
-      .getElementById("productSearch")
-      .value.toLowerCase();
-    const statusFilter = document.getElementById("stockStatusFilter").value;
-
-    const rows = document.querySelectorAll("#stockTable tbody tr");
-
-    rows.forEach((row) => {
-      let show = true;
-
-      // Customer filter
-      if (customerFilter && row.dataset.customerId !== customerFilter) {
-        show = false;
-      }
-
-      // Product search
-      if (productSearch && !row.dataset.product.includes(productSearch)) {
-        show = false;
-      }
-
-      // Status filter
-      if (statusFilter && row.dataset.stockStatus !== statusFilter) {
-        show = false;
-      }
-
-      row.style.display = show ? "" : "none";
-    });
-  }
+  // ==================== EDIT STOCK ITEM ====================
 
   function editStockItem(itemId) {
-    // Implementation for editing stock items (reorder levels, etc.)
-    alert("Edit functionality would be implemented here");
-  }
-
-  // Customer search functionality for Add Stock Modal
-  let selectedCustomerId = null;
-  let customerSearchTimeout;
-
-  // Initialize customer search when modal opens
-  document
-    .getElementById("addStockModal")
-    .addEventListener("shown.bs.modal", function () {
-      setupCustomerSearch();
-    });
-
-  function setupCustomerSearch() {
-    const accountInput = document.getElementById("newStockCustomerAccount");
-    const nameInput = document.getElementById("newStockCustomerName");
-
-    // Setup search for both fields
-    if (accountInput) setupCustomerSearchField(accountInput, "account");
-    if (nameInput) setupCustomerSearchField(nameInput, "name");
-  }
-
-  function setupCustomerSearchField(input, fieldType) {
-    input.addEventListener("input", function () {
-      clearTimeout(customerSearchTimeout);
-      const searchValue = this.value.trim();
-
-      if (searchValue.length < 2) {
-        hideCustomerDropdown(input);
-        if (fieldType === "account") {
-          document.getElementById("newStockCustomerName").value = "";
-        } else {
-          document.getElementById("newStockCustomerAccount").value = "";
-        }
-        clearSelectedCustomer();
-        return;
-      }
-
-      customerSearchTimeout = setTimeout(() => {
-        searchCustomersForStock(searchValue, input, fieldType);
-      }, 300);
-    });
-
-    input.addEventListener("blur", function () {
-      setTimeout(() => {
-        if (!document.querySelector(".customer-dropdown-results:hover")) {
-          hideCustomerDropdown(input);
-        }
-      }, 200);
-    });
-  }
-
-  async function searchCustomersForStock(searchValue, inputElement, fieldType) {
-    try {
-      const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
-      );
-      const customers = await response.json();
-
-      showCustomerDropdown(customers, inputElement, fieldType);
-    } catch (error) {
-      console.error("Error searching customers:", error);
-      hideCustomerDropdown(inputElement);
-    }
-  }
-
-  function showCustomerDropdown(customers, inputElement, fieldType) {
-    hideCustomerDropdown(inputElement);
-
-    if (customers.length === 0) {
-      inputElement.style.borderColor = "#dc3545";
-      return;
-    }
-
-    const dropdown = document.createElement("div");
-    dropdown.className = "customer-dropdown-results";
-    dropdown.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: var(--dark-card);
-        border: 2px solid var(--border-color);
-        border-radius: 12px;
-        max-height: 200px;
-        overflow-y: auto;
-        z-index: 1050;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    `;
-
-    customers.forEach((customer) => {
-      const item = document.createElement("div");
-      item.className = "customer-dropdown-item";
-      item.style.cssText = `
-            padding: 12px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            transition: background-color 0.2s;
-            color: var(--text-light);
-        `;
-
-      item.innerHTML = `
-            <div style="font-weight: 600;">${customer.account_number} - ${
-        customer.name
-      }</div>
-            <small style="color: var(--text-muted);">
-                ${
-                  customer.contact_name
-                    ? "Contact: " + customer.contact_name
-                    : ""
-                }
-                ${customer.phone ? " | Phone: " + customer.phone : ""}
-            </small>
-        `;
-
-      item.addEventListener("mouseenter", function () {
-        this.style.backgroundColor = "var(--primary-blue)";
-      });
-
-      item.addEventListener("mouseleave", function () {
-        this.style.backgroundColor = "transparent";
-      });
-
-      item.addEventListener("click", function () {
-        selectCustomerForStock(customer);
-        hideAllCustomerDropdowns();
-      });
-
-      dropdown.appendChild(item);
-    });
-
-    inputElement.parentElement.appendChild(dropdown);
-    inputElement.style.borderColor = "#28a745";
-  }
-
-  function selectCustomerForStock(customer) {
-    selectedCustomerId = customer.id;
-
-    // Fill both customer fields
-    document.getElementById("newStockCustomerAccount").value =
-      customer.account_number;
-    document.getElementById("newStockCustomerName").value = customer.name;
-    document.getElementById("newStockCustomerId").value = customer.id;
-
-    // Style the fields
-    document.getElementById("newStockCustomerAccount").style.borderColor =
-      "#28a745";
-    document.getElementById("newStockCustomerName").style.borderColor =
-      "#28a745";
-
-    // Show customer info
-    document.getElementById("selectedCustomerInfo").style.display = "block";
-    document.getElementById("selectedCustomerDetails").innerHTML = `
-        Account: ${customer.account_number}<br>
-        Name: ${customer.name}<br>
-        Contact: ${customer.contact_name || "N/A"}<br>
-        Phone: ${customer.phone || "N/A"}
-    `;
-  }
-
-  function hideCustomerDropdown(inputElement) {
-    const existing = inputElement.parentElement.querySelector(
-      ".customer-dropdown-results"
-    );
-    if (existing) {
-      existing.remove();
-    }
-  }
-
-  function hideAllCustomerDropdowns() {
-    document
-      .querySelectorAll(".customer-dropdown-results")
-      .forEach((dropdown) => {
-        dropdown.remove();
-      });
-  }
-
-  function clearSelectedCustomer() {
-    selectedCustomerId = null;
-    document.getElementById("newStockCustomerId").value = "";
-    document.getElementById("selectedCustomerInfo").style.display = "none";
+    alert("Edit functionality coming soon for item " + itemId);
   }
 </script>
+
 {% endblock %}
