@@ -6,7 +6,7 @@ from app.forms import BrandedStockForm
 from datetime import datetime
 import json
 
-customer_stock_bp = Blueprint('customer_stock', __name__)
+customer_stock_bp = Blueprint('customer_stock', __name__, url_prefix='/customer-stock')
 
 def validate_stock_transaction(data, stock_item):
     """Validate stock transaction input"""
