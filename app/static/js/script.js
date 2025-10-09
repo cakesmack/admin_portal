@@ -112,7 +112,7 @@ let customerSearchTimeout = null;
  * Initialize customer search on a form
  * @param {Object} options - Configuration options
  * @param {string} options.accountInputId - ID of account number input
- * @param {string} options.nameInputId - ID of customer name input  
+ * @param {string} options.nameInputId - ID of customer name input
  * @param {string} options.addressInputId - ID of address display input (optional)
  * @param {string} options.addressContainerId - ID of container for address selection (optional)
  * @param {Function} options.onSelect - Callback when customer is selected
@@ -120,25 +120,39 @@ let customerSearchTimeout = null;
 export function initCustomerSearch(options = {}) {
   const {
     accountInputId = "customerAccount",
-    nameInputId = "customerName", 
+    nameInputId = "customerName",
     addressInputId = "customerAddress",
     addressContainerId = "addressSelectionContainer",
-    onSelect = null
+    onSelect = null,
   } = options;
 
-  const accountInput = document.getElementById(accountInputId) || 
-                       document.querySelector(`input[name="${accountInputId}"]`) ||
-                       document.querySelector('input[name="customer_account"]');
-  const nameInput = document.getElementById(nameInputId) ||
-                    document.querySelector(`input[name="${nameInputId}"]`) ||
-                    document.querySelector('input[name="customer_name"]');
+  const accountInput =
+    document.getElementById(accountInputId) ||
+    document.querySelector(`input[name="${accountInputId}"]`) ||
+    document.querySelector('input[name="customer_account"]');
+  const nameInput =
+    document.getElementById(nameInputId) ||
+    document.querySelector(`input[name="${nameInputId}"]`) ||
+    document.querySelector('input[name="customer_name"]');
 
   if (accountInput) {
-    setupCustomerInputField(accountInput, "account", addressInputId, addressContainerId, onSelect);
+    setupCustomerInputField(
+      accountInput,
+      "account",
+      addressInputId,
+      addressContainerId,
+      onSelect
+    );
   }
 
   if (nameInput) {
-    setupCustomerInputField(nameInput, "name", addressInputId, addressContainerId, onSelect);
+    setupCustomerInputField(
+      nameInput,
+      "name",
+      addressInputId,
+      addressContainerId,
+      onSelect
+    );
   }
 
   // Hide dropdowns when clicking outside
@@ -152,7 +166,13 @@ export function initCustomerSearch(options = {}) {
 /**
  * Setup event handlers for a customer search input field
  */
-function setupCustomerInputField(inputElement, searchType, addressInputId, addressContainerId, onSelect) {
+function setupCustomerInputField(
+  inputElement,
+  searchType,
+  addressInputId,
+  addressContainerId,
+  onSelect
+) {
   inputElement.addEventListener("input", function (e) {
     const value = e.target.value.trim();
     clearTimeout(customerSearchTimeout);
@@ -169,7 +189,14 @@ function setupCustomerInputField(inputElement, searchType, addressInputId, addre
     }
 
     customerSearchTimeout = setTimeout(() => {
-      searchCustomers(value, inputElement, searchType, addressInputId, addressContainerId, onSelect);
+      searchCustomers(
+        value,
+        inputElement,
+        searchType,
+        addressInputId,
+        addressContainerId,
+        onSelect
+      );
     }, 300);
   });
 
@@ -185,12 +212,19 @@ function setupCustomerInputField(inputElement, searchType, addressInputId, addre
 /**
  * Search for customers via API
  */
-async function searchCustomers(query, inputElement, searchType, addressInputId, addressContainerId, onSelect) {
+async function searchCustomers(
+  query,
+  inputElement,
+  searchType,
+  addressInputId,
+  addressContainerId,
+  onSelect
+) {
   try {
     const response = await fetch(
       `/api/customers/search?q=${encodeURIComponent(query)}`
     );
-    
+
     if (!response.ok) {
       throw new Error("Search failed");
     }
@@ -202,7 +236,14 @@ async function searchCustomers(query, inputElement, searchType, addressInputId, 
       return;
     }
 
-    showCustomerDropdown(customers, inputElement, searchType, addressInputId, addressContainerId, onSelect);
+    showCustomerDropdown(
+      customers,
+      inputElement,
+      searchType,
+      addressInputId,
+      addressContainerId,
+      onSelect
+    );
   } catch (error) {
     console.error("Error searching customers:", error);
     hideCustomerDropdown(inputElement);
@@ -212,7 +253,14 @@ async function searchCustomers(query, inputElement, searchType, addressInputId, 
 /**
  * Display customer search results dropdown
  */
-function showCustomerDropdown(customers, inputElement, searchType, addressInputId, addressContainerId, onSelect) {
+function showCustomerDropdown(
+  customers,
+  inputElement,
+  searchType,
+  addressInputId,
+  addressContainerId,
+  onSelect
+) {
   hideCustomerDropdown(inputElement);
 
   const dropdown = document.createElement("div");
@@ -283,14 +331,21 @@ function showCustomerDropdown(customers, inputElement, searchType, addressInputI
 /**
  * Handle customer selection
  */
-function selectCustomer(customer, addressInputId, addressContainerId, onSelect) {
+function selectCustomer(
+  customer,
+  addressInputId,
+  addressContainerId,
+  onSelect
+) {
   currentSelectedCustomer = customer;
 
   // Fill in basic customer fields
-  const accountInput = document.querySelector('input[name="customer_account"]') ||
-                       document.getElementById("customerAccount");
-  const nameInput = document.querySelector('input[name="customer_name"]') ||
-                    document.getElementById("customerName");
+  const accountInput =
+    document.querySelector('input[name="customer_account"]') ||
+    document.getElementById("customerAccount");
+  const nameInput =
+    document.querySelector('input[name="customer_name"]') ||
+    document.getElementById("customerName");
 
   if (accountInput) accountInput.value = customer.account_number;
   if (nameInput) nameInput.value = customer.name;
@@ -309,16 +364,18 @@ function selectCustomer(customer, addressInputId, addressContainerId, onSelect) 
  * ALWAYS shows selector with "Add New Address" option
  */
 function handleCustomerAddresses(customer, addressInputId, addressContainerId) {
-  const addressInput = document.querySelector(`input[name="${addressInputId}"]`) ||
-                       document.getElementById(addressInputId) ||
-                       document.querySelector('input[name="customer_address"]');
-  
-  const addressContainer = document.getElementById(addressContainerId) ||
-                          document.querySelector('.address-selection-area') ||
-                          document.querySelector('.address-selection-area-modal');
+  const addressInput =
+    document.querySelector(`input[name="${addressInputId}"]`) ||
+    document.getElementById(addressInputId) ||
+    document.querySelector('input[name="customer_address"]');
+
+  const addressContainer =
+    document.getElementById(addressContainerId) ||
+    document.querySelector(".address-selection-area") ||
+    document.querySelector(".address-selection-area-modal");
 
   if (!addressContainer) {
-    console.warn('⚠️ No address container found');
+    console.warn("⚠️ No address container found");
     return;
   }
 
@@ -328,18 +385,20 @@ function handleCustomerAddresses(customer, addressInputId, addressContainerId) {
 
   // If no addresses but has legacy address, convert to array format
   if (addresses.length === 0 && legacyAddress) {
-    addresses = [{
-      id: null,
-      label: "Primary",
-      street: legacyAddress,
-      city: "",
-      zip: "",
-      phone: "",
-      is_primary: true
-    }];
+    addresses = [
+      {
+        id: null,
+        label: "Primary",
+        street: legacyAddress,
+        city: "",
+        zip: "",
+        phone: "",
+        is_primary: true,
+      },
+    ];
   }
 
-  console.log('📍 Customer has', addresses.length, 'address(es)');
+  console.log("📍 Customer has", addresses.length, "address(es)");
 
   // ALWAYS show the selector - even for 0 or 1 addresses
   showAddressSelector(addresses, addressContainer, addressInput, customer.name);
@@ -349,8 +408,12 @@ function handleCustomerAddresses(customer, addressInputId, addressContainerId) {
  * Show address selector when customer has multiple addresses
  */
 function showAddressSelector(addresses, container, addressInput) {
-  console.log('📍 Showing address selector with', addresses.length, 'addresses');
-  
+  console.log(
+    "📍 Showing address selector with",
+    addresses.length,
+    "addresses"
+  );
+
   container.innerHTML = `
     <div class="address-selector-wrapper mb-3" style="background: var(--dark-card, #f8f9fa); padding: 15px; border-radius: 8px; border: 2px solid var(--border-color, #dee2e6);">
       <label class="form-label" style="font-weight: 600; color: var(--text-light, #333);">
@@ -358,11 +421,17 @@ function showAddressSelector(addresses, container, addressInput) {
       </label>
       <select class="form-select address-location-select" required style="margin-bottom: 10px;">
         <option value="">Choose location...</option>
-        ${addresses.map((addr, idx) => `
+        ${addresses
+          .map(
+            (addr, idx) => `
           <option value="${idx}">
-            📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${addr.city ? ", " + addr.city : ""}
+            📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${
+              addr.city ? ", " + addr.city : ""
+            }
           </option>
-        `).join("")}
+        `
+          )
+          .join("")}
         <option value="new" style="font-weight: 600; color: #28a745;">➕ Add New Address</option>
       </select>
       <div class="selected-address-display mt-2" style="display: none;"></div>
@@ -373,8 +442,7 @@ function showAddressSelector(addresses, container, addressInput) {
         </div>
         <div class="mb-2">
           <label class="form-label">Location Name *</label>
-          <input type="text" class="form-control new-address-label" placeholder="e.g., Warehouse 2, Reception Desk, Kitchen" required>
-          <small class="text-muted">Give this location a memorable name</small>
+<input type="text" class="form-control new-address-label" placeholder="e.g., Warehouse 2, Reception Desk, Kitchen">          <small class="text-muted">Give this location a memorable name</small>
         </div>
         <div class="mb-2">
           <label class="form-label">Street Address</label>
@@ -404,22 +472,21 @@ function showAddressSelector(addresses, container, addressInput) {
 
   select.addEventListener("change", function () {
     const selectedValue = this.value;
-    console.log('📍 Address selection changed to:', selectedValue);
+    console.log("📍 Address selection changed to:", selectedValue);
 
     if (selectedValue === "new") {
       // Show new address form
-      console.log('➕ Showing new address form');
+      console.log("➕ Showing new address form");
       displayDiv.style.display = "none";
       newAddressForm.style.display = "block";
-      
+
       if (addressInput) {
         addressInput.value = "";
         addressInput.placeholder = "Enter new address details above";
       }
-      
+
       // Set a flag that this is a new address
       updateAddressLabel("__NEW_ADDRESS__");
-      
     } else if (selectedValue === "") {
       // No selection
       displayDiv.style.display = "none";
@@ -429,16 +496,17 @@ function showAddressSelector(addresses, container, addressInput) {
         addressInput.placeholder = "Select a location above";
       }
       updateAddressLabel("");
-      
     } else {
       // Show selected existing address
       const idx = parseInt(selectedValue);
       const selectedAddress = addresses[idx];
-      console.log('✅ Selected address:', selectedAddress.label);
-      
+      console.log("✅ Selected address:", selectedAddress.label);
+
       displayDiv.innerHTML = `
         <div class="alert alert-success" style="margin-top: 10px;">
-          <i class="bi bi-check-circle-fill"></i> <strong>${selectedAddress.label}</strong><br>
+          <i class="bi bi-check-circle-fill"></i> <strong>${
+            selectedAddress.label
+          }</strong><br>
           <small>${formatAddressDisplay(selectedAddress)}</small>
         </div>
       `;
@@ -453,12 +521,13 @@ function showAddressSelector(addresses, container, addressInput) {
       updateAddressLabel(selectedAddress.label);
     }
   });
-  
+
   // Helper function to update address label input
   function updateAddressLabel(value) {
-    let labelInput = document.getElementById("address_label") ||
-                     document.querySelector('input[name="address_label"]');
-    
+    let labelInput =
+      document.getElementById("address_label") ||
+      document.querySelector('input[name="address_label"]');
+
     if (!labelInput) {
       // Create hidden input if it doesn't exist
       const form = container.closest("form");
@@ -470,10 +539,10 @@ function showAddressSelector(addresses, container, addressInput) {
         form.appendChild(labelInput);
       }
     }
-    
+
     if (labelInput) {
       labelInput.value = value;
-      console.log('📝 Updated address_label input to:', value);
+      console.log("📝 Updated address_label input to:", value);
     }
   }
 }
@@ -494,55 +563,56 @@ function formatAddressDisplay(address) {
  */
 export function getSelectedAddress(container) {
   if (!container) {
-    console.warn('⚠️ No address container provided');
+    console.warn("⚠️ No address container provided");
     return null;
   }
 
   const select = container.querySelector(".address-location-select");
   if (!select) {
-    console.log('ℹ️ No address selector found');
+    console.log("ℹ️ No address selector found");
     return null;
   }
 
   const selectedValue = select.value;
-  console.log('📍 Getting selected address, value:', selectedValue);
+  console.log("📍 Getting selected address, value:", selectedValue);
 
   if (selectedValue === "new") {
     // Return new address data from form
     const newAddressData = {
       label: container.querySelector(".new-address-label")?.value.trim() || "",
-      street: container.querySelector(".new-address-street")?.value.trim() || "",
+      street:
+        container.querySelector(".new-address-street")?.value.trim() || "",
       city: container.querySelector(".new-address-city")?.value.trim() || "",
       zip: container.querySelector(".new-address-zip")?.value.trim() || "",
       phone: container.querySelector(".new-address-phone")?.value.trim() || "",
-      isNew: true
+      isNew: true,
     };
-    
-    console.log('➕ New address data:', newAddressData);
-    
+
+    console.log("➕ New address data:", newAddressData);
+
     // Validate new address has at least a label
     if (!newAddressData.label) {
-      alert('Please enter a location name for the new address');
+      alert("Please enter a location name for the new address");
       return null;
     }
-    
+
     return newAddressData;
-    
   } else if (selectedValue && selectedValue !== "") {
     // Return the label of selected existing address
-    const labelInput = document.getElementById("address_label") ||
-                       document.querySelector('input[name="address_label"]');
+    const labelInput =
+      document.getElementById("address_label") ||
+      document.querySelector('input[name="address_label"]');
     const label = labelInput ? labelInput.value : "";
-    
-    console.log('✅ Existing address selected:', label);
-    
+
+    console.log("✅ Existing address selected:", label);
+
     return {
       label: label,
-      isNew: false
+      isNew: false,
     };
   }
 
-  console.log('❌ No address selected');
+  console.log("❌ No address selected");
   return null;
 }
 
@@ -553,10 +623,10 @@ function clearCustomerFields(fieldsToClear) {
   const fieldMap = {
     account: 'input[name="customer_account"]',
     name: 'input[name="customer_name"]',
-    address: 'input[name="customer_address"]'
+    address: 'input[name="customer_address"]',
   };
 
-  fieldsToClear.forEach(field => {
+  fieldsToClear.forEach((field) => {
     const input = document.querySelector(fieldMap[field]);
     if (input) input.value = "";
   });
@@ -566,7 +636,8 @@ function clearCustomerFields(fieldsToClear) {
  * Hide customer dropdown for specific input
  */
 function hideCustomerDropdown(inputElement) {
-  const existing = inputElement.parentElement.querySelector(".dropdown-results");
+  const existing =
+    inputElement.parentElement.querySelector(".dropdown-results");
   if (existing) {
     existing.remove();
   }
@@ -597,16 +668,16 @@ let productSearchTimeout = null;
  * Can be called multiple times for dynamic product rows
  */
 export function initProductSearch(containerElement = document) {
-  const productCodeInputs = containerElement.querySelectorAll('.product-code');
-  
-  productCodeInputs.forEach(input => {
+  const productCodeInputs = containerElement.querySelectorAll(".product-code");
+
+  productCodeInputs.forEach((input) => {
     // Remove existing listeners to prevent duplicates
-    input.removeEventListener('input', handleProductInput);
-    input.removeEventListener('blur', handleProductBlur);
-    
+    input.removeEventListener("input", handleProductInput);
+    input.removeEventListener("blur", handleProductBlur);
+
     // Add new listeners
-    input.addEventListener('input', handleProductInput);
-    input.addEventListener('blur', handleProductBlur);
+    input.addEventListener("input", handleProductInput);
+    input.addEventListener("blur", handleProductBlur);
   });
 }
 
@@ -730,8 +801,9 @@ function showProductDropdown(products, inputElement) {
   });
 
   // Position dropdown relative to the input's container
-  const container = inputElement.closest('.search-container') || inputElement.parentElement;
-  container.style.position = 'relative';
+  const container =
+    inputElement.closest(".search-container") || inputElement.parentElement;
+  container.style.position = "relative";
   container.appendChild(dropdown);
 }
 
@@ -739,7 +811,8 @@ function showProductDropdown(products, inputElement) {
  * Select a product and populate fields
  */
 function selectProduct(product, inputElement) {
-  const productRow = inputElement.closest(".product-row") || inputElement.closest(".row");
+  const productRow =
+    inputElement.closest(".product-row") || inputElement.closest(".row");
 
   if (productRow) {
     const codeInput = productRow.querySelector(".product-code");
@@ -754,7 +827,8 @@ function selectProduct(product, inputElement) {
  * Hide product dropdown for specific input
  */
 function hideProductDropdown(inputElement) {
-  const container = inputElement.closest('.search-container') || inputElement.parentElement;
+  const container =
+    inputElement.closest(".search-container") || inputElement.parentElement;
   const existing = container.querySelector(".dropdown-results");
   if (existing) {
     existing.remove();
@@ -768,14 +842,14 @@ export function setupCustomerSearch(accountInputId, nameInputId, onSelect) {
   return initCustomerSearch({
     accountInputId,
     nameInputId,
-    onSelect
+    onSelect,
   });
 }
 
 export function setupProductSearch(inputElement) {
   if (inputElement) {
-    inputElement.addEventListener('input', handleProductInput);
-    inputElement.addEventListener('blur', handleProductBlur);
+    inputElement.addEventListener("input", handleProductInput);
+    inputElement.addEventListener("blur", handleProductBlur);
   }
 }
 

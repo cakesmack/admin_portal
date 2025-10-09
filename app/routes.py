@@ -900,28 +900,72 @@ def returns():
 def invoice_correction():
     form = InvoiceCorrectionForm()
     if form.validate_on_submit():
-        # ✨ NEW: Handle new address creation
+        # Handle new address creation
         address_label = handle_new_address_from_form(
             request.form, 
             form.customer_account.data
         )
         
-        # ... rest of your existing code ...
-        # Just make sure to include address_label in the form_data dict
+        # Build main product data
+        main_product = {
+            'product_code': form.product_code.data,
+            'product_name': form.product_name.data,
+            'ordered_quantity': int(form.ordered_quantity.data or 0),
+            'delivered_quantity': int(form.delivered_quantity.data or 0),
+            'outstanding_quantity': int(form.ordered_quantity.data or 0) - int(form.delivered_quantity.data or 0)
+        }
         
+        # Get additional products from hidden field
+        additional_products_json = request.form.get('additional_products', '[]')
+        try:
+            additional_products = json.loads(additional_products_json)
+        except json.JSONDecodeError:
+            additional_products = []
+        
+        # Combine main product with additional products
+        products_data = [main_product] + additional_products
+        
+        # Build form data dict
         form_data = {
             'invoice_number': form.invoice_number.data,
             'customer_account': form.customer_account.data,
             'customer_name': form.customer_name.data,
             'customer_address': form.customer_address.data,
-            'address_label': address_label,  # ✨ Add this
+            'address_label': address_label,
             'products': products_data,
             'notes': form.notes.data
         }
         
-        # ... rest of your existing code ...
+        # Create new form record
+        new_form = Form(
+            type='invoice_correction',
+            data=json.dumps(form_data),
+            user_id=current_user.id
+        )
+        
+        db.session.add(new_form)
+        db.session.commit()
+        
+        flash(f'Invoice correction form #{new_form.id} created successfully!', 'success')
+        
+        # Check if this is an AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+            return jsonify({
+                'success': True,
+                'form_id': new_form.id,
+                'message': f'Invoice correction form #{new_form.id} has been created successfully!'
+            })
+        else:
+            # Return JavaScript for regular form submission
+            return f'''
+            <script>
+                window.open('{url_for('main.print_form', form_id=new_form.id)}', '_blank');
+                window.location.href = '{url_for('main.dashboard')}';
+            </script>
+            '''
     
     return render_template('invoice_correction.html', title='Invoice Correction', form=form)
+
 @main.route('/api/customers')
 @login_required
 def api_customers():
