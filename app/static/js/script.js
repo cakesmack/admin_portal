@@ -408,11 +408,11 @@ function handleCustomerAddresses(customer, addressInputId, addressContainerId) {
  * Show address selector when customer has multiple addresses
  */
 function showAddressSelector(addresses, container, addressInput) {
-  console.log(
-    "📍 Showing address selector with",
-    addresses.length,
-    "addresses"
-  );
+  console.log("📍 Showing address selector with", addresses.length, "addresses");
+
+  const accountInput = document.querySelector('input[name="customer_account"]') || 
+                       document.getElementById('customerAccount');
+  const customerAccount = accountInput ? accountInput.value : '';
 
   container.innerHTML = `
     <div class="address-selector-wrapper mb-3" style="background: var(--dark-card, #f8f9fa); padding: 15px; border-radius: 8px; border: 2px solid var(--border-color, #dee2e6);">
@@ -421,187 +421,96 @@ function showAddressSelector(addresses, container, addressInput) {
       </label>
       <select class="form-select address-location-select" required style="margin-bottom: 10px;">
         <option value="">Choose location...</option>
-        ${addresses
-          .map(
-            (addr, idx) => `
+        ${addresses.map((addr, idx) => `
           <option value="${idx}">
-            📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${
-              addr.city ? ", " + addr.city : ""
-            }
+            📍 ${addr.label}${addr.street ? " - " + addr.street : ""}${addr.city ? ", " + addr.city : ""}
           </option>
-        `
-          )
-          .join("")}
-        <option value="new" style="font-weight: 600; color: #28a745;">➕ Add New Address</option>
+        `).join("")}
       </select>
+      
       <div class="selected-address-display mt-2" style="display: none;"></div>
-      <div class="new-address-form" style="display: none; margin-top: 15px; padding: 15px; background: var(--dark-bg); border-radius: 8px;">
-        <h6 style="color: var(--text-light); margin-bottom: 15px;">
-          <i class="bi bi-plus-circle"></i> Add New Delivery Location
-        </h6>
-        <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label">Location Name *</label>
-            <input type="text" class="form-control new-address-label" placeholder="e.g., Main Office, Warehouse 2">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Street Address</label>
-            <input type="text" class="form-control new-address-street" placeholder="123 Main St">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">City</label>
-            <input type="text" class="form-control new-address-city" placeholder="Glasgow">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Postcode</label>
-            <input type="text" class="form-control new-address-zip" placeholder="G1 1AA">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Phone Number</label>
-            <input type="text" class="form-control new-address-phone" placeholder="01234 567890">
-          </div>
-          <div class="col-12 mt-3">
-            <button type="button" class="btn btn-success save-new-address-btn">
-              <i class="bi bi-check-circle"></i> Save New Address
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      
+      <div class="mt-2">
+  <small class="text-muted">
+    <i class="bi bi-info-circle"></i> Address not listed? 
+    <a href="#" onclick="showCustomerDirectory(); return false;" class="text-primary">Open Customer Directory</a> 
+    to add a new address, then click 
+    <button type="button" class="btn btn-link btn-sm p-0 refresh-addresses-btn">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </small>
+</div>
   `;
 
   const select = container.querySelector(".address-location-select");
   const displayDiv = container.querySelector(".selected-address-display");
-  const newAddressForm = container.querySelector(".new-address-form");
+  const refreshBtn = container.querySelector(".refresh-addresses-btn");
 
   select.addEventListener("change", function () {
     const selectedValue = this.value;
-    console.log("📍 Address selection changed to:", selectedValue);
-
-    if (selectedValue === "new") {
-      // Show new address form
-      console.log("➕ Showing new address form");
+    
+    if (selectedValue === "") {
       displayDiv.style.display = "none";
-      newAddressForm.style.display = "block";
-
-      if (addressInput) {
-        addressInput.value = "";
-        addressInput.placeholder = "Enter new address details above";
-      }
-
-      // Set a flag that this is a new address
-      updateAddressLabel("__NEW_ADDRESS__");
-    } else if (selectedValue === "") {
-      // No selection
-      displayDiv.style.display = "none";
-      newAddressForm.style.display = "none";
-      if (addressInput) {
-        addressInput.value = "";
-        addressInput.placeholder = "Select a location above";
-      }
       updateAddressLabel("");
     } else {
-      // Show selected existing address
       const idx = parseInt(selectedValue);
       const selectedAddress = addresses[idx];
-      console.log("✅ Selected address:", selectedAddress.label);
-
+      
       displayDiv.innerHTML = `
         <div class="alert alert-success" style="margin-top: 10px;">
-          <i class="bi bi-check-circle-fill"></i> <strong>${
-            selectedAddress.label
-          }</strong><br>
+          <i class="bi bi-check-circle-fill"></i> <strong>${selectedAddress.label}</strong><br>
           <small>${formatAddressDisplay(selectedAddress)}</small>
         </div>
       `;
       displayDiv.style.display = "block";
-      newAddressForm.style.display = "none";
-
+      
       if (addressInput) {
         addressInput.value = formatAddressDisplay(selectedAddress);
       }
-
-      // Store the selected address label for form submission
+      
       updateAddressLabel(selectedAddress.label);
     }
   });
 
-// Handle save new address button
-const saveBtn = container.querySelector('.save-new-address-btn');
-if (saveBtn) {
-  saveBtn.addEventListener('click', function() {
-    const label = newAddressForm.querySelector('.new-address-label').value.trim();
-    
-    if (!label) {
-      alert('Please enter a location name');
+// Refresh button reloads addresses
+if (refreshBtn) {
+  refreshBtn.addEventListener('click', async function() {
+    if (!customerAccount) {
+      alert('Please select a customer first');
       return;
     }
     
-    // Collect address data
-    const newAddress = {
-      label: label,
-      street: newAddressForm.querySelector('.new-address-street').value.trim(),
-      city: newAddressForm.querySelector('.new-address-city').value.trim(),
-      zip: newAddressForm.querySelector('.new-address-zip').value.trim(),
-      phone: newAddressForm.querySelector('.new-address-phone').value.trim()
-    };
+    this.disabled = true;
+    this.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing...';
     
-    // Hide the form and show confirmation
-    newAddressForm.style.display = 'none';
-    displayDiv.innerHTML = `
-      <div class="alert alert-success" style="margin-top: 10px;">
-        <i class="bi bi-check-circle-fill"></i> <strong>New Address Ready</strong><br>
-        <strong>${newAddress.label}</strong><br>
-        <small>${formatAddressDisplay(newAddress)}</small><br>
-        <small class="text-muted">This address will be saved to the customer when you submit the form.</small>
-      </div>
-    `;
-    displayDiv.style.display = 'block';
-    
-    // Keep dropdown on "Add New Address" option
-    select.value = 'new';
-    
-    // Create hidden inputs with __NEW__ flag
-    const form = container.closest('form');
-    if (form) {
-      // Remove old hidden inputs
-      form.querySelectorAll('[name^="new_address_"]').forEach(el => el.remove());
-      form.querySelectorAll('[name="address_label"]').forEach(el => el.remove());
+    try {
+      // Fetch fresh customer data
+      const response = await fetch(`/api/customers/search?q=${customerAccount}`);
+      const customers = await response.json();
       
-      // Create all hidden inputs
-      const inputs = {
-        'address_label': '__NEW__',
-        'new_address_label': newAddress.label,
-        'new_address_street': newAddress.street,
-        'new_address_city': newAddress.city,
-        'new_address_zip': newAddress.zip,
-        'new_address_phone': newAddress.phone
-      };
-      
-      Object.entries(inputs).forEach(([name, value]) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
-      });
-      
-      console.log('✅ Hidden inputs created:', inputs);
+      if (customers.length > 0) {
+        const customer = customers[0];
+        // Reload the address selector with fresh data
+        handleCustomerAddresses(customer, addressInput?.name || 'customer_address', container.id);
+        console.log('✅ Addresses refreshed');
+      } else {
+        alert('Customer not found');
+      }
+    } catch (error) {
+      console.error('Error refreshing addresses:', error);
+      alert('Error refreshing addresses. Please reload the page.');
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
     }
-    
-    // Clear the new address form
-    newAddressForm.querySelectorAll('input').forEach(input => input.value = '');
   });
 }
 
-  // Helper function to update address label input
   function updateAddressLabel(value) {
-    let labelInput =
-      document.getElementById("address_label") ||
-      document.querySelector('input[name="address_label"]');
-
+    let labelInput = document.getElementById("address_label") || 
+                     document.querySelector('input[name="address_label"]');
+    
     if (!labelInput) {
-      // Create hidden input if it doesn't exist
       const form = container.closest("form");
       if (form) {
         labelInput = document.createElement("input");
@@ -611,10 +520,10 @@ if (saveBtn) {
         form.appendChild(labelInput);
       }
     }
-
+    
     if (labelInput) {
       labelInput.value = value;
-      console.log("📝 Updated address_label input to:", value);
+      console.log("📝 Updated address_label to:", value);
     }
   }
 }
