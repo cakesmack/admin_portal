@@ -820,14 +820,23 @@ def search_products():
 @main.route('/returns', methods=['GET', 'POST'])
 @login_required
 def returns():
+    print(f"🔍 RETURNS ROUTE HIT - Method: {request.method}")
+    print(f"🔍 Form data keys: {list(request.form.keys())}")
+    
     form = ReturnsForm()
+    
+    print(f"🔍 Form validation result: {form.validate_on_submit()}")
+    if not form.validate_on_submit() and request.method == 'POST':
+        print(f"🔍 FORM ERRORS: {form.errors}")
+    
     if form.validate_on_submit():
+        print(f"🔍 INSIDE FORM VALIDATION - Processing submission")
+        
         # ✨ NEW: Handle new address creation
         address_label = handle_new_address_from_form(
             request.form, 
             form.customer_account.data
         )
-        
         # Update customer address if provided
         if form.customer_account.data and form.customer_address.data:
             customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
@@ -871,6 +880,18 @@ def returns():
         )
         db.session.add(new_form)
         db.session.commit()
+
+        if address_label and address_label != '__NEW__':
+            customer = Customer.query.filter_by(account_number=form.customer_account.data).first()
+            if customer:
+                saved_address = CustomerAddress.query.filter_by(
+                    customer_id=customer.id,
+                    label=address_label
+                ).first()
+                if saved_address:
+                    print(f"✅✅✅ ADDRESS CONFIRMED IN DATABASE: {saved_address.label}")
+                else:
+                    print(f"❌❌❌ ADDRESS NOT FOUND IN DATABASE!") 
         
         flash(f'Return form #{new_form.id} has been created successfully!', 'success')
         
@@ -1529,3 +1550,93 @@ def get_recent_activity():
     
     return jsonify(activities)
    
+
+
+def handle_new_address_from_form(form_data, customer_account):
+    """
+    Handle creating a new address if the form submitted one.
+    Returns the address label to use.
+    """
+    from app.models import Customer, CustomerAddress
+    from app import db
+    
+    print("\n" + "="*60)
+    print("🔍 HANDLE_NEW_ADDRESS_FROM_FORM CALLED")
+    print("="*60)
+    print(f"Customer Account: {customer_account}")
+    print(f"All form data keys: {list(form_data.keys())}")
+    
+    address_label = form_data.get('address_label', '')
+    print(f"address_label value: '{address_label}'")
+    
+    # Check if this is a new address
+    if address_label == '__NEW__':
+        print("✅ This is a NEW address request")
+        
+        # Get customer
+        customer = Customer.query.filter_by(account_number=customer_account).first()
+        if not customer:
+            print(f"❌ ERROR: Customer not found: {customer_account}")
+            return None
+        
+        print(f"✅ Customer found: {customer.name} (ID: {customer.id})")
+        
+        # Check existing addresses BEFORE adding new one
+        existing_addresses = CustomerAddress.query.filter_by(customer_id=customer.id).all()
+        print(f"📍 Customer currently has {len(existing_addresses)} addresses:")
+        for addr in existing_addresses:
+            print(f"   - {addr.label}: {addr.street}, {addr.city}")
+        
+        # Get new address data from form
+        new_label = form_data.get('new_address_label', '').strip()
+        new_street = form_data.get('new_address_street', '').strip()
+        new_city = form_data.get('new_address_city', '').strip()
+        new_zip = form_data.get('new_address_zip', '').strip()
+        new_phone = form_data.get('new_address_phone', '').strip()
+        
+        print(f"New address data from form:")
+        print(f"   Label: '{new_label}'")
+        print(f"   Street: '{new_street}'")
+        print(f"   City: '{new_city}'")
+        print(f"   Zip: '{new_zip}'")
+        print(f"   Phone: '{new_phone}'")
+        
+        if not new_label:
+            print(f"❌ ERROR: No label provided for new address")
+            return None
+        
+        # Check if this label already exists for this customer
+        duplicate = CustomerAddress.query.filter_by(
+            customer_id=customer.id,
+            label=new_label
+        ).first()
+        
+        if duplicate:
+            print(f"⚠️ WARNING: Address with label '{new_label}' already exists!")
+            print(f"   Returning existing label instead of creating duplicate")
+            return new_label
+        
+        # Create new address
+        new_address = CustomerAddress(
+            customer_id=customer.id,
+            label=new_label,
+            street=new_street,
+            city=new_city,
+            zip=new_zip,
+            phone=new_phone,
+            is_primary=False
+        )
+        
+        db.session.add(new_address)
+        db.session.flush()  # Get the ID but don't commit yet
+        
+        print(f"✅ NEW ADDRESS CREATED (ID: {new_address.id})")
+        print(f"   Will be committed when parent transaction commits")
+        print("="*60 + "\n")
+        
+        return new_label
+    
+    # Return existing address label
+    print(f"ℹ️ Using existing address label: '{address_label}'")
+    print("="*60 + "\n")
+    return address_label if address_label else None

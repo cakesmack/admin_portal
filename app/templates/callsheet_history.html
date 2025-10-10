@@ -119,7 +119,7 @@
   }
 
   function viewCompletion(completionId) {
-    fetch(`/callsheets/api/history/${completionId}`)
+    fetch(`/callsheets/api/callsheets/history/${completionId}`)
       .then((response) => response.json())
       .then((result) => {
         if (!result.success) {

@@ -1183,7 +1183,7 @@ td .small {
 }
 
 small {
-  color: var(--primary-blue);
+  color: var(--text-light);
 }
 
 .search-container {
@@ -1206,4 +1206,15 @@ small {
 .dropdown-results::-webkit-scrollbar-thumb {
   background: var(--primary-blue, #007bff);
   border-radius: 3px;
+}
+
+/* === ADDRESS SELECTOR === */
+.address-selector-wrapper {
+  max-width: 50%;
+}
+
+@media (max-width: 768px) {
+  .address-selector-wrapper {
+    max-width: 100%;
+  }
 }

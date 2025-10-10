@@ -200,10 +200,6 @@
         return;
       }
 
-      // Get selected address
-      const addressContainer = document.getElementById("addressSelectionContainer");
-      const selectedAddressData = getSelectedAddress(addressContainer);
-
       // Prepare form data - IMPORTANT: Format matches what backend expects
       const formData = {
         customer_id: document.getElementById("customerId").value,
@@ -213,10 +209,7 @@
         items: items  // Backend expects "items" not "products"
       };
 
-      // Add address label if selected
-      if (selectedAddressData && selectedAddressData.label) {
-        formData.address_label = selectedAddressData.label;
-      }
+    
 
       try {
         // POST to /standing-orders/new (not /api/standing-orders)

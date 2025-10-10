@@ -159,50 +159,8 @@
         document.getElementById("additional_products").value =
           JSON.stringify(additionalProducts);
 
-        // Get selected address - ENHANCED TO HANDLE NEW ADDRESSES
-        const addressContainer = document.getElementById(
-          "addressSelectionContainer"
-        );
-        const selectedAddressData = getSelectedAddress(addressContainer);
+        console.log("✅ Address handling done by script.js");
 
-        if (selectedAddressData) {
-          if (selectedAddressData.isNew) {
-            // New address - validate it has required fields
-            if (!selectedAddressData.label) {
-              alert("Please provide a location name for the new address");
-              submitBtn.disabled = false;
-              return;
-            }
-
-            // Store new address data as JSON in hidden field
-            document.getElementById("address_label").value = "__NEW__";
-
-            // Create hidden inputs for new address data
-            const form = document.getElementById("returnsForm");
-            ["label", "street", "city", "zip", "phone"].forEach((field) => {
-              let input = form.querySelector(
-                `input[name="new_address_${field}"]`
-              );
-              if (!input) {
-                input = document.createElement("input");
-                input.type = "hidden";
-                input.name = `new_address_${field}`;
-                form.appendChild(input);
-              }
-              input.value = selectedAddressData[field] || "";
-            });
-
-            console.log("✅ Submitting with NEW address:", selectedAddressData);
-          } else {
-            // Existing address
-            document.getElementById("address_label").value =
-              selectedAddressData.label;
-            console.log(
-              "✅ Submitting with EXISTING address:",
-              selectedAddressData.label
-            );
-          }
-        }
 
         const formData = new FormData(form);
 

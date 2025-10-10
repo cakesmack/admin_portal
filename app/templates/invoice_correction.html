@@ -160,13 +160,7 @@
         updateAdditionalProducts();
         document.getElementById("additional_products").value = JSON.stringify(additionalProducts);
 
-        // Get selected address
-        const addressContainer = document.getElementById("addressSelectionContainer");
-        const selectedAddressData = getSelectedAddress(addressContainer);
         
-        if (selectedAddressData && selectedAddressData.label) {
-          document.getElementById("address_label").value = selectedAddressData.label;
-        }
 
         const formData = new FormData(form);
 

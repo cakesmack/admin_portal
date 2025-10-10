@@ -435,32 +435,36 @@ function showAddressSelector(addresses, container, addressInput) {
         <option value="new" style="font-weight: 600; color: #28a745;">➕ Add New Address</option>
       </select>
       <div class="selected-address-display mt-2" style="display: none;"></div>
-      <div class="new-address-form mt-3" style="display: none;">
-        <div class="alert alert-info">
-          <i class="bi bi-plus-circle"></i> <strong>Add New Delivery Address</strong>
-          <p class="mb-0 mt-2 small">This address will be saved to the customer's account.</p>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Location Name *</label>
-<input type="text" class="form-control new-address-label" placeholder="e.g., Warehouse 2, Reception Desk, Kitchen">          <small class="text-muted">Give this location a memorable name</small>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Street Address</label>
-          <input type="text" class="form-control new-address-street" placeholder="123 High Street">
-        </div>
-        <div class="row">
-          <div class="col-md-6 mb-2">
-            <label class="form-label">City/Town</label>
+      <div class="new-address-form" style="display: none; margin-top: 15px; padding: 15px; background: var(--dark-bg); border-radius: 8px;">
+        <h6 style="color: var(--text-light); margin-bottom: 15px;">
+          <i class="bi bi-plus-circle"></i> Add New Delivery Location
+        </h6>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Location Name *</label>
+            <input type="text" class="form-control new-address-label" placeholder="e.g., Main Office, Warehouse 2">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Street Address</label>
+            <input type="text" class="form-control new-address-street" placeholder="123 Main St">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">City</label>
             <input type="text" class="form-control new-address-city" placeholder="Glasgow">
           </div>
-          <div class="col-md-6 mb-2">
+          <div class="col-md-6">
             <label class="form-label">Postcode</label>
             <input type="text" class="form-control new-address-zip" placeholder="G1 1AA">
           </div>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Phone Number</label>
-          <input type="text" class="form-control new-address-phone" placeholder="01234 567890">
+          <div class="col-md-6">
+            <label class="form-label">Phone Number</label>
+            <input type="text" class="form-control new-address-phone" placeholder="01234 567890">
+          </div>
+          <div class="col-12 mt-3">
+            <button type="button" class="btn btn-success save-new-address-btn">
+              <i class="bi bi-check-circle"></i> Save New Address
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -521,6 +525,74 @@ function showAddressSelector(addresses, container, addressInput) {
       updateAddressLabel(selectedAddress.label);
     }
   });
+
+// Handle save new address button
+const saveBtn = container.querySelector('.save-new-address-btn');
+if (saveBtn) {
+  saveBtn.addEventListener('click', function() {
+    const label = newAddressForm.querySelector('.new-address-label').value.trim();
+    
+    if (!label) {
+      alert('Please enter a location name');
+      return;
+    }
+    
+    // Collect address data
+    const newAddress = {
+      label: label,
+      street: newAddressForm.querySelector('.new-address-street').value.trim(),
+      city: newAddressForm.querySelector('.new-address-city').value.trim(),
+      zip: newAddressForm.querySelector('.new-address-zip').value.trim(),
+      phone: newAddressForm.querySelector('.new-address-phone').value.trim()
+    };
+    
+    // Hide the form and show confirmation
+    newAddressForm.style.display = 'none';
+    displayDiv.innerHTML = `
+      <div class="alert alert-success" style="margin-top: 10px;">
+        <i class="bi bi-check-circle-fill"></i> <strong>New Address Ready</strong><br>
+        <strong>${newAddress.label}</strong><br>
+        <small>${formatAddressDisplay(newAddress)}</small><br>
+        <small class="text-muted">This address will be saved to the customer when you submit the form.</small>
+      </div>
+    `;
+    displayDiv.style.display = 'block';
+    
+    // Keep dropdown on "Add New Address" option
+    select.value = 'new';
+    
+    // Create hidden inputs with __NEW__ flag
+    const form = container.closest('form');
+    if (form) {
+      // Remove old hidden inputs
+      form.querySelectorAll('[name^="new_address_"]').forEach(el => el.remove());
+      form.querySelectorAll('[name="address_label"]').forEach(el => el.remove());
+      
+      // Create all hidden inputs
+      const inputs = {
+        'address_label': '__NEW__',
+        'new_address_label': newAddress.label,
+        'new_address_street': newAddress.street,
+        'new_address_city': newAddress.city,
+        'new_address_zip': newAddress.zip,
+        'new_address_phone': newAddress.phone
+      };
+      
+      Object.entries(inputs).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+      
+      console.log('✅ Hidden inputs created:', inputs);
+    }
+    
+    // Clear the new address form
+    newAddressForm.querySelectorAll('input').forEach(input => input.value = '');
+  });
+}
 
   // Helper function to update address label input
   function updateAddressLabel(value) {
