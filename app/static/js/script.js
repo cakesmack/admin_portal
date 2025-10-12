@@ -222,7 +222,7 @@ async function searchCustomers(
 ) {
   try {
     const response = await fetch(
-      `/api/customers/search?q=${encodeURIComponent(query)}`
+      `/customers/api/search?q=${encodeURIComponent(query)}`
     );
 
     if (!response.ok) {
@@ -485,7 +485,7 @@ if (refreshBtn) {
     
     try {
       // Fetch fresh customer data
-      const response = await fetch(`/api/customers/search?q=${customerAccount}`);
+      const response = await fetch(`/customers/api/search?q=${customerAccount}`);
       const customers = await response.json();
       
       if (customers.length > 0) {

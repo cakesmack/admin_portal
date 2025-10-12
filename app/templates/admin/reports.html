@@ -963,7 +963,46 @@
     font-weight: 600;
     text-transform: uppercase;
     font-size: 0.85rem;
-    color: #6c757d;
+    color: #495057;
+  }
+
+  .table td {
+    color: #212529;
+  }
+
+  /* Improve warning badge contrast */
+  .badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+  }
+
+  /* Improve warning text contrast */
+  .text-warning {
+    color: #d39e00 !important;
+  }
+
+  /* Improve alert-warning contrast */
+  .alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+    color: #856404 !important;
+  }
+
+  /* Ensure small text in tables is readable */
+  table small.text-muted {
+    color: #6c757d !important;
+  }
+
+  table small.text-success {
+    color: #28a745 !important;
+  }
+
+  table small.text-danger {
+    color: #dc3545 !important;
+  }
+
+  table small.text-warning {
+    color: #d39e00 !important;
   }
 
   @media print {
