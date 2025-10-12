@@ -254,6 +254,53 @@
     </div>
   </div>
 
+  <!-- Returns Analytics Section -->
+  <div class="card mb-4 border-warning">
+    <div class="card-header bg-warning text-dark">
+      <h5 class="mb-0">
+        <i class="bi bi-arrow-return-left"></i> Returns Analytics
+      </h5>
+      <small>Analysis of return forms - reasons and trends</small>
+    </div>
+    <div class="card-body">
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card text-center bg-light">
+            <div class="card-body">
+              <h3 class="text-warning mb-0" id="totalReturnsCount">-</h3>
+              <small class="text-muted">Total Returns (Selected Period)</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Most Common Return Reasons</h6>
+            </div>
+            <div class="card-body">
+              <canvas id="returnReasonsChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Top Customers with Returns</h6>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+              <div id="topReturningCustomers">
+                <div class="text-center text-muted">Loading...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Problem Customers Section -->
   <div class="card mb-4 border-danger">
     <div class="card-header bg-danger text-white">
@@ -331,7 +378,7 @@
 
 <script>
   let dailyActivityChart, formsTypeChart, callsheetStatusChart;
-  let weeklyTrendsChart, dailyHistoryChart;
+  let weeklyTrendsChart, dailyHistoryChart, returnReasonsChart;
 
   function updateDateRange() {
     const period = document.getElementById("reportPeriod").value;
@@ -410,6 +457,7 @@
       loadUserActivity(startDate, endDate),
       loadMostResponsiveCustomers(),
       loadCallHistoryAnalytics(startDate, endDate),
+      loadReturnsAnalytics(startDate, endDate),
       loadProblemCustomers(),
       loadSalesRepNeeded(),
     ]);
@@ -920,6 +968,98 @@
             beginAtZero: true,
             ticks: { stepSize: 1 },
           },
+        },
+      },
+    });
+  }
+
+  async function loadReturnsAnalytics(startDate, endDate) {
+    try {
+      const response = await fetch(
+        `/admin/api/reports/returns-analytics?start_date=${startDate}&end_date=${endDate}`
+      );
+      const data = await response.json();
+
+      document.getElementById('totalReturnsCount').textContent = data.total_returns;
+
+      if (data.reasons && data.reasons.length > 0) {
+        updateReturnReasonsChart(data.reasons);
+      } else {
+        const canvas = document.getElementById('returnReasonsChart');
+        const ctx = canvas.getContext('2d');
+        if (returnReasonsChart) {
+          returnReasonsChart.destroy();
+        }
+        canvas.style.display = 'none';
+      }
+
+      // Populate top returning customers
+      const customersList = document.getElementById('topReturningCustomers');
+      customersList.innerHTML = '';
+
+      if (data.top_customers && data.top_customers.length > 0) {
+        data.top_customers.forEach((customer, index) => {
+          const item = document.createElement('div');
+          item.className = 'd-flex justify-content-between align-items-center border-bottom py-2';
+          item.innerHTML = `
+            <div>
+              <div><strong>${index + 1}. ${customer.customer}</strong></div>
+            </div>
+            <span class="badge bg-warning text-dark">${customer.return_count} returns</span>
+          `;
+          customersList.appendChild(item);
+        });
+      } else {
+        customersList.innerHTML = '<p class="text-muted text-center small">No return data available</p>';
+      }
+    } catch (error) {
+      console.error('Error loading returns analytics:', error);
+      document.getElementById('totalReturnsCount').textContent = 'Error';
+      document.getElementById('topReturningCustomers').innerHTML =
+        '<p class="text-danger text-center small">Error loading data</p>';
+    }
+  }
+
+  function updateReturnReasonsChart(reasons) {
+    const ctx = document.getElementById('returnReasonsChart').getContext('2d');
+
+    if (returnReasonsChart) {
+      returnReasonsChart.destroy();
+    }
+
+    const canvas = document.getElementById('returnReasonsChart');
+    canvas.style.display = 'block';
+
+    returnReasonsChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: reasons.map(r => r.reason),
+        datasets: [{
+          data: reasons.map(r => r.count),
+          backgroundColor: [
+            '#dc3545', // Red for damaged
+            '#ffc107', // Yellow for wrong
+            '#17a2b8', // Cyan for overstock
+            '#6c757d', // Gray for other
+            '#e83e8c'  // Pink for unknown
+          ],
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed || 0;
+                const percentage = reasons[context.dataIndex].percentage;
+                return `${label}: ${value} (${percentage}%)`;
+              }
+            }
+          }
         },
       },
     });

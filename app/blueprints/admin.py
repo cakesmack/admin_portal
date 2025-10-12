@@ -992,6 +992,134 @@ def get_sales_rep_needed():
         return jsonify({'error': str(e)}), 500
 
 
+@admin_bp.route('/api/reports/returns-analytics')
+@login_required
+@admin_required
+def get_returns_analytics():
+    """Get returns form analytics - most used reasons and credit/uplift breakdown"""
+
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if start_date_str and end_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        end_date_inclusive = end_date + timedelta(days=1)
+    else:
+        start_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_date.month == 12:
+            end_date_inclusive = start_date.replace(year=start_date.year + 1, month=1)
+        else:
+            end_date_inclusive = start_date.replace(month=start_date.month + 1)
+
+    try:
+        import json
+
+        # Get all returns forms in the date range
+        returns_forms = Form.query.filter(
+            Form.type == 'returns',
+            Form.date_created >= start_date,
+            Form.date_created < end_date_inclusive
+        ).all()
+
+        if len(returns_forms) == 0:
+            return jsonify({
+                'total_returns': 0,
+                'reasons': [],
+                'credit_vs_uplift': {'credit': 0, 'uplift': 0},
+                'returns_by_day': [],
+                'top_customers': []
+            })
+
+        # Parse form data and collect statistics
+        reason_counts = {}
+        credit_uplift_counts = {'credit': 0, 'uplift': 0, 'unknown': 0}
+        customer_return_counts = {}
+
+        for form in returns_forms:
+            try:
+                form_data = json.loads(form.data)
+
+                # Count reasons
+                reason = form_data.get('reason', 'unknown')
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+                # Check for credit/uplift indicator (if exists in form data)
+                # Note: Based on the form structure, credit/uplift might be implied by the form type
+                # or could be a separate field. For now, we'll mark them as 'unknown' unless specified
+                form_type = form_data.get('form_type', 'unknown')
+                if 'credit' in form_type.lower():
+                    credit_uplift_counts['credit'] += 1
+                elif 'uplift' in form_type.lower():
+                    credit_uplift_counts['uplift'] += 1
+                else:
+                    credit_uplift_counts['unknown'] += 1
+
+                # Count returns by customer
+                customer_name = form_data.get('customer_name', 'Unknown')
+                customer_account = form_data.get('customer_account', '')
+                customer_key = f"{customer_account} - {customer_name}"
+                customer_return_counts[customer_key] = customer_return_counts.get(customer_key, 0) + 1
+
+            except json.JSONDecodeError:
+                logger.warning(f"Could not parse form data for form {form.id}")
+                continue
+
+        # Format reason counts with readable names
+        reason_display_names = {
+            'damaged': 'Damaged Product',
+            'wrong': 'Wrong Product Sent',
+            'overstock': 'Overstocked',
+            'other': 'Other',
+            'unknown': 'Unknown'
+        }
+
+        reasons = [
+            {
+                'reason': reason_display_names.get(reason, reason.title()),
+                'count': count,
+                'percentage': round((count / len(returns_forms) * 100), 1)
+            }
+            for reason, count in sorted(reason_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        # Returns by day for trend chart
+        returns_by_day_data = db.session.query(
+            func.date(Form.date_created).label('date'),
+            func.count(Form.id).label('count')
+        ).filter(
+            Form.type == 'returns',
+            Form.date_created >= start_date,
+            Form.date_created < end_date_inclusive
+        ).group_by(func.date(Form.date_created)).order_by(func.date(Form.date_created)).all()
+
+        returns_by_day = [
+            {'date': str(row.date), 'count': row.count}
+            for row in returns_by_day_data
+        ]
+
+        # Top customers with most returns
+        top_customers = [
+            {
+                'customer': customer,
+                'return_count': count
+            }
+            for customer, count in sorted(customer_return_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
+
+        return jsonify({
+            'total_returns': len(returns_forms),
+            'reasons': reasons,
+            'credit_vs_uplift': credit_uplift_counts,
+            'returns_by_day': returns_by_day,
+            'top_customers': top_customers
+        })
+
+    except Exception as e:
+        logger.error(f"Error in returns_analytics: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @admin_bp.route('/import-customers', methods=['GET', 'POST'])
 @login_required
 @admin_required

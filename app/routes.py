@@ -552,3 +552,4 @@ def get_recent_activity():
             activity['timestamp'] = activity['timestamp'].isoformat()
 
     return jsonify(activities)
+    
