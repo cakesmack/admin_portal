@@ -2,6 +2,9 @@ from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -39,13 +42,13 @@ class User(db.Model, UserMixin):
         """Check if provided password matches hash"""
         if not self.password_hash:
             # Handle case where password_hash is None or empty
-            print(f"Warning: User {self.username} has no password hash")
+            logger.warning(f"User {self.username} has no password hash")
             return False
-        
+
         try:
             return check_password_hash(self.password_hash, password)
         except (ValueError, AttributeError) as e:
-            print(f"Error checking password for user {self.username}: {e}")
+            logger.error(f"Error checking password for user {self.username}: {e}", exc_info=True)
             return False
     
     def generate_temp_password(self):
@@ -72,8 +75,8 @@ class User(db.Model, UserMixin):
                     'link': f'/form/{form.id}'
                 })
         except Exception as e:
-            print(f"Error loading forms for user {self.id}: {e}")
-        
+            logger.error(f"Error loading forms for user {self.id}: {e}", exc_info=True)
+
         try:
             # Recent company updates by this user
             recent_updates = CompanyUpdate.query.filter_by(user_id=self.id).order_by(CompanyUpdate.created_at.desc()).limit(3).all()
@@ -85,8 +88,8 @@ class User(db.Model, UserMixin):
                     'link': None
                 })
         except Exception as e:
-            print(f"Error loading company updates for user {self.id}: {e}")
-        
+            logger.error(f"Error loading company updates for user {self.id}: {e}", exc_info=True)
+
         try:
             # Recent callsheet activity by this user
             # Note: Fixed the relationship issue by using proper query
@@ -99,7 +102,7 @@ class User(db.Model, UserMixin):
                     'link': '/callsheets'
                 })
         except Exception as e:
-            print(f"Error loading callsheet entries for user {self.id}: {e}")
+            logger.error(f"Error loading callsheet entries for user {self.id}: {e}", exc_info=True)
         
         try:
             # Recent forms completed by this user
@@ -115,8 +118,8 @@ class User(db.Model, UserMixin):
                     'link': f'/form/{form.id}'
                 })
         except Exception as e:
-            print(f"Error loading completed forms for user {self.id}: {e}")
-        
+            logger.error(f"Error loading completed forms for user {self.id}: {e}", exc_info=True)
+
         # Try to load standing order activities if the models exist
         try:
             # Recent standing order creation
@@ -130,7 +133,7 @@ class User(db.Model, UserMixin):
                         'link': f'/standing-orders/{order.id}'
                     })
         except Exception as e:
-            print(f"Error loading standing orders for user {self.id}: {e}")
+            logger.error(f"Error loading standing orders for user {self.id}: {e}", exc_info=True)
         
         try:
             # Recent standing order actions if the models exist
@@ -153,8 +156,8 @@ class User(db.Model, UserMixin):
                         'link': f'/standing-orders/{log.standing_order_id}'
                     })
         except Exception as e:
-            print(f"Error loading standing order logs for user {self.id}: {e}")
-        
+            logger.error(f"Error loading standing order logs for user {self.id}: {e}", exc_info=True)
+
         try:
             # Recent stock transactions if the models exist
             if 'StockTransaction' in globals():
@@ -162,10 +165,10 @@ class User(db.Model, UserMixin):
                 for transaction in recent_stock_transactions:
                     transaction_types = {
                         'stock_in': 'Added stock for',
-                        'stock_out': 'Processed stock order for', 
+                        'stock_out': 'Processed stock order for',
                         'adjustment': 'Adjusted stock for'
                     }
-                    
+
                     description = transaction_types.get(transaction.transaction_type, 'Updated stock for')
                     activities.append({
                         'type': f'stock_{transaction.transaction_type}',
@@ -174,7 +177,7 @@ class User(db.Model, UserMixin):
                         'link': '/customer-stock'
                     })
         except Exception as e:
-            print(f"Error loading stock transactions for user {self.id}: {e}")
+            logger.error(f"Error loading stock transactions for user {self.id}: {e}", exc_info=True)
         
         # Sort by date and return limited results
         activities.sort(key=lambda x: x['date'], reverse=True)
@@ -372,6 +375,48 @@ class CallsheetEntry(db.Model):
         db.Index('idx_callsheet_position', 'callsheet_id', 'position'),
         db.Index('idx_callsheet_status', 'callsheet_id', 'is_paused'),
     )
+
+class CallHistory(db.Model):
+    """Track every call attempt for analysis and reporting"""
+    __tablename__ = 'call_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    callsheet_id = db.Column(db.Integer, db.ForeignKey('callsheet.id'), nullable=True)
+
+    # Call details
+    call_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    call_status = db.Column(db.String(20), nullable=False)  # no_answer, declined, ordered, callback
+    called_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    person_spoken_to = db.Column(db.String(100))
+
+    # Week/Month tracking for patterns
+    week_number = db.Column(db.Integer, index=True)  # ISO week number
+    year = db.Column(db.Integer, index=True)
+
+    # Relationships
+    customer = db.relationship('Customer', backref='call_history')
+    caller = db.relationship('User', backref='calls_made')
+
+    __table_args__ = (
+        db.Index('idx_call_history_customer_date', 'customer_id', 'call_date'),
+        db.Index('idx_call_history_status', 'call_status'),
+        db.Index('idx_call_history_week', 'year', 'week_number'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'customer_id': self.customer_id,
+            'customer_name': self.customer.name,
+            'customer_account': self.customer.account_number,
+            'call_date': self.call_date.isoformat(),
+            'call_status': self.call_status,
+            'called_by': self.caller.username,
+            'person_spoken_to': self.person_spoken_to,
+            'week_number': self.week_number,
+            'year': self.year
+        }
 
 class CallsheetArchive(db.Model):
     """Store archived callsheet data for historical viewing"""

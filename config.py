@@ -24,7 +24,7 @@ class Config:
     
     # Ensure SECRET_KEY is long enough
     if len(SECRET_KEY) < 32:
-        print("⚠️  WARNING: SECRET_KEY is shorter than recommended (32+ characters)")
+        print("[WARNING] SECRET_KEY is shorter than recommended (32+ characters)")
     
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///admin_portal.db'
@@ -97,7 +97,7 @@ def get_config():
     config_class = config_map.get(env, DevelopmentConfig)
     
     # Print configuration info (but not the actual SECRET_KEY!)
-    print(f"🔧 Loading {config_class.__name__}")
+    print(f"[CONFIG] Loading {config_class.__name__}")
     print(f"   Environment: {env}")
     print(f"   Debug: {config_class.DEBUG}")
     print(f"   Database: {config_class.SQLALCHEMY_DATABASE_URI}")

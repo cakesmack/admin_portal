@@ -141,7 +141,7 @@
             <td>{{ delivery.data.get('quantity_delivered', 'N/A') }}</td>
             <td>{{ delivery.data.get('current_stock', 'N/A') }}</td>
             <td>
-              <a href="{{ url_for('main.print_form', form_id=delivery.id) }}" class="btn btn-sm btn-primary" target="_blank">
+              <a href="{{ url_for('forms.print_form', form_id=delivery.id) }}" class="btn btn-sm btn-primary" target="_blank">
                 <i class="bi bi-printer"></i> Print
               </a>
             </td>

@@ -4,13 +4,13 @@
   <h2>Credit / Uplift Form - #{{ form_id }}</h2>
   <div>
     <a
-      href="{{ url_for('main.print_form', form_id=form_id) }}"
+      href="{{ url_for('forms.print_form', form_id=form_id) }}"
       class="btn btn-primary"
       target="_blank"
     >
       <i class="bi bi-printer"></i> Print Form
     </a>
-    <a href="{{ url_for('main.forms') }}" class="btn btn-secondary">
+    <a href="{{ url_for('forms.list_forms') }}" class="btn btn-secondary">
       <i class="bi bi-arrow-left"></i> Back to Forms
     </a>
   </div>
@@ -146,13 +146,13 @@
 <div class="card">
   <div class="card-body text-center">
     <a
-      href="{{ url_for('main.print_form', form_id=form_id) }}"
+      href="{{ url_for('forms.print_form', form_id=form_id) }}"
       class="btn btn-lg btn-primary"
       target="_blank"
     >
       <i class="bi bi-printer"></i> Print Form
     </a>
-    <a href="{{ url_for('main.forms') }}" class="btn btn-lg btn-secondary">
+    <a href="{{ url_for('forms.list_forms') }}" class="btn btn-lg btn-secondary">
       <i class="bi bi-list"></i> View All Forms
     </a>
     <button

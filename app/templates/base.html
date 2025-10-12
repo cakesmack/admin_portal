@@ -115,7 +115,7 @@
         <div class="nav-section">
           <div class="nav-section-title">Forms</div>
           <div class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.returns') }}">
+            <a class="nav-link" href="{{ url_for('forms.returns') }}">
               <i class="bi bi-arrow-return-left"></i>
               Returns
             </a>
@@ -130,13 +130,13 @@
             </a>
           </div>
           <div class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.invoice_correction') }}">
+            <a class="nav-link" href="{{ url_for('forms.invoice_correction') }}">
               <i class="bi bi-receipt-cutoff"></i>
               Invoiced Goods
             </a>
           </div>
           <div class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.forms') }}">
+            <a class="nav-link" href="{{ url_for('forms.list_forms') }}">
               <i class="bi bi-file-earmark-text"></i>
               View All Forms
             </a>
@@ -1195,40 +1195,82 @@
         ).show();
       }
 
-      async function loadCustomerList() {
+      let customerListPage = 1;
+      let customerListLoading = false;
+      let customerListHasMore = true;
+      let customerSearchTerm = '';
+
+      async function loadCustomerList(reset = false) {
+        if (customerListLoading) return;
+        if (!reset && !customerListHasMore) return;
+
+        customerListLoading = true;
+
+        if (reset) {
+          customerListPage = 1;
+          customerListHasMore = true;
+        }
+
         try {
-          const response = await fetch("/api/customers/directory");
-          const customers = await response.json();
+          const searchParam = customerSearchTerm ? `&search=${encodeURIComponent(customerSearchTerm)}` : '';
+          const response = await fetch(`/customers/api/directory?page=${customerListPage}&per_page=50${searchParam}`);
+          const data = await response.json();
 
           const customerList = document.getElementById("customerList");
-          customerList.innerHTML = "";
 
-          customers.forEach((customer) => {
-            const listItem = document.createElement("a");
-            listItem.href = "#";
-            listItem.className =
-              "list-group-item list-group-item-action customer-item";
-            listItem.onclick = (e) => {
-              e.preventDefault();
-              showCustomerDetails(customer.id, listItem);
-            };
-            listItem.innerHTML = `
-        <div class="d-flex w-100 justify-content-between">
-          <h6 class="mb-1">${customer.name}</h6>
-          <small class="text-muted">${customer.account_number}</small>
-        </div>
-        <p class="mb-1 text-muted">${
-          customer.contact_name || "No contact name"
-        }</p>
-        <small class="text-muted">${customer.phone || "No phone number"}</small>
-      `;
-            customerList.appendChild(listItem);
-          });
+          if (reset) {
+            customerList.innerHTML = "";
+          }
+
+          if (data.customers && data.customers.length > 0) {
+            data.customers.forEach((customer) => {
+              const listItem = document.createElement("a");
+              listItem.href = "#";
+              listItem.className =
+                "list-group-item list-group-item-action customer-item";
+              listItem.onclick = (e) => {
+                e.preventDefault();
+                showCustomerDetails(customer.id, listItem);
+              };
+              listItem.innerHTML = `
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1">${customer.name}</h6>
+              <small class="text-muted">${customer.account_number}</small>
+            </div>
+            <p class="mb-1 text-muted">${
+              customer.contact_name || "No contact name"
+            }</p>
+            <small class="text-muted">${customer.phone || "No phone number"}</small>
+          `;
+              customerList.appendChild(listItem);
+            });
+
+            customerListPage++;
+            customerListHasMore = data.has_next;
+
+            // Add "Load More" button if there are more pages
+            if (customerListHasMore) {
+              const loadMoreBtn = document.createElement("button");
+              loadMoreBtn.className = "btn btn-sm btn-outline-primary w-100 mt-2";
+              loadMoreBtn.textContent = `Load More (${data.total} total customers)`;
+              loadMoreBtn.onclick = () => {
+                loadMoreBtn.remove();
+                loadCustomerList(false);
+              };
+              customerList.appendChild(loadMoreBtn);
+            }
+          } else if (reset) {
+            customerList.innerHTML = '<div class="alert alert-info">No customers found</div>';
+          }
         } catch (error) {
           console.error("Error loading customers:", error);
           const customerList = document.getElementById("customerList");
-          customerList.innerHTML =
-            '<div class="alert alert-danger">Error loading customers</div>';
+          if (reset) {
+            customerList.innerHTML =
+              '<div class="alert alert-danger">Error loading customers</div>';
+          }
+        } finally {
+          customerListLoading = false;
         }
       }
 
@@ -1242,7 +1284,7 @@
             clickedElement.classList.add("active");
           }
 
-          const response = await fetch(`/api/customer/${customerId}`);
+          const response = await fetch(`/customers/api/${customerId}`);
           const customer = await response.json();
 
           // Normalize customer to have addresses array
@@ -1511,7 +1553,7 @@
 
       async function showEditCustomerForm(customerId) {
         try {
-          const response = await fetch(`/api/customer/${customerId}`);
+          const response = await fetch(`/customers/api/${customerId}`);
           if (!response.ok) {
             throw new Error("Failed to fetch customer data");
           }
@@ -1719,7 +1761,7 @@
         }
 
         try {
-          const response = await fetch("/api/customers", {
+          const response = await fetch("/customers/api", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
@@ -1794,16 +1836,23 @@
         }
       }
 
-      function filterCustomers() {
-        const searchTerm = document
-          .getElementById("customerSearch")
-          .value.toLowerCase();
-        const customerItems = document.querySelectorAll(".customer-item");
+      // Debounce timer for search
+      let customerSearchTimeout = null;
 
-        customerItems.forEach((item) => {
-          const text = item.textContent.toLowerCase();
-          item.style.display = text.includes(searchTerm) ? "block" : "none";
-        });
+      function filterCustomers() {
+        // Clear existing timeout
+        if (customerSearchTimeout) {
+          clearTimeout(customerSearchTimeout);
+        }
+
+        // Set new timeout to avoid too many API calls while typing
+        customerSearchTimeout = setTimeout(() => {
+          const searchTerm = document.getElementById("customerSearch").value.trim();
+          customerSearchTerm = searchTerm;
+
+          // Reset and reload with search term
+          loadCustomerList(true);
+        }, 300); // Wait 300ms after user stops typing
       }
 
       function copyToClipboard(text) {

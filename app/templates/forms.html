@@ -24,7 +24,7 @@
     <h5 class="mb-0"><i class="bi bi-funnel"></i> Filters</h5>
   </div>
   <div class="card-body">
-    <form method="GET" action="{{ url_for('main.forms') }}" id="filterForm">
+    <form method="GET" action="{{ url_for('forms.list_forms') }}" id="filterForm">
       <input type="hidden" name="show_archived" value="{{ current_filters.show_archived|lower }}">
       <div class="row">
         <div class="col-md-3 mb-3">
@@ -145,11 +145,11 @@
             </td>
             <td>
               <div class="btn-group btn-group-sm" role="group">
-                <a href="{{ url_for('main.view_form', form_id=form.id) }}" 
+                <a href="{{ url_for('forms.view_form', form_id=form.id) }}" 
                    class="btn btn-info" title="View">
                   <i class="bi bi-eye"></i>
                 </a>
-                <a href="{{ url_for('main.print_form', form_id=form.id) }}" 
+                <a href="{{ url_for('forms.print_form', form_id=form.id) }}" 
                    class="btn btn-primary" target="_blank" title="Print">
                   <i class="bi bi-printer"></i>
                 </a>
@@ -236,7 +236,7 @@
 <script>
 function completeForm(formId) {
   if (confirm('Mark this form as completed?')) {
-    fetch(`/api/form/${formId}/complete`, {
+    fetch(`/forms/${formId}/complete`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'}
     })
@@ -253,7 +253,7 @@ function completeForm(formId) {
 
 function archiveForm(formId) {
   if (confirm('Archive this form? It will be removed from the active list.')) {
-    fetch(`/api/form/${formId}/archive`, {
+    fetch(`/forms/${formId}/archive`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'}
     })
@@ -270,7 +270,7 @@ function archiveForm(formId) {
 
 function unarchiveForm(formId) {
   if (confirm('Restore this form from archive?')) {
-    fetch(`/api/form/${formId}/unarchive`, {
+    fetch(`/forms/${formId}/unarchive`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'}
     })
@@ -286,7 +286,7 @@ function unarchiveForm(formId) {
 }
 
 function resetFilters() {
-  window.location.href = '{{ url_for("main.forms") }}';
+  window.location.href = '{{ url_for("forms.list_forms") }}';
 }
 
 function toggleArchived() {

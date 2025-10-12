@@ -1,12 +1,15 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import Callsheet, CallsheetEntry, CallsheetArchive, Customer, User
+from app.models import Callsheet, CallsheetEntry, CallsheetArchive, Customer, User, CallHistory
 from datetime import datetime, date, timedelta
-from sqlalchemy.orm import joinedload 
+from sqlalchemy.orm import joinedload
 import json
 import calendar
 from sqlalchemy import func
+import logging
+
+logger = logging.getLogger(__name__)
 
 callsheets_bp = Blueprint('callsheets', __name__, url_prefix='/callsheets')
 
@@ -220,39 +223,62 @@ def update_callsheet_entry_status(entry_id):
     """Update call status with automatic tracking"""
     entry = CallsheetEntry.query.get_or_404(entry_id)
     data = request.json
-    
+
     try:
         # Update call status
         if 'call_status' in data:
-            entry.call_status = data['call_status']
-            
+            new_status = data['call_status']
+            old_status = entry.call_status
+            entry.call_status = new_status
+
             # Record who called and when (if status changed from not_called)
-            if data['call_status'] != 'not_called' and entry.called_by is None:
+            if new_status != 'not_called' and entry.called_by is None:
                 entry.called_by = current_user.username
                 entry.call_date = datetime.now()
-            
+
             # Handle person_spoken_to for ALL statuses (not just ordered)
             if 'person_spoken_to' in data:
                 entry.person_spoken_to = data['person_spoken_to']
-            
+
             # Handle callback time
-            if data['call_status'] == 'callback' and 'callback_time' in data:
+            if new_status == 'callback' and 'callback_time' in data:
                 entry.callback_time = data['callback_time']
-        
+
+            # Track this call in history (skip if status is 'not_called')
+            if new_status != 'not_called' and old_status != new_status:
+                try:
+                    now = datetime.now()
+                    call_history = CallHistory(
+                        customer_id=entry.customer_id,
+                        callsheet_id=entry.callsheet_id,
+                        call_date=now,
+                        call_status=new_status,
+                        called_by=current_user.id,
+                        person_spoken_to=entry.person_spoken_to,
+                        week_number=now.isocalendar()[1],  # ISO week number
+                        year=now.year
+                    )
+                    db.session.add(call_history)
+                    logger.info(f"Call history tracked: Customer {entry.customer_id}, Status {new_status}")
+                except Exception as e:
+                    logger.error(f"Failed to track call history: {e}", exc_info=True)
+                    # Don't fail the main operation if history tracking fails
+
         # Track who made the update
         entry.user_id = current_user.id
         entry.updated_at = datetime.now()
-        
+
         db.session.commit()
-        
+
         return jsonify({
-            'success': True, 
+            'success': True,
             'message': 'Entry updated successfully',
             'updated_by': current_user.username,
             'updated_at': entry.updated_at.strftime('%Y-%m-%d %H:%M')
         })
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error updating callsheet entry status: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 400
 
 @callsheets_bp.route('/api/callsheet-entry/<int:entry_id>/update-notes', methods=['POST'])

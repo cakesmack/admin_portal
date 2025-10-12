@@ -2,9 +2,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-import logging
-from logging.handlers import RotatingFileHandler
-import os
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -20,23 +17,27 @@ def create_app():
         from config import get_config
         config_class = get_config()
         app.config.from_object(config_class)
-        
-        print(f"✅ Configuration loaded successfully")
+
+        print(f"[SUCCESS] Configuration loaded successfully")
         print(f"   SECRET_KEY length: {len(app.config['SECRET_KEY'])} characters")
-        
+
     except ValueError as e:
-        print(f"❌ Configuration Error: {e}")
+        print(f"[ERROR] Configuration Error: {e}")
         print("Please run: python generate_secret_key.py")
         raise
     except Exception as e:
-        print(f"❌ Failed to load configuration: {e}")
+        print(f"[ERROR] Failed to load configuration: {e}")
         raise
-    
+
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    
+
+    # Setup comprehensive logging
+    from app.logging_config import setup_logging
+    setup_logging(app)
+
     # Register blueprints
     from app.routes import main
     from app.blueprints.auth import auth_bp
@@ -45,7 +46,10 @@ def create_app():
     from app.blueprints.customer_stock import customer_stock_bp
     from app.blueprints.admin import admin_bp
     from app.blueprints.clearance_stock import clearance_stock_bp
-    
+    from app.blueprints.forms import forms_bp
+    from app.blueprints.customers import customers_bp
+    from app.blueprints.company_updates import company_updates_bp
+
     app.register_blueprint(main)
     app.register_blueprint(auth_bp)
     app.register_blueprint(standing_orders_bp)
@@ -53,8 +57,9 @@ def create_app():
     app.register_blueprint(customer_stock_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(clearance_stock_bp)
-
-
+    app.register_blueprint(forms_bp)
+    app.register_blueprint(customers_bp)
+    app.register_blueprint(company_updates_bp)
 
     # Add security headers in production
     if app.config.get('FLASK_ENV') == 'production':
@@ -64,29 +69,5 @@ def create_app():
             for header, value in headers.items():
                 response.headers[header] = value
             return response
-    
-    # ADD THIS SECTION - Logging Setup
-    if not app.debug:
-        # Create logs directory if it doesn't exist
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        
-        # Set up file handler with rotation
-        file_handler = RotatingFileHandler(
-            'logs/app.log', 
-            maxBytes=10485760,  # 10MB
-            backupCount=10
-        )
-        
-        # Set logging format
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        
-        # Set logging level
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Application startup')
-    
+
     return app

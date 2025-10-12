@@ -2,11 +2,14 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from functools import wraps
 from app import db
-from app.models import (User, Customer, Form, CallsheetEntry, Callsheet, StandingOrder, 
-                       StandingOrderLog, StockTransaction, CustomerStock, CompanyUpdate, Product)
+from app.models import (User, Customer, Form, CallsheetEntry, Callsheet, StandingOrder,
+                       StandingOrderLog, StockTransaction, CustomerStock, CompanyUpdate, Product, CallHistory)
 from datetime import datetime, timedelta
-from sqlalchemy import func, cast, Date, extract, case, and_
+from sqlalchemy import func, cast, Date, extract, case, and_, desc
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -92,15 +95,40 @@ def get_report_summary():
         StockTransaction.transaction_date >= start_date.date(),
         StockTransaction.transaction_date < end_date.date()
     ).count()
-    
+
+    # Callsheet entries count and by_status using CallHistory
+    callsheet_entries = CallHistory.query.filter(
+        CallHistory.call_date >= start_date,
+        CallHistory.call_date < end_date_inclusive
+    ).count()
+
+    # Callsheet by status
+    callsheet_by_status = db.session.query(
+        CallHistory.call_status,
+        func.count(CallHistory.id)
+    ).filter(
+        CallHistory.call_date >= start_date,
+        CallHistory.call_date < end_date_inclusive
+    ).group_by(CallHistory.call_status).all()
+
     return jsonify({
-        'total_forms': total_forms,
-        'completed_forms': completed_forms,
-        'forms_by_type': [{'type': t, 'count': c} for t, c in forms_by_type],
-        'active_standing_orders': active_standing_orders,
-        'paused_standing_orders': paused_standing_orders,
-        'standing_orders_created': standing_orders_created,
-        'stock_transactions': stock_transactions
+        'forms': {
+            'total': total_forms,
+            'completed': completed_forms,
+            'by_type': [{'type': t, 'count': c} for t, c in forms_by_type]
+        },
+        'standing_orders': {
+            'active': active_standing_orders,
+            'paused': paused_standing_orders,
+            'created_this_period': standing_orders_created
+        },
+        'stock': {
+            'total_transactions': stock_transactions
+        },
+        'callsheets': {
+            'total_entries': callsheet_entries,
+            'by_status': [{'status': s, 'count': c} for s, c in callsheet_by_status]
+        }
     })
 
 @admin_bp.route('/api/reports/daily-activity')
@@ -611,6 +639,358 @@ def get_additional_analytics():
             'ended': so_ended
         }
     })
+
+@admin_bp.route('/api/reports/call-history-analytics')
+@login_required
+@admin_required
+def get_call_history_analytics():
+    """Get comprehensive call history analytics using CallHistory model"""
+
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if start_date_str and end_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        end_date_inclusive = end_date + timedelta(days=1)
+    else:
+        # Default to last 30 days
+        end_date_inclusive = datetime.now()
+        start_date = end_date_inclusive - timedelta(days=30)
+
+    try:
+        # Overall call statistics from CallHistory
+        total_calls = CallHistory.query.filter(
+            CallHistory.call_date >= start_date,
+            CallHistory.call_date < end_date_inclusive
+        ).count()
+
+        if total_calls == 0:
+            return jsonify({
+                'total_calls': 0,
+                'success_rate': 0,
+                'decline_rate': 0,
+                'no_answer_rate': 0,
+                'callback_rate': 0,
+                'calls_by_week': [],
+                'status_breakdown': [],
+                'top_callers': [],
+                'daily_trends': []
+            })
+
+        # Status breakdown
+        status_counts = db.session.query(
+            CallHistory.call_status,
+            func.count(CallHistory.id).label('count')
+        ).filter(
+            CallHistory.call_date >= start_date,
+            CallHistory.call_date < end_date_inclusive
+        ).group_by(CallHistory.call_status).all()
+
+        status_breakdown = [{'status': s, 'count': c} for s, c in status_counts]
+
+        # Calculate rates
+        ordered_count = next((c for s, c in status_counts if s == 'ordered'), 0)
+        declined_count = next((c for s, c in status_counts if s == 'declined'), 0)
+        no_answer_count = next((c for s, c in status_counts if s == 'no_answer'), 0)
+        callback_count = next((c for s, c in status_counts if s == 'callback'), 0)
+
+        success_rate = round((ordered_count / total_calls * 100) if total_calls > 0 else 0, 1)
+        decline_rate = round((declined_count / total_calls * 100) if total_calls > 0 else 0, 1)
+        no_answer_rate = round((no_answer_count / total_calls * 100) if total_calls > 0 else 0, 1)
+        callback_rate = round((callback_count / total_calls * 100) if total_calls > 0 else 0, 1)
+
+        # Weekly trends
+        weekly_data = db.session.query(
+            CallHistory.year,
+            CallHistory.week_number,
+            func.count(CallHistory.id).label('total'),
+            func.sum(case((CallHistory.call_status == 'ordered', 1), else_=0)).label('ordered'),
+            func.sum(case((CallHistory.call_status == 'declined', 1), else_=0)).label('declined'),
+            func.sum(case((CallHistory.call_status == 'no_answer', 1), else_=0)).label('no_answer')
+        ).filter(
+            CallHistory.call_date >= start_date,
+            CallHistory.call_date < end_date_inclusive
+        ).group_by(CallHistory.year, CallHistory.week_number).order_by(
+            CallHistory.year, CallHistory.week_number
+        ).all()
+
+        calls_by_week = []
+        for row in weekly_data:
+            week_success_rate = round((row.ordered / row.total * 100) if row.total > 0 else 0, 1)
+            calls_by_week.append({
+                'year': row.year,
+                'week': row.week_number,
+                'total': row.total,
+                'ordered': row.ordered,
+                'declined': row.declined,
+                'no_answer': row.no_answer,
+                'success_rate': week_success_rate
+            })
+
+        # Top callers performance
+        top_callers_data = db.session.query(
+            User.id,
+            User.username,
+            User.full_name,
+            func.count(CallHistory.id).label('total'),
+            func.sum(case((CallHistory.call_status == 'ordered', 1), else_=0)).label('ordered')
+        ).join(CallHistory, CallHistory.called_by == User.id).filter(
+            CallHistory.call_date >= start_date,
+            CallHistory.call_date < end_date_inclusive
+        ).group_by(User.id).all()
+
+        top_callers = []
+        for row in top_callers_data:
+            caller_success_rate = round((row.ordered / row.total * 100) if row.total > 0 else 0, 1)
+            top_callers.append({
+                'id': row.id,
+                'username': row.username,
+                'full_name': row.full_name,
+                'total_calls': row.total,
+                'orders': row.ordered,
+                'success_rate': caller_success_rate
+            })
+
+        top_callers.sort(key=lambda x: x['total_calls'], reverse=True)
+
+        # Daily trends (last 14 days for chart)
+        daily_start = end_date_inclusive - timedelta(days=14)
+        daily_data = db.session.query(
+            func.date(CallHistory.call_date).label('date'),
+            func.count(CallHistory.id).label('total'),
+            func.sum(case((CallHistory.call_status == 'ordered', 1), else_=0)).label('ordered')
+        ).filter(
+            CallHistory.call_date >= daily_start,
+            CallHistory.call_date < end_date_inclusive
+        ).group_by(func.date(CallHistory.call_date)).order_by(func.date(CallHistory.call_date)).all()
+
+        daily_trends = []
+        for row in daily_data:
+            daily_success_rate = round((row.ordered / row.total * 100) if row.total > 0 else 0, 1)
+            daily_trends.append({
+                'date': str(row.date),
+                'total': row.total,
+                'ordered': row.ordered,
+                'success_rate': daily_success_rate
+            })
+
+        return jsonify({
+            'total_calls': total_calls,
+            'success_rate': success_rate,
+            'decline_rate': decline_rate,
+            'no_answer_rate': no_answer_rate,
+            'callback_rate': callback_rate,
+            'calls_by_week': calls_by_week,
+            'status_breakdown': status_breakdown,
+            'top_callers': top_callers[:10],
+            'daily_trends': daily_trends
+        })
+
+    except Exception as e:
+        logger.error(f"Error in call_history_analytics: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/api/reports/problem-customers')
+@login_required
+@admin_required
+def get_problem_customers():
+    """Identify customers with high decline/no-answer rates that need attention"""
+
+    # Get parameters
+    min_calls = request.args.get('min_calls', default=3, type=int)  # Minimum calls to be considered
+    days_lookback = request.args.get('days', default=60, type=int)  # How far back to look
+    decline_threshold = request.args.get('decline_threshold', default=50, type=int)  # % decline rate
+    no_answer_threshold = request.args.get('no_answer_threshold', default=60, type=int)  # % no answer rate
+
+    cutoff_date = datetime.now() - timedelta(days=days_lookback)
+
+    try:
+        # Get customer call patterns from CallHistory
+        customer_patterns = db.session.query(
+            Customer.id,
+            Customer.name,
+            Customer.account_number,
+            Customer.phone,
+            Customer.email,
+            Customer.contact_name,
+            func.count(CallHistory.id).label('total_calls'),
+            func.sum(case((CallHistory.call_status == 'ordered', 1), else_=0)).label('ordered'),
+            func.sum(case((CallHistory.call_status == 'declined', 1), else_=0)).label('declined'),
+            func.sum(case((CallHistory.call_status == 'no_answer', 1), else_=0)).label('no_answer'),
+            func.max(CallHistory.call_date).label('last_call_date')
+        ).join(CallHistory).filter(
+            CallHistory.call_date >= cutoff_date
+        ).group_by(Customer.id).having(
+            func.count(CallHistory.id) >= min_calls
+        ).all()
+
+        problem_customers = []
+        for row in customer_patterns:
+            decline_rate = round((row.declined / row.total_calls * 100) if row.total_calls > 0 else 0, 1)
+            no_answer_rate = round((row.no_answer / row.total_calls * 100) if row.total_calls > 0 else 0, 1)
+            order_rate = round((row.ordered / row.total_calls * 100) if row.total_calls > 0 else 0, 1)
+
+            # Determine problem type and recommendation
+            problem_type = None
+            recommendation = None
+            priority = 0
+
+            if decline_rate >= decline_threshold:
+                problem_type = 'High Decline Rate'
+                recommendation = 'Sales rep visit recommended - customer consistently declines phone orders'
+                priority = 3  # High priority
+            elif no_answer_rate >= no_answer_threshold:
+                problem_type = 'Hard to Reach'
+                recommendation = 'Update contact information or try different call times'
+                priority = 2  # Medium priority
+            elif row.ordered == 0 and row.total_calls >= 5:
+                problem_type = 'Never Ordered'
+                recommendation = 'Sales rep visit needed - no phone success after multiple attempts'
+                priority = 3  # High priority
+
+            if problem_type:
+                problem_customers.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'account_number': row.account_number,
+                    'phone': row.phone,
+                    'email': row.email,
+                    'contact_name': row.contact_name,
+                    'total_calls': row.total_calls,
+                    'ordered': row.ordered,
+                    'declined': row.declined,
+                    'no_answer': row.no_answer,
+                    'decline_rate': decline_rate,
+                    'no_answer_rate': no_answer_rate,
+                    'order_rate': order_rate,
+                    'last_call_date': row.last_call_date.isoformat() if row.last_call_date else None,
+                    'problem_type': problem_type,
+                    'recommendation': recommendation,
+                    'priority': priority
+                })
+
+        # Sort by priority (high to low) then by decline rate
+        problem_customers.sort(key=lambda x: (x['priority'], x['decline_rate']), reverse=True)
+
+        return jsonify({
+            'total_problem_customers': len(problem_customers),
+            'high_priority': len([c for c in problem_customers if c['priority'] == 3]),
+            'medium_priority': len([c for c in problem_customers if c['priority'] == 2]),
+            'customers': problem_customers
+        })
+
+    except Exception as e:
+        logger.error(f"Error in problem_customers: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/api/reports/sales-rep-needed')
+@login_required
+@admin_required
+def get_sales_rep_needed():
+    """Get list of customers who need a sales rep visit with detailed reasoning"""
+
+    days_lookback = request.args.get('days', default=90, type=int)
+    cutoff_date = datetime.now() - timedelta(days=days_lookback)
+
+    try:
+        # Get all customers with their call history
+        customer_data = db.session.query(
+            Customer.id,
+            Customer.name,
+            Customer.account_number,
+            Customer.phone,
+            Customer.email,
+            Customer.contact_name,
+            Customer.address,
+            func.count(CallHistory.id).label('total_calls'),
+            func.sum(case((CallHistory.call_status == 'ordered', 1), else_=0)).label('ordered'),
+            func.sum(case((CallHistory.call_status == 'declined', 1), else_=0)).label('declined'),
+            func.sum(case((CallHistory.call_status == 'no_answer', 1), else_=0)).label('no_answer'),
+            func.max(CallHistory.call_date).label('last_call_date')
+        ).join(CallHistory).filter(
+            CallHistory.call_date >= cutoff_date
+        ).group_by(Customer.id).all()
+
+        sales_rep_needed = []
+        for row in customer_data:
+            if row.total_calls < 2:
+                continue  # Need at least 2 calls to make a determination
+
+            decline_rate = round((row.declined / row.total_calls * 100) if row.total_calls > 0 else 0, 1)
+            order_rate = round((row.ordered / row.total_calls * 100) if row.total_calls > 0 else 0, 1)
+
+            reasons = []
+            score = 0  # Priority score (higher = more urgent)
+
+            # Criteria for needing sales rep visit
+
+            # 1. High decline rate (50%+)
+            if decline_rate >= 50 and row.total_calls >= 3:
+                reasons.append(f'{decline_rate}% decline rate - customer prefers not to order by phone')
+                score += 10
+
+            # 2. Never ordered despite multiple calls
+            if row.ordered == 0 and row.total_calls >= 5:
+                reasons.append(f'{row.total_calls} calls with no orders - phone approach ineffective')
+                score += 15
+
+            # 3. Very high decline rate (75%+)
+            if decline_rate >= 75:
+                reasons.append(f'{decline_rate}% decline rate - strong resistance to phone orders')
+                score += 5
+
+            # 4. Mix of declines and no answers (difficult customer)
+            if row.declined >= 2 and row.no_answer >= 2:
+                reasons.append('Mixed decline and no-answer pattern - inconsistent engagement')
+                score += 3
+
+            # 5. Low order rate with many attempts
+            if order_rate < 20 and row.total_calls >= 4:
+                reasons.append(f'Only {order_rate}% order rate after {row.total_calls} attempts')
+                score += 8
+
+            # If there are reasons, add to the list
+            if reasons:
+                days_since_last_call = (datetime.now() - row.last_call_date).days if row.last_call_date else 0
+
+                sales_rep_needed.append({
+                    'id': row.id,
+                    'name': row.name,
+                    'account_number': row.account_number,
+                    'phone': row.phone,
+                    'email': row.email,
+                    'contact_name': row.contact_name,
+                    'address': row.address,
+                    'total_calls': row.total_calls,
+                    'ordered': row.ordered,
+                    'declined': row.declined,
+                    'no_answer': row.no_answer,
+                    'decline_rate': decline_rate,
+                    'order_rate': order_rate,
+                    'last_call_date': row.last_call_date.isoformat() if row.last_call_date else None,
+                    'days_since_last_call': days_since_last_call,
+                    'reasons': reasons,
+                    'priority_score': score
+                })
+
+        # Sort by priority score (highest first)
+        sales_rep_needed.sort(key=lambda x: x['priority_score'], reverse=True)
+
+        return jsonify({
+            'total_customers': len(sales_rep_needed),
+            'high_priority': len([c for c in sales_rep_needed if c['priority_score'] >= 15]),
+            'medium_priority': len([c for c in sales_rep_needed if 8 <= c['priority_score'] < 15]),
+            'low_priority': len([c for c in sales_rep_needed if c['priority_score'] < 8]),
+            'customers': sales_rep_needed
+        })
+
+    except Exception as e:
+        logger.error(f"Error in sales_rep_needed: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/import-customers', methods=['GET', 'POST'])
 @login_required

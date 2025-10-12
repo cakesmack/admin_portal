@@ -241,7 +241,7 @@
         formData.append("image", file);
 
         try {
-          const response = await fetch("/api/upload-image", {
+          const response = await fetch("/company-updates/api/upload-image", {
             method: "POST",
             body: formData,
           });
@@ -265,7 +265,7 @@
   // Load Categories
   async function loadCategories() {
     try {
-      const response = await fetch("/api/categories");
+      const response = await fetch("/company-updates/api/categories");
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -413,8 +413,8 @@
 
       // Determine if this is an edit or new post
       const url = currentEditId
-        ? `/api/company-updates/${currentEditId}`
-        : "/api/company-updates";
+        ? `/company-updates/api/${currentEditId}`
+        : "/company-updates/api";
       const method = currentEditId ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -455,7 +455,7 @@
       loading.style.display = "block";
       updatesList.style.display = "none";
 
-      const response = await fetch("/api/company-updates");
+      const response = await fetch("/company-updates/api");
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -558,7 +558,7 @@
   async function editUpdate(updateId) {
     try {
       // Fetch the update details
-      const response = await fetch(`/api/company-updates/${updateId}`);
+      const response = await fetch(`/company-updates/api/${updateId}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -577,7 +577,7 @@
     }
 
     try {
-      const response = await fetch(`/api/company-updates/${updateId}`, {
+      const response = await fetch(`/company-updates/api/${updateId}`, {
         method: "DELETE",
       });
 

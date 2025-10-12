@@ -114,7 +114,7 @@ def branded_stock():
                 print(f"✓ Order created successfully: #{new_form.id}")
                 
                 # Generate URLs
-                print_url = url_for('main.print_form', form_id=new_form.id)
+                print_url = url_for('forms.print_form', form_id=new_form.id)
                 redirect_url = url_for('customer_stock.branded_stock')
                 
                 print(f"✓ Print URL: {print_url}")
