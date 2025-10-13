@@ -1510,9 +1510,7 @@
             label: label,
             street: block.querySelector(".address-street").value,
             city: block.querySelector(".address-city").value,
-            state: block.querySelector(".address-state").value,
             zip: block.querySelector(".address-zip").value,
-            country: block.querySelector(".address-country").value,
           });
         });
 
@@ -1532,7 +1530,7 @@
         };
 
         try {
-          const response = await fetch(`/api/customer/${customerId}`, {
+          const response = await fetch(`/customers/api/${customerId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
@@ -1817,7 +1815,7 @@
         };
 
         try {
-          const response = await fetch(`/api/customer/${customerId}`, {
+          const response = await fetch(`/customers/api/${customerId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),

@@ -603,7 +603,7 @@ document.addEventListener('DOMContentLoaded', function() {
     dropdownParent: $('#addCustomerModal'),
     minimumInputLength: 2,
     ajax: {
-        url: '/api/customers/search',
+        url: '/customers/api/search',
         dataType: 'json',
         delay: 250,
         data: function(params) {
@@ -636,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadCustomerAddresses(customerId) {
     try {
-        const response = await fetch(`/api/customer/${customerId}/addresses`);
+        const response = await fetch(`/customers/api/${customerId}/addresses`);
         customerAddresses = await response.json();
         
         const addressSelect = document.getElementById('addressSelect');
