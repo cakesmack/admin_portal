@@ -568,7 +568,7 @@
   async function searchCustomersForStock(searchValue, inputElement, fieldType) {
     try {
       const response = await fetch(
-        `/api/customers/search?q=${encodeURIComponent(searchValue)}`
+        `/customers/api/search?q=${encodeURIComponent(searchValue)}`
       );
       const customers = await response.json();
       showCustomerDropdownForStock(customers, inputElement, fieldType);
@@ -687,7 +687,7 @@
     const container = document.getElementById("addStockAddressContainer");
 
     try {
-      const response = await fetch(`/api/customer/${customerId}/addresses`);
+      const response = await fetch(`/customers/api/${customerId}/addresses`);
       const addresses = await response.json();
 
       console.log("📍 Customer has", addresses.length, "address(es)");
