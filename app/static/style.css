@@ -1182,9 +1182,7 @@ td .small {
   color: #adb5bd !important;
 }
 
-small {
-  color: var(--text-light);
-}
+
 
 .search-container {
   position: relative;

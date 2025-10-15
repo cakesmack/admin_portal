@@ -89,8 +89,7 @@
           <tr>
             <td>{{ product.get('product_code', 'N/A') }}</td>
             <td>
-              <span class="badge bg-primary"
-                >{{ product.get('quantity', 'N/A') }}</span
+              <span>{{ product.get('quantity', 'N/A') }}</span
               >
             </td>
             <td>{{ product.get('product_name', 'N/A') }}</td>
@@ -129,7 +128,7 @@
       <div class="col-md-6">
         {% if form_data.get('notes') %}
         <p><strong>Additional Notes:</strong></p>
-        <div class="alert alert-light">{{ form_data.get('notes') }}</div>
+        <div class="alert alert-info">{{ form_data.get('notes') }}</div>
         {% else %}
         <p><strong>Additional Notes:</strong> None</p>
         {% endif %}
