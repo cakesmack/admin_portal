@@ -35,6 +35,9 @@ body,
   color: var(--text-light) !important;
 }
 
+strong{
+  color: var(--dark-bg);
+}
 /* Navigation Sidebar Styles */
 
 .nav text {
@@ -535,6 +538,45 @@ body,
   );
   color: var(--text-light);
   border-left: 4px solid var(--danger);
+}
+
+.card-header h5,
+.card-header h6,
+.card-title {
+  color: var(--text-light) !important;
+}
+
+/* Fix for alert-secondary boxes with unreadable text */
+.alert.alert-secondary {
+  background: var(--dark-card-hover) !important;
+  color: var(--text-light) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.alert.alert-secondary strong {
+  color: var(--text-light) !important;
+}
+
+.alert.alert-secondary ul {
+  color: var(--text-light) !important;
+}
+
+.alert.alert-secondary li {
+  color: var(--text-light) !important;
+}
+
+/* Ensure all text in admin reports is readable */
+.admin-reports .card-header,
+.admin-reports .card-title,
+.admin-reports h5,
+.admin-reports h6 {
+  color: var(--text-light) !important;
+}
+
+/* Alternative darker background for better contrast */
+.alert.alert-secondary.sales-rep-reasons {
+  background: rgba(52, 58, 64, 0.9) !important;
+  border-left: 3px solid var(--warning) !important;
 }
 
 /* === BADGES === */
@@ -1215,4 +1257,8 @@ td .small {
   .address-selector-wrapper {
     max-width: 100%;
   }
+}
+
+small{
+  color: var(--dark-card);
 }
